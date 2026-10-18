@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- LocalPay in memory, with a stub shop receiving its webhooks: the flow, expiry, refunds and
+       every scenario the product's tests rely on. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\simulators\LocalPay\LocalPay.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="AwesomeAssertions" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

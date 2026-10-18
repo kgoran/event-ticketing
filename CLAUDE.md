@@ -17,7 +17,8 @@ Inventory, Orders, Payments and LocalPay, proven end to end by `dev/AppHost.Test
 (C1: venues, seat maps, prices, on-sale schedule), browsing (C2: search, event page, versioned seat
 map; `.http` files in the API hosts), Organizers (G1), Inventory holds (I1: seats and standing slots,
 claims with expiry inside, one hold per fan, best available, availability), the Inventory module
-API with backstop and sweeper (I2; recurring scheduled messages). Next: L1, P1, O1, O2, P2, T1, Q1–Q4. Implementation decisions awaiting review: design-decisions.md §14.
+API with backstop and sweeper (I2; recurring scheduled messages), the LocalPay simulator (L1: expiry,
+refunds, scenarios by amount, headless mode, OpenAPI document, tests). Next: P1, O1, O2, P2, T1, Q1–Q4. Implementation decisions awaiting review: design-decisions.md §14.
 The M1a time-box is still to be agreed.
 
 ## Commands

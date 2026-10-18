@@ -1,23 +1,36 @@
 using System.Collections.Concurrent;
-using System.Globalization;
-using System.Net.Http.Json;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Encodings.Web;
-using System.Text.Json;
-using Microsoft.Extensions.Options;
 
 namespace EventTicketing.Tooling.LocalPay;
 
+/// <param name="Reference">The shop's own ID for the payment, e.g. the order ID.</param>
+/// <param name="ExpiresAt">When the payment page stops accepting payment, like a Stripe Checkout Session.</param>
 public sealed record CreatePayment(string Reference, long AmountMinorUnits, string Currency, string ReturnUrl, DateTimeOffset ExpiresAt);
 
-public sealed record PaymentResponse(string Id, string Reference, long AmountMinorUnits, string Currency, string Status, string CheckoutUrl);
+/// <param name="Status">requires_payment, succeeded, failed or expired.</param>
+/// <param name="Scenario">The misbehaviour this payment's amount asks for, if any (see <see cref="Scenarios"/>).</param>
+public sealed record PaymentResponse(
+    string Id,
+    string Reference,
+    long AmountMinorUnits,
+    string Currency,
+    string Status,
+    string CheckoutUrl,
+    DateTimeOffset ExpiresAt,
+    long RefundedMinorUnits,
+    string? Scenario);
+
+/// <param name="AmountMinorUnits">Leave out to refund whatever hasn't been refunded yet.</param>
+public sealed record CreateRefund(string PaymentId, long? AmountMinorUnits = null, string? Reason = null);
+
+/// <param name="Status">Always succeeded: LocalPay refunds at once.</param>
+public sealed record RefundResponse(string Id, string PaymentId, long AmountMinorUnits, string Currency, string Status);
 
 public static class PaymentStatus
 {
     public const string RequiresPayment = "requires_payment";
     public const string Succeeded = "succeeded";
     public const string Failed = "failed";
+    public const string Expired = "expired";
 }
 
 public sealed class Payment
@@ -36,21 +49,54 @@ public sealed class Payment
 
     public required string CheckoutUrl { get; init; }
 
+    public Scenario Scenario { get; init; }
+
     public string Status { get; set; } = PaymentStatus.RequiresPayment;
 
-    public PaymentResponse ToResponse() => new(Id, Reference, AmountMinorUnits, Currency, Status, CheckoutUrl);
+    public long RefundedMinorUnits { get; set; }
+
+    public PaymentResponse ToResponse() =>
+        new(Id, Reference, AmountMinorUnits, Currency, Status, CheckoutUrl, ExpiresAt, RefundedMinorUnits, Scenarios.NameOf(Scenario));
 }
 
-/// <summary>Payments in memory. A repeated Idempotency-Key returns the payment created the first time, like a real provider.</summary>
-public sealed class PaymentStore
+public sealed class Refund
+{
+    public required string Id { get; init; }
+
+    public required Payment Payment { get; init; }
+
+    public long AmountMinorUnits { get; init; }
+
+    public RefundResponse ToResponse() => new(Id, Payment.Id, AmountMinorUnits, Payment.Currency, "succeeded");
+}
+
+/// <summary>What happened when a payment was asked to change.</summary>
+public enum Change
+{
+    /// <summary>The payment changed; send its webhook.</summary>
+    Changed,
+
+    /// <summary>The payment was already in a final state and stays as it was.</summary>
+    Unchanged,
+}
+
+/// <summary>
+/// Payments and refunds in memory; the lab is disposable anyway (ADR-0022). A repeated
+/// Idempotency-Key returns what the first request created, like a real provider. Payments expire
+/// lazily: an open payment past its expiry counts as expired from then on.
+/// </summary>
+public sealed class PaymentStore(TimeProvider time)
 {
     private readonly ConcurrentDictionary<string, Payment> _payments = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Refund> _refunds = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _idempotencyKeys = new(StringComparer.Ordinal);
 
-    public Payment Create(CreatePayment request, string? idempotencyKey, string baseUrl)
+    /// <returns>The payment, and whether this request created it (false for a repeated key).</returns>
+    public (Payment Payment, bool Created) Create(CreatePayment request, string? idempotencyKey, string baseUrl)
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var created = false;
         Payment NewPayment()
         {
             var id = "pay_" + Guid.NewGuid().ToString("N");
@@ -63,24 +109,23 @@ public sealed class PaymentStore
                 ReturnUrl = request.ReturnUrl,
                 ExpiresAt = request.ExpiresAt,
                 CheckoutUrl = $"{baseUrl}/checkout/{id}",
+                Scenario = Scenarios.For(request.AmountMinorUnits),
             };
             _payments[id] = payment;
+            created = true;
             return payment;
         }
 
         if (string.IsNullOrEmpty(idempotencyKey))
         {
-            return NewPayment();
+            return (NewPayment(), true);
         }
 
-        var paymentId = _idempotencyKeys.GetOrAdd(idempotencyKey, _ => NewPayment().Id);
-        return _payments[paymentId];
+        var paymentId = _idempotencyKeys.GetOrAdd("payment:" + idempotencyKey, _ => NewPayment().Id);
+        return (_payments[paymentId], created);
     }
 
-    public Payment? Find(string paymentId) => _payments.GetValueOrDefault(paymentId);
-
-    /// <summary>Approves or declines a payment that is still open; a payment already decided stays as it was.</summary>
-    public Payment? Complete(string paymentId, bool succeeded)
+    public Payment? Find(string paymentId)
     {
         if (!_payments.TryGetValue(paymentId, out var payment))
         {
@@ -89,114 +134,119 @@ public sealed class PaymentStore
 
         lock (payment)
         {
-            if (payment.Status == PaymentStatus.RequiresPayment)
-            {
-                payment.Status = succeeded ? PaymentStatus.Succeeded : PaymentStatus.Failed;
-            }
+            ExpireIfDue(payment);
         }
 
         return payment;
     }
-}
 
-public sealed class WebhookOptions
-{
-    /// <summary>The shop's webhook endpoint, e.g. WebhookIngress's /webhooks/localpay.</summary>
-    public string? Url { get; set; }
-
-    /// <summary>Shared with the shop; signs every webhook (HMAC-SHA256).</summary>
-    public string Secret { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Sends signed webhooks. Header: <c>LocalPay-Signature: t={unix seconds},v1={hex HMAC-SHA256 of "t.body"}</c>.
-/// </summary>
-public sealed partial class WebhookSender(HttpClient http, IOptions<WebhookOptions> options, TimeProvider time, ILogger<WebhookSender> logger)
-{
-    public async Task SendAsync(Payment payment, CancellationToken cancellationToken)
+    /// <summary>
+    /// The fan approved or declined. Only an open payment changes; an approval of a payment whose
+    /// scenario is "decline" fails it.
+    /// </summary>
+    public (Payment? Payment, Change Change) Complete(string paymentId, bool approved)
     {
-        ArgumentNullException.ThrowIfNull(payment);
-
-        if (string.IsNullOrWhiteSpace(options.Value.Url))
+        if (!_payments.TryGetValue(paymentId, out var payment))
         {
-            LogNoWebhookUrl(logger, payment.Id);
-            return;
+            return (null, Change.Unchanged);
         }
 
-        var type = payment.Status == PaymentStatus.Succeeded ? "payment.succeeded" : "payment.failed";
-        var body = JsonSerializer.Serialize(
-            new
-            {
-                id = "evt_" + Guid.NewGuid().ToString("N"),
-                type,
-                created = time.GetUtcNow(),
-                data = new { paymentId = payment.Id, reference = payment.Reference, amountMinorUnits = payment.AmountMinorUnits, currency = payment.Currency, status = payment.Status },
-            },
-            JsonSerializerOptions.Web);
-
-        var timestamp = time.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
-        var signature = Convert.ToHexStringLower(HMACSHA256.HashData(
-            Encoding.UTF8.GetBytes(options.Value.Secret),
-            Encoding.UTF8.GetBytes($"{timestamp}.{body}")));
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, options.Value.Url)
+        lock (payment)
         {
-            Content = new StringContent(body, Encoding.UTF8, "application/json"),
-        };
-        request.Headers.Add("LocalPay-Signature", $"t={timestamp},v1={signature}");
+            ExpireIfDue(payment);
+            if (payment.Status != PaymentStatus.RequiresPayment)
+            {
+                return (payment, Change.Unchanged);
+            }
 
-        // Delivery retries and the misbehaviour scenarios (late, duplicate, missing) arrive with L1.
-        using var response = await http.SendAsync(request, cancellationToken);
-        LogWebhookSent(logger, type, payment.Id, (int)response.StatusCode);
+            payment.Status = approved && payment.Scenario != Scenario.Decline ? PaymentStatus.Succeeded : PaymentStatus.Failed;
+            return (payment, Change.Changed);
+        }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "No webhook URL configured; payment {PaymentId} was not reported")]
-    private static partial void LogNoWebhookUrl(ILogger logger, string paymentId);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Sent {Type} for {PaymentId}: HTTP {StatusCode}")]
-    private static partial void LogWebhookSent(ILogger logger, string type, string paymentId, int statusCode);
-}
-
-public static class CheckoutPage
-{
-    public static string Render(Payment payment)
+    /// <summary>
+    /// The shop expires the payment early, e.g. at its checkout deadline. With the "completes during
+    /// expiry" scenario the fan's payment wins the race: it succeeds just before, and stays succeeded.
+    /// </summary>
+    /// <returns>The payment, and Changed if it succeeded during this call (its webhook is due).</returns>
+    public (Payment? Payment, Change Change) Expire(string paymentId)
     {
-        ArgumentNullException.ThrowIfNull(payment);
+        if (!_payments.TryGetValue(paymentId, out var payment))
+        {
+            return (null, Change.Unchanged);
+        }
 
-        var encode = HtmlEncoder.Default;
-        var amount = (payment.AmountMinorUnits / 100m).ToString("0.00", CultureInfo.InvariantCulture);
-        var id = encode.Encode(payment.Id);
-        var decided = payment.Status != PaymentStatus.RequiresPayment;
+        lock (payment)
+        {
+            ExpireIfDue(payment);
+            if (payment.Status != PaymentStatus.RequiresPayment)
+            {
+                return (payment, Change.Unchanged);
+            }
 
-        return $$"""
-            <!doctype html>
-            <html lang="en">
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <title>LocalPay checkout</title>
-              <style>
-                body { font-family: system-ui, sans-serif; max-width: 26rem; margin: 3rem auto; padding: 0 1rem; color: #1b1b1f; }
-                .amount { font-size: 2rem; margin: .5rem 0 1.5rem; }
-                form { display: inline; }
-                button { font-size: 1rem; padding: .6rem 1.4rem; margin-right: .5rem; border-radius: .4rem; border: 1px solid #888; cursor: pointer; }
-                .approve { background: #1f7a3a; color: white; border-color: #1f7a3a; }
-                small { color: #666; }
-              </style>
-            </head>
-            <body>
-              <h1>LocalPay</h1>
-              <p>Payment for order <code>{{encode.Encode(payment.Reference)}}</code></p>
-              <div class="amount">{{amount}} {{encode.Encode(payment.Currency)}}</div>
-              {{(decided
-                  ? $"<p>This payment is already <strong>{encode.Encode(payment.Status)}</strong>.</p>"
-                  : $"""
-                    <form method="post" action="/checkout/{id}/approve"><button class="approve">Approve</button></form>
-                    <form method="post" action="/checkout/{id}/decline"><button>Decline</button></form>
-                    """)}}
-              <p><small>A payment simulator for development and tests. No real money moves.</small></p>
-            </body>
-            </html>
-            """;
+            if (payment.Scenario == Scenario.CompletesDuringExpiry)
+            {
+                payment.Status = PaymentStatus.Succeeded;
+                return (payment, Change.Changed);
+            }
+
+            payment.Status = PaymentStatus.Expired;
+            return (payment, Change.Unchanged);
+        }
+    }
+
+    public RefundOutcome Refund(CreateRefund request, string? idempotencyKey)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!string.IsNullOrEmpty(idempotencyKey)
+            && _idempotencyKeys.TryGetValue("refund:" + idempotencyKey, out var existingId)
+            && _refunds.TryGetValue(existingId, out var existing))
+        {
+            return new RefundOutcome(existing, null, Repeated: true);
+        }
+
+        if (!_payments.TryGetValue(request.PaymentId, out var payment))
+        {
+            return new RefundOutcome(null, "No such payment.");
+        }
+
+        lock (payment)
+        {
+            if (payment.Status != PaymentStatus.Succeeded)
+            {
+                return new RefundOutcome(null, $"Only succeeded payments can be refunded; this one is {payment.Status}.");
+            }
+
+            var remaining = payment.AmountMinorUnits - payment.RefundedMinorUnits;
+            var amount = request.AmountMinorUnits ?? remaining;
+            if (amount <= 0 || amount > remaining)
+            {
+                return new RefundOutcome(null, $"Refund 1 to {remaining} minor units.");
+            }
+
+            payment.RefundedMinorUnits += amount;
+            var refund = new Refund { Id = "re_" + Guid.NewGuid().ToString("N"), Payment = payment, AmountMinorUnits = amount };
+            _refunds[refund.Id] = refund;
+            if (!string.IsNullOrEmpty(idempotencyKey))
+            {
+                _idempotencyKeys["refund:" + idempotencyKey] = refund.Id;
+            }
+
+            return new RefundOutcome(refund, null);
+        }
+    }
+
+    public Refund? FindRefund(string refundId) => _refunds.GetValueOrDefault(refundId);
+
+    private void ExpireIfDue(Payment payment)
+    {
+        if (payment.Status == PaymentStatus.RequiresPayment && time.GetUtcNow() >= payment.ExpiresAt)
+        {
+            payment.Status = PaymentStatus.Expired;
+        }
     }
 }
+
+/// <param name="Repeated">The same Idempotency-Key was used before; this is the refund it made.</param>
+public sealed record RefundOutcome(Refund? Refund, string? Problem, bool Repeated = false);
