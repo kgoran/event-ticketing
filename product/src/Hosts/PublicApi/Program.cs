@@ -1,3 +1,7 @@
+using EventTicketing.Catalog;
+using EventTicketing.Inventory.Infrastructure;
+using EventTicketing.Orders.Infrastructure;
+using EventTicketing.Payments.Infrastructure;
 using EventTicketing.Shared.Infrastructure.Authentication;
 using EventTicketing.Shared.Infrastructure.Modules;
 using Scalar.AspNetCore;
@@ -7,11 +11,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddApiAuthentication();
-builder.AddModules(HostKind.PublicApi); // modules are added here as they are built
+builder.AddModules(HostKind.PublicApi, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule());
 builder.Services.AddOpenApi();
+builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
+app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
 

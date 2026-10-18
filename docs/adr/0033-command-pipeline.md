@@ -53,3 +53,8 @@ and a mediator between modules hides dependencies (design-decisions §6).
   already open further out is refused. A coordinating command that calls other modules or an
   external service (e.g. `StartCheckout`) must not hold a transaction open while doing so; a way to
   mark such commands as non-transactional arrives with backlog item O1.
+- **2026-10-18 (built in S2, earlier than planned):** `INonTransactionalCommand` marks coordinating
+  commands (`StartCheckout`, `CreateCheckout`); the pipeline runs them without the transaction and
+  audit steps, and the commands they call run with their own. Commands reachable only through a
+  module API get an explicit one-line authorizer deriving from `InternalCommandAuthorizer<T>`;
+  `RoleAuthorizer<T>` covers "any caller with this role".

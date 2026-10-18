@@ -12,7 +12,9 @@ It is not a product. Keep the domain simple and the engineering concerns rich.
 Design complete (architecture agreed 2026-10-18: `docs/architecture/overview.md`, ADRs in
 `docs/adr/`). Repository: https://github.com/kgoran/event-ticketing (public).
 M1a is in progress (`docs/milestones/m1a.md`). Done: the walking skeleton (F1–F3, F5, F6) and the
-outbox, inbox and scheduler (F4), Keycloak (K1). Next: the first vertical slice (S2).
+outbox, inbox and scheduler (F4), Keycloak (K1), the first vertical slice (S2: thin Catalog,
+Inventory, Orders, Payments and LocalPay, proven end to end by `dev/AppHost.Tests`). Next: the
+breadth items (C1, C2, G1, I1, I2, O1, O2, P1, P2, L1, T1, Q1–Q4).
 The M1a time-box is still to be agreed.
 
 ## Commands
@@ -24,7 +26,9 @@ dotnet test --project dev/AppHost.Tests             # whole system under Aspire;
 dotnet run --project dev/AppHost                    # local development
 ```
 
-Package versions live in `Directory.Packages.props`; warnings are errors. A build regenerates
+Package versions live in `Directory.Packages.props`; warnings are errors. EF Core migrations:
+`dotnet ef migrations add <Name> --project <module project> --startup-project <module project>
+--context <ModuleDbContext> --output-dir Persistence/Migrations` (`dotnet tool restore` first). A build regenerates
 `product/src/Hosts/*/openapi/*.json`; commit them (CI fails if they are stale).
 
 ## Working agreements

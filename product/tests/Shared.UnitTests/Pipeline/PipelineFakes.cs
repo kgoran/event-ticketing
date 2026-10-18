@@ -93,6 +93,20 @@ internal sealed class SampleValidator : AbstractValidator<SampleCommand>
     }
 }
 
+/// <summary>A coordinating command: it calls other commands and must not hold a transaction open.</summary>
+internal sealed record CoordinatingCommand : ICommand<string>, INonTransactionalCommand;
+
+internal sealed class CoordinatingHandler(Steps steps) : ICommandHandler<CoordinatingCommand, string>
+{
+    public Task<Result<string>> HandleAsync(CoordinatingCommand command, CancellationToken cancellationToken)
+    {
+        steps.Add("coordinator");
+        return Task.FromResult<Result<string>>("coordinated");
+    }
+}
+
+internal sealed class CoordinatingAuthorizer : InternalCommandAuthorizer<CoordinatingCommand>;
+
 /// <summary>A command nobody wrote an authorizer for.</summary>
 internal sealed record UnguardedCommand : ICommand<Unit>;
 

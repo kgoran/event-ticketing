@@ -5,9 +5,13 @@ namespace EventTicketing.Shared.Contracts;
 /// public, versioned contracts (ADR-0002): add fields, never change or remove them; a breaking
 /// change becomes a new version of the event.
 /// </summary>
+/// <remarks>
+/// <see cref="MessageId"/> identifies the message itself; consumers use it to drop duplicates. It is
+/// deliberately not called EventId: in this codebase "event" means a ticketed event.
+/// </remarks>
 public interface IIntegrationEvent
 {
-    Guid EventId { get; }
+    Guid MessageId { get; }
 
     DateTimeOffset OccurredAt { get; }
 }

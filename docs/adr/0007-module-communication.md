@@ -57,3 +57,10 @@ Organizer membership travels in the login token, so checking it needs no call to
 - Personal data (buyer emails) ends up in event topics, so topics get a retention limit (set in M4).
 - Adding a consumer needs no change to the producer.
 - Adding a new synchronous call means amending this ADR.
+
+## Updates
+
+- **2026-10-18 (S2):** integration events identify the message with `MessageId`, not `EventId`:
+  in this codebase "event" means a ticketed event, and `EventId` always refers to one. The module
+  APIs exist as `IInventoryApi` and `IPaymentsApi`, each implemented in-process by running the
+  module's own commands through the pipeline.

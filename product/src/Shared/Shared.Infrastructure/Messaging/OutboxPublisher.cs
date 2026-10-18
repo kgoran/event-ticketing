@@ -7,8 +7,8 @@ using EventTicketing.Shared.Infrastructure.Transactions;
 namespace EventTicketing.Shared.Infrastructure.Messaging;
 
 /// <summary>
-/// Adds the event to the outbox of the module whose transaction is open. The event's ID becomes
-/// the message ID, which consumers use to drop duplicates.
+/// Adds the event to the outbox of the module whose transaction is open. Its message ID is what
+/// consumers use to drop duplicates.
 /// </summary>
 internal sealed class OutboxPublisher(ModuleScope scope) : IIntegrationEventPublisher
 {
@@ -22,7 +22,7 @@ internal sealed class OutboxPublisher(ModuleScope scope) : IIntegrationEventPubl
 
         context.Set<OutboxMessage>().Add(new OutboxMessage
         {
-            Id = integrationEvent.EventId,
+            Id = integrationEvent.MessageId,
             Type = name,
             Version = version,
             Payload = JsonSerializer.Serialize(integrationEvent, MessagingJson.Options),

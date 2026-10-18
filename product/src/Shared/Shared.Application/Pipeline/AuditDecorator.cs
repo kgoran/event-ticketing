@@ -18,11 +18,14 @@ internal sealed class AuditDecorator<TCommand, TResult>(
     : ICommandHandler<TCommand, TResult>
     where TCommand : ICommand<TResult>
 {
+    // A coordinating command has no transaction of its own; the commands it calls audit themselves.
+    private static readonly bool IsCoordinator = typeof(INonTransactionalCommand).IsAssignableFrom(typeof(TCommand));
+
     public async Task<Result<TResult>> HandleAsync(TCommand command, CancellationToken cancellationToken)
     {
         var result = await inner.HandleAsync(command, cancellationToken);
 
-        if (result.IsSuccess)
+        if (result.IsSuccess && !IsCoordinator)
         {
             var entry = new AuditEntry(
                 typeof(TCommand).Name,

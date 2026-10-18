@@ -14,6 +14,10 @@ internal sealed class TransactionDecorator<TCommand, TResult>(
     : ICommandHandler<TCommand, TResult>
     where TCommand : ICommand<TResult>
 {
+    private static readonly bool IsCoordinator = typeof(INonTransactionalCommand).IsAssignableFrom(typeof(TCommand));
+
     public Task<Result<TResult>> HandleAsync(TCommand command, CancellationToken cancellationToken) =>
-        runner.RunAsync(typeof(TCommand), token => inner.HandleAsync(command, token), cancellationToken);
+        IsCoordinator
+            ? inner.HandleAsync(command, cancellationToken)
+            : runner.RunAsync(typeof(TCommand), token => inner.HandleAsync(command, token), cancellationToken);
 }

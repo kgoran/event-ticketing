@@ -18,11 +18,12 @@ public sealed class AuthenticationTests
 
     [Theory]
     [MemberData(nameof(ApiHosts))]
-    public async Task Health_and_the_OpenAPI_document_need_no_token(string host)
+    public async Task Liveness_and_the_OpenAPI_document_need_no_token(string host)
     {
         await using var api = HostUnderTest.Start(host);
 
-        (await api.Client.GetAsync(new Uri("/health", UriKind.Relative), CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
+        // /alive, not /health: readiness includes the database, which these in-memory hosts don't have.
+        (await api.Client.GetAsync(new Uri("/alive", UriKind.Relative), CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await api.Client.GetAsync(new Uri("/openapi/v1.json", UriKind.Relative), CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
