@@ -14,8 +14,8 @@ Design complete (architecture agreed 2026-10-18: `docs/architecture/overview.md`
 M1a is in progress (`docs/milestones/m1a.md`). Done: the walking skeleton (F1–F3, F5, F6) and the
 outbox, inbox and scheduler (F4), Keycloak (K1), the first vertical slice (S2: thin Catalog,
 Inventory, Orders, Payments and LocalPay, proven end to end by `dev/AppHost.Tests`), Catalog
-(C1: venues, seat maps, prices, on-sale schedule). Next: C2, G1, I1, I2, L1, P1, O1, O2, P2, T1,
-Q1–Q4. Implementation decisions awaiting review: design-decisions.md §14.
+(C1: venues, seat maps, prices, on-sale schedule), browsing (C2: search, event page, versioned seat
+map; `.http` files in the API hosts). Next: G1, I1, I2, L1, P1, O1, O2, P2, T1, Q1–Q4. Implementation decisions awaiting review: design-decisions.md §14.
 The M1a time-box is still to be agreed.
 
 ## Commands

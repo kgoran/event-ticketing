@@ -1,0 +1,89 @@
+# Organizer flows in the back office. Start the AppHost first: dotnet run --project dev/AppHost
+# Run the requests top to bottom: each one uses values from the responses before it.
+
+@backOffice = http://localhost:5102
+@keycloak = http://localhost:8180
+@organizerId = 0199f2a0-0000-7000-8000-000000000001
+
+### Sign in as olga, a member of the seeded organizer (password grant, development client only)
+# @name olga
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=olga&password=olga
+
+### Import a venue: two seated tribunes and a standing floor
+# @name venue
+POST {{backOffice}}/venues
+Authorization: Bearer {{olga.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "organizerId": "{{organizerId}}",
+  "name": "Demo Arena",
+  "timeZone": "Europe/Zagreb",
+  "sections": [
+    {
+      "code": "A", "name": "Tribune A", "kind": "Seated", "x": 0, "y": 0,
+      "rows": [ { "label": "1", "seats": 10 }, { "label": "2", "seats": 10 }, { "label": "3", "seats": 12 } ]
+    },
+    {
+      "code": "B", "name": "Tribune B", "kind": "Seated", "x": 15, "y": 0,
+      "rows": [ { "label": "1", "seats": 10, "firstNumber": 11 }, { "label": "2", "seats": 10, "firstNumber": 11 } ]
+    },
+    { "code": "FLOOR", "name": "Floor", "kind": "Standing", "capacity": 200, "x": 0, "y": 5 }
+  ]
+}
+
+### The imported venue: sections and their places
+GET {{backOffice}}/venues/{{venue.response.body.$.venueId}}
+Authorization: Bearer {{olga.response.body.$.access_token}}
+
+### Create an event: row 1 of each tribune is Premium, the other seats Standard, the floor its own category
+# @name event
+POST {{backOffice}}/events
+Authorization: Bearer {{olga.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "organizerId": "{{organizerId}}",
+  "venueId": "{{venue.response.body.$.venueId}}",
+  "name": "Demo concert",
+  "startsAt": "{{$datetime iso8601 60 d}}",
+  "currency": "EUR",
+  "priceCategories": [
+    { "name": "Premium", "priceMinorUnits": 9000 },
+    { "name": "Standard", "priceMinorUnits": 5000 },
+    { "name": "Floor", "priceMinorUnits": 3500 }
+  ],
+  "seating": [
+    { "section": "A", "priceCategory": "Premium", "rows": [ "1" ] },
+    { "section": "A", "priceCategory": "Standard" },
+    { "section": "B", "priceCategory": "Premium", "rows": [ "1" ] },
+    { "section": "B", "priceCategory": "Standard" },
+    { "section": "FLOOR", "priceCategory": "Floor" }
+  ]
+}
+
+### The event as you manage it: status, sales phase, price category IDs
+# @name details
+GET {{backOffice}}/events/{{event.response.body.$.eventId}}
+Authorization: Bearer {{olga.response.body.$.access_token}}
+
+### Open sales now (a time in the past means now; a future time schedules them)
+PUT {{backOffice}}/events/{{event.response.body.$.eventId}}/on-sale
+Authorization: Bearer {{olga.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "onSaleAt": "2020-01-01T00:00:00Z" }
+
+### Change the price of the first category (orders already placed keep theirs)
+PUT {{backOffice}}/events/{{event.response.body.$.eventId}}/prices
+Authorization: Bearer {{olga.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "prices": [ { "priceCategoryId": "{{details.response.body.$.priceCategories[0].priceCategoryId}}", "priceMinorUnits": 5500 } ] }
+
+### Publish: Inventory and Orders build their copies from EventPublished
+POST {{backOffice}}/events/{{event.response.body.$.eventId}}/publish
+Authorization: Bearer {{olga.response.body.$.access_token}}

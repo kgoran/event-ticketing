@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using NpgsqlTypes;
 
 #nullable disable
 
@@ -54,6 +55,17 @@ namespace EventTicketing.Catalog.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("published_at");
 
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasColumnName("search_vector")
+                        .HasComputedColumnSql("to_tsvector('simple', name || ' ' || venue_name)", true);
+
+                    b.Property<string>("SeatMapVersion")
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("seat_map_version");
+
                     b.Property<DateTimeOffset>("StartsAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("starts_at");
@@ -64,9 +76,21 @@ namespace EventTicketing.Catalog.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("time_zone");
+
                     b.Property<Guid>("VenueId")
                         .HasColumnType("uuid")
                         .HasColumnName("venue_id");
+
+                    b.Property<string>("VenueName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("venue_name");
 
                     b.HasKey("Id")
                         .HasName("pk_events");
@@ -74,8 +98,16 @@ namespace EventTicketing.Catalog.Persistence.Migrations
                     b.HasIndex("OrganizerId")
                         .HasDatabaseName("ix_events_organizer_id");
 
+                    b.HasIndex("SearchVector")
+                        .HasDatabaseName("ix_events_search_vector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "gin");
+
                     b.HasIndex("VenueId")
                         .HasDatabaseName("ix_events_venue_id");
+
+                    b.HasIndex("Status", "StartsAt")
+                        .HasDatabaseName("ix_events_status_starts_at");
 
                     b.ToTable("events", "catalog");
                 });

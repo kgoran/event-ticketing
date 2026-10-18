@@ -1,3 +1,4 @@
+using EventTicketing.Catalog.Browse;
 using EventTicketing.Catalog.Events;
 using EventTicketing.Catalog.Persistence;
 using EventTicketing.Catalog.Venues;
@@ -29,6 +30,11 @@ public sealed class CatalogModule : IModule
         {
             VenueEndpoints.MapManagement(endpoints);
             EventEndpoints.MapManagement(endpoints);
+        }
+
+        if (host == HostKind.PublicApi)
+        {
+            BrowseEndpoints.Map(endpoints);
         }
     }
 }

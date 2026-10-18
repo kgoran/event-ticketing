@@ -1,3 +1,4 @@
+using EventTicketing.Catalog.Browse;
 using EventTicketing.Catalog.Contracts;
 using EventTicketing.Catalog.Persistence;
 using EventTicketing.Catalog.Venues;
@@ -35,18 +36,18 @@ internal sealed class PublishEventHandler(CatalogDbContext db, IIntegrationEvent
             return Error.NotFound("event.not_found", "The event does not exist.");
         }
 
-        var now = time.GetUtcNow();
-        var published = @event.Publish(now);
-        if (published.IsFailure)
-        {
-            return published.Error;
-        }
-
         var venue = await db.Venues
             .AsNoTracking()
             .Include(v => v.Sections).ThenInclude(s => s.Seats)
             .AsSplitQuery()
             .SingleAsync(v => v.Id == @event.VenueId, cancellationToken);
+
+        var now = time.GetUtcNow();
+        var published = @event.Publish(now, SeatMaps.VersionOf(@event, venue));
+        if (published.IsFailure)
+        {
+            return published.Error;
+        }
 
         var sections = venue.Sections.OrderBy(s => s.Position).ToList();
 
@@ -57,7 +58,7 @@ internal sealed class PublishEventHandler(CatalogDbContext db, IIntegrationEvent
             @event.OrganizerId,
             @event.Name,
             @event.StartsAt,
-            venue.TimeZone,
+            @event.TimeZone,
             @event.Currency,
             @event.OnSaleAt,
             [.. @event.PriceCategories.Select(c => new PublishedPriceCategory(c.Id, c.Name, c.PriceMinorUnits))],

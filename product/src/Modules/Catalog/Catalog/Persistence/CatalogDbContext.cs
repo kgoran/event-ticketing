@@ -3,12 +3,22 @@ using EventTicketing.Catalog.Venues;
 using EventTicketing.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using NpgsqlTypes;
 
 namespace EventTicketing.Catalog.Persistence;
 
 internal sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : ModuleDbContext(options)
 {
     public const string SchemaName = "catalog";
+
+    /// <summary>
+    /// The text-search configuration: "simple" lower-cases words without stemming, because event and
+    /// venue names mix languages and proper nouns that stemming would mangle.
+    /// </summary>
+    public const string SearchConfiguration = "simple";
+
+    /// <summary>A stored, generated tsvector over the event and venue names; a shadow property, so the entity stays plain.</summary>
+    public const string SearchVectorProperty = "SearchVector";
 
     public DbSet<Venue> Venues => Set<Venue>();
 
@@ -55,8 +65,15 @@ internal sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> option
             entity.ToTable("events");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(200);
+            entity.Property(e => e.VenueName).HasMaxLength(200);
+            entity.Property(e => e.TimeZone).HasMaxLength(64);
             entity.Property(e => e.Currency).HasMaxLength(3);
             entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.SeatMapVersion).HasMaxLength(12);
+            entity.Property<NpgsqlTsVector>(SearchVectorProperty)
+                .HasComputedColumnSql($"to_tsvector('{SearchConfiguration}', name || ' ' || venue_name)", stored: true);
+            entity.HasIndex(SearchVectorProperty).HasMethod("gin");
+            entity.HasIndex(e => new { e.Status, e.StartsAt });
             entity.HasOne<Venue>().WithMany().HasForeignKey(e => e.VenueId).OnDelete(DeleteBehavior.Restrict);
             entity.HasMany(e => e.PriceCategories).WithOne().HasForeignKey(c => c.EventId);
             entity.HasMany(e => e.PriceAssignments).WithOne().HasForeignKey(a => a.EventId);
