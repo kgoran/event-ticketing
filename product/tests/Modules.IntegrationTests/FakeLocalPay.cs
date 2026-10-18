@@ -24,6 +24,8 @@ internal sealed class FakeLocalPay
     private readonly ConcurrentDictionary<string, Func<FakePayment, Task>> _onCreated = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, bool> _unreachable = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, bool> _refusesRefunds = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<long, bool> _downForAmount = new();
+    private readonly ConcurrentDictionary<long, bool> _losesResponseForAmount = new();
     private readonly ConcurrentDictionary<string, FakeRefund> _refunds = new(StringComparer.Ordinal);
 
     /// <summary>Runs <paramref name="hook"/> when the order's payment is created, before LocalPay answers.</summary>
@@ -33,6 +35,17 @@ internal sealed class FakeLocalPay
     public void MakeUnreachable(string paymentId) => _unreachable[paymentId] = true;
 
     public void MakeReachable(string paymentId) => _unreachable.TryRemove(paymentId, out _);
+
+    /// <summary>Creating a payment of this amount fails as if LocalPay were down, until <see cref="ComeBackForAmount"/>.</summary>
+    public void GoDownForAmount(long amountMinorUnits) => _downForAmount[amountMinorUnits] = true;
+
+    public void ComeBackForAmount(long amountMinorUnits) => _downForAmount.TryRemove(amountMinorUnits, out _);
+
+    /// <summary>The next payment of this amount is created, but the response is lost on the way back.</summary>
+    public void LoseNextResponseForAmount(long amountMinorUnits) => _losesResponseForAmount[amountMinorUnits] = true;
+
+    public IReadOnlyList<FakePayment> PaymentsFor(Guid orderId) =>
+        [.. _payments.Values.Where(payment => payment.Reference == orderId.ToString())];
 
     /// <summary>Refunds of this payment are refused (409), as LocalPay does for payments it can't refund.</summary>
     public void RefuseRefunds(string paymentId) => _refusesRefunds[paymentId] = true;
@@ -123,6 +136,12 @@ internal sealed class FakeLocalPay
         if (request.Method == HttpMethod.Post && path is ["v1", "payments"])
         {
             var create = (await request.Content!.ReadFromJsonAsync<JsonElement>(cancellationToken))!;
+            var amount = create.GetProperty("amountMinorUnits").GetInt64();
+            if (_downForAmount.ContainsKey(amount))
+            {
+                throw new HttpRequestException("LocalPay is unreachable.");
+            }
+
             var key = request.Headers.TryGetValues("Idempotency-Key", out var keys) ? keys.Single() : Guid.NewGuid().ToString();
             var created = false;
             var id = _idempotencyKeys.GetOrAdd(key, _ =>
@@ -141,6 +160,11 @@ internal sealed class FakeLocalPay
             if (created && _onCreated.TryRemove(stored.Reference, out var hook))
             {
                 await hook(stored);
+            }
+
+            if (_losesResponseForAmount.TryRemove(amount, out _))
+            {
+                throw new HttpRequestException("The response from LocalPay was lost.");
             }
 
             return Json(HttpStatusCode.Created, stored);

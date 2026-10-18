@@ -228,6 +228,11 @@ public sealed class TestSystem : IAsyncLifetime
         new("Payments:LocalPay:BaseUrl", FakeLocalPay.BaseUrl),
         new("Payments:LocalPay:WebhookSecret", FakeLocalPay.WebhookSecret),
         new("Checkout:ReturnUrlTemplate", "http://publicapi.test/orders/{orderId}"),
+
+        // The sweeper runs only when a test makes it due (Scenarios.SweepNowAsync): a sweep briefly
+        // locks expired seats, and a claim running into that lock skips the seat (ADR-0011), which
+        // would make other tests' claims on just-expired seats fail at random.
+        new("Inventory:SweepInterval", "01:00:00"),
     ];
 
     private IHost BuildHost(HostKind kind)
