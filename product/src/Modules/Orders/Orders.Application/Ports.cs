@@ -7,6 +7,9 @@ public interface IOrderRepository
     void Add(Order order);
 
     Task<Order?> FindAsync(Guid orderId, CancellationToken cancellationToken);
+
+    /// <summary>The order for a hold; there is at most one (a unique index).</summary>
+    Task<Order?> FindByHoldAsync(Guid holdId, CancellationToken cancellationToken);
 }
 
 public interface IPriceList

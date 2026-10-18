@@ -18,6 +18,8 @@ namespace EventTicketing.Orders.Application.Checkout;
 /// <item>Orders creates the order with the prices from its own price list.</item>
 /// <item>Payments creates the provider session and returns the URL the fan pays on.</item>
 /// </list>
+/// Asking again for a hold that already has a Pending order resumes that order (a retry after a
+/// timeout, a lost provider response, a double click): Payments returns the same session.
 /// </summary>
 public sealed record StartCheckout(Guid HoldId) : ICommand<CheckoutStarted>, INonTransactionalCommand;
 
@@ -36,6 +38,7 @@ internal sealed class StartCheckoutAuthorizer : RoleAuthorizer<StartCheckout>
 internal sealed class StartCheckoutHandler(
     IInventoryApi inventory,
     IPaymentsApi payments,
+    IOrderRepository orders,
     ICommandHandler<CreateOrder, CreatedOrder> createOrder,
     IExecutionContext caller,
     CheckoutPolicy policy)
@@ -44,12 +47,20 @@ internal sealed class StartCheckoutHandler(
     public async Task<Result<CheckoutStarted>> HandleAsync(StartCheckout command, CancellationToken cancellationToken)
     {
         var customerId = caller.UserId ?? throw new InvalidOperationException("Checkout needs a signed-in caller.");
-        var orderId = Guid.CreateVersion7();
 
+        if (await orders.FindByHoldAsync(command.HoldId, cancellationToken) is { } existing)
+        {
+            return await ResumeAsync(existing, customerId, cancellationToken);
+        }
+
+        var orderId = Guid.CreateVersion7();
         var checkout = await inventory.BeginCheckoutAsync(command.HoldId, orderId, customerId, cancellationToken);
         if (checkout.Outcome != BeginCheckoutOutcome.Started)
         {
-            return Error.Conflict("checkout.hold_not_active", "The hold has expired or isn't yours.");
+            // Two requests for the same hold at once: the other one may have created the order meanwhile.
+            return await orders.FindByHoldAsync(command.HoldId, cancellationToken) is { } concurrent
+                ? await ResumeAsync(concurrent, customerId, cancellationToken)
+                : Error.Conflict("checkout.hold_not_active", "The hold has expired or isn't yours.");
         }
 
         var created = await createOrder.HandleAsync(
@@ -61,10 +72,29 @@ internal sealed class StartCheckoutHandler(
             return created.Error;
         }
 
+        return await PaymentPageAsync(orderId, created.Value.TotalMinorUnits, created.Value.Currency, cancellationToken);
+    }
+
+    private async Task<Result<CheckoutStarted>> ResumeAsync(Order order, string customerId, CancellationToken cancellationToken)
+    {
+        if (order.CustomerId != customerId)
+        {
+            return Error.Conflict("checkout.hold_not_active", "The hold has expired or isn't yours.");
+        }
+
+        if (order.Status != OrderStatus.Pending)
+        {
+            return Error.Conflict("checkout.order_closed", $"This hold's order is already {order.Status.ToString().ToLowerInvariant()}.");
+        }
+
+        return await PaymentPageAsync(order.Id, order.TotalMinorUnits, order.Currency, cancellationToken);
+    }
+
+    /// <summary>Payments' session for the order: created now, or the one created before (the order ID is the idempotency key).</summary>
+    private async Task<Result<CheckoutStarted>> PaymentPageAsync(Guid orderId, long totalMinorUnits, string currency, CancellationToken cancellationToken)
+    {
         var returnUrl = policy.ReturnUrlTemplate.Replace("{orderId}", orderId.ToString(), StringComparison.Ordinal);
-        var payment = await payments.CreateCheckoutAsync(
-            new CreateCheckoutRequest(orderId, created.Value.TotalMinorUnits, created.Value.Currency, returnUrl),
-            cancellationToken);
+        var payment = await payments.CreateCheckoutAsync(new CreateCheckoutRequest(orderId, totalMinorUnits, currency, returnUrl), cancellationToken);
 
         return payment is { Outcome: CreateCheckoutOutcome.Created, RedirectUrl: { } redirectUrl }
             ? new CheckoutStarted(orderId, redirectUrl)

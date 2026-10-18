@@ -64,6 +64,9 @@ internal sealed class OrderRepository(OrdersDbContext db) : IOrderRepository
 
     public Task<Order?> FindAsync(Guid orderId, CancellationToken cancellationToken) =>
         db.Orders.Include(o => o.Lines).SingleOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+
+    public Task<Order?> FindByHoldAsync(Guid holdId, CancellationToken cancellationToken) =>
+        db.Orders.Include(o => o.Lines).SingleOrDefaultAsync(o => o.HoldId == holdId, cancellationToken);
 }
 
 internal sealed class PriceList(OrdersDbContext db) : IPriceList
