@@ -14,7 +14,9 @@ public sealed class RunningApp : IAsyncLifetime
 {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(5);
 
+    private readonly Lock _seedLock = new();
     private DistributedApplication? _app;
+    private Task<int>? _seeded;
 
     public DistributedApplication App => _app ?? throw new InvalidOperationException("The app has not started.");
 
@@ -23,7 +25,8 @@ public sealed class RunningApp : IAsyncLifetime
         using var timeout = new CancellationTokenSource(StartupTimeout);
         var cancellationToken = timeout.Token;
 
-        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.AppHost>(cancellationToken);
+        // Demo mode: 1-minute holds and 2-minute checkouts, so the demo's expiry steps run in minutes.
+        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.AppHost>(["--Demo=true"], cancellationToken);
         _app = await appHost.BuildAsync(cancellationToken);
         await _app.StartAsync(cancellationToken);
 
@@ -45,6 +48,15 @@ public sealed class RunningApp : IAsyncLifetime
         if (_app is not null)
         {
             await _app.DisposeAsync();
+        }
+    }
+
+    /// <summary>Runs the demo seeder once for all tests that need its events; later calls wait for the same run.</summary>
+    public Task<int> SeedAsync(CancellationToken cancellationToken)
+    {
+        lock (_seedLock)
+        {
+            return _seeded ??= RunSeederAsync(cancellationToken);
         }
     }
 
@@ -77,6 +89,18 @@ public sealed class RunningApp : IAsyncLifetime
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
         return body.GetProperty("access_token").GetString()!;
+    }
+
+    private async Task<int> RunSeederAsync(CancellationToken cancellationToken)
+    {
+        var started = await App.ResourceCommands.ExecuteCommandAsync("seed", KnownResourceCommands.StartCommand, cancellationToken);
+        if (!started.Success)
+        {
+            throw new InvalidOperationException($"The seeder didn't start: {started.Message}");
+        }
+
+        var seed = await App.ResourceNotifications.WaitForResourceAsync("seed", e => e.Snapshot.State?.Text == KnownResourceStates.Finished, cancellationToken);
+        return seed.Snapshot.ExitCode ?? -1;
     }
 
     /// <summary>Polls <paramref name="probe"/> until <paramref name="isDone"/>, for asynchronous steps like the outbox.</summary>

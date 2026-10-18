@@ -2,13 +2,26 @@
 // no data volumes, a fresh database and a freshly imported Keycloak realm every time (ADR-0022).
 var builder = DistributedApplication.CreateBuilder(args);
 
+// Demo mode (dotnet run --project dev/AppHost -- --Demo=true): the demo script's short timings, so
+// expiry can be shown live. Holds last 1 minute and checkouts 2 (docs/demos/m1a.md).
+var demo = string.Equals(builder.Configuration["Demo"], "true", StringComparison.OrdinalIgnoreCase);
+IResourceBuilder<ProjectResource> WithTimings(IResourceBuilder<ProjectResource> host) => demo
+    ? host.WithEnvironment("Inventory__HoldLifetime", "00:01:00").WithEnvironment("Checkout__PaymentDeadline", "00:02:00")
+    : host;
+
 var postgres = builder.AddPostgres("postgres");
 var database = postgres.AddDatabase("eventticketing");
 
-// The development realm: roles, one organizer group, test users ana, ben (fans), olga (organizer),
+// The development realm: roles, one organizer group, test users ana, ben, cid, dan, eva, fil (fans), olga (organizer),
 // adam (admin), passwords equal to the user names. A fixed port keeps token URLs stable in .http files.
+// Plain HTTP even when the developer certificate is trusted: otherwise Aspire serves Keycloak over
+// HTTPS on `dotnet run` (but not in tests), and http://localhost:8180 in .http files would break.
+// The API is marked experimental (ASPIRECERTIFICATES001); revisit when Aspire settles it.
+#pragma warning disable ASPIRECERTIFICATES001
 var keycloak = builder.AddKeycloak("keycloak", port: 8180)
-    .WithRealmImport("./Realms");
+    .WithRealmImport("./Realms")
+    .WithoutHttpsCertificate();
+#pragma warning restore ASPIRECERTIFICATES001
 
 // The APIs validate tokens with standard OIDC discovery against the realm (ADR-0027).
 var authority = ReferenceExpression.Create($"{keycloak.GetEndpoint("http")}/realms/eventticketing");
@@ -25,7 +38,7 @@ var migrator = builder.AddProject<Projects.Migrator>("migrator")
     .WithReference(database)
     .WaitFor(database);
 
-var webhookIngress = builder.AddProject<Projects.WebhookIngress>("webhookingress")
+var webhookIngress = WithTimings(builder.AddProject<Projects.WebhookIngress>("webhookingress"))
     .WithReference(database)
     .WithEnvironment("Payments__LocalPay__WebhookSecret", webhookSecret)
     .WithHttpHealthCheck("/health")
@@ -36,7 +49,7 @@ var localPay = builder.AddProject<Projects.LocalPay>("localpay")
     .WithEnvironment("Webhooks__Secret", webhookSecret)
     .WithHttpHealthCheck("/health");
 
-var publicApi = builder.AddProject<Projects.PublicApi>("publicapi");
+var publicApi = WithTimings(builder.AddProject<Projects.PublicApi>("publicapi"));
 publicApi
     .WithReference(database)
     .WithReference(localPay)
@@ -48,7 +61,7 @@ publicApi
     .WaitFor(keycloak)
     .WaitForCompletion(migrator);
 
-var backOfficeApi = builder.AddProject<Projects.BackOfficeApi>("backofficeapi")
+var backOfficeApi = WithTimings(builder.AddProject<Projects.BackOfficeApi>("backofficeapi"))
     .WithReference(database)
     .WithEnvironment("Authentication__Authority", authority)
     .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
@@ -56,8 +69,11 @@ var backOfficeApi = builder.AddProject<Projects.BackOfficeApi>("backofficeapi")
     .WaitFor(keycloak)
     .WaitForCompletion(migrator);
 
-var workers = builder.AddProject<Projects.Workers>("workers")
+// Workers talks to LocalPay too: cancelling payments at the deadline, status checks, refunds.
+var workers = WithTimings(builder.AddProject<Projects.Workers>("workers"))
     .WithReference(database)
+    .WithReference(localPay)
+    .WithEnvironment("Payments__LocalPay__BaseUrl", "http://localpay")
     .WithEnvironment("Payments__LocalPay__WebhookSecret", webhookSecret)
     .WithHttpHealthCheck("/health")
     .WaitForCompletion(migrator);

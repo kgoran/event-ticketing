@@ -104,6 +104,46 @@
       "realmRoles": ["default-roles-eventticketing"]
     },
     {
+      "username": "cid",
+      "email": "cid@example.test",
+      "firstName": "Cid",
+      "lastName": "Fan",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "cid", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "dan",
+      "email": "dan@example.test",
+      "firstName": "Dan",
+      "lastName": "Fan",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "dan", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "eva",
+      "email": "eva@example.test",
+      "firstName": "Eva",
+      "lastName": "Fan",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "eva", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "fil",
+      "email": "fil@example.test",
+      "firstName": "Fil",
+      "lastName": "Fan",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "fil", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
       "username": "olga",
       "email": "olga@example.test",
       "firstName": "Olga",
