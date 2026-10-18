@@ -42,6 +42,7 @@ public static class ModuleRegistration
         var services = builder.Services;
         services.GetOrAddSingletonInstance<ModuleRegistry>();
         services.GetOrAddSingletonInstance<MessageHandlerRegistry>();
+        services.GetOrAddSingletonInstance<RecurringMessageRegistry>();
 
         foreach (var module in modules)
         {

@@ -80,6 +80,7 @@ internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> op
             entity.Property(s => s.Status).HasMaxLength(20);
             entity.HasIndex(s => s.HoldId);
             entity.HasIndex(s => new { s.EventId, s.Section, s.Rank });
+            entity.HasIndex(s => s.HeldUntil).HasFilter("status = 'Held'").HasDatabaseName("ix_seats_held_until_held");
         });
 
         modelBuilder.Entity<Hold>(entity =>
@@ -92,6 +93,7 @@ internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> op
                 .IsUnique()
                 .HasFilter("status IN ('Active', 'InCheckout')")
                 .HasDatabaseName(OneCurrentHoldPerFan);
+            entity.HasIndex(h => h.ExpiresAt).HasFilter("status IN ('Active', 'InCheckout')").HasDatabaseName("ix_holds_expires_at_current");
         });
 
         modelBuilder.Entity<SalesWindow>(entity =>

@@ -67,6 +67,10 @@ namespace EventTicketing.Inventory.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_holds");
 
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_holds_expires_at_current")
+                        .HasFilter("status IN ('Active', 'InCheckout')");
+
                     b.HasIndex("EventId", "CustomerId")
                         .IsUnique()
                         .HasDatabaseName("ux_holds_one_current_per_fan")
@@ -153,6 +157,10 @@ namespace EventTicketing.Inventory.Infrastructure.Persistence.Migrations
 
                     b.HasKey("EventId", "SeatId")
                         .HasName("pk_seats");
+
+                    b.HasIndex("HeldUntil")
+                        .HasDatabaseName("ix_seats_held_until_held")
+                        .HasFilter("status = 'Held'");
 
                     b.HasIndex("HoldId")
                         .HasDatabaseName("ix_seats_hold_id");

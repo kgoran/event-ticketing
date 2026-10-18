@@ -16,13 +16,16 @@ internal sealed record ClaimedScheduledMessage(Guid Id, string Type, string Payl
 /// One pass of the scheduler over one module: claim messages that are due (SKIP LOCKED), run each
 /// handler in the module's transaction, and delete the row in that same transaction. A failed
 /// handler rolls back and is retried with backoff, then dead-lettered after the last attempt.
-/// All due-time comparisons use the database clock (ADR-0010).
+/// All due-time comparisons use the database clock (ADR-0010). Recurring messages get their next
+/// occurrence in the same transaction as each run (<see cref="RecurringMessageRegistry"/>).
 /// </summary>
 internal sealed partial class ScheduledMessageRunner(
     IServiceProvider services,
     IServiceScopeFactory scopes,
     ModuleRegistry modules,
     MessageHandlerRegistry handlers,
+    RecurringMessageRegistry recurring,
+    TimeProvider time,
     IOptions<MessagingOptions> options,
     ILogger<ScheduledMessageRunner> logger)
 {
@@ -31,6 +34,7 @@ internal sealed partial class ScheduledMessageRunner(
         ArgumentNullException.ThrowIfNull(module);
 
         var context = (ModuleDbContext)services.GetRequiredService(module.ContextType);
+        await EnsureRecurringAsync(context, module, cancellationToken);
         var claimed = await ClaimAsync(context, module, cancellationToken);
 
         foreach (var message in claimed)
@@ -39,6 +43,24 @@ internal sealed partial class ScheduledMessageRunner(
         }
 
         return claimed.Count;
+    }
+
+    /// <summary>
+    /// Starts any recurring message of this module that has no occurrence pending: on the first
+    /// pass, and again if its occurrence was dead-lettered. Checked about once a minute.
+    /// </summary>
+    private async Task EnsureRecurringAsync(ModuleDbContext context, ModuleDatabase module, CancellationToken cancellationToken)
+    {
+        var ours = recurring.MessageTypes.Where(type => modules.Resolve(type) == module).ToList();
+        if (ours.Count == 0 || !recurring.IsCheckDue(module.Schema, time.GetUtcNow()))
+        {
+            return;
+        }
+
+        foreach (var type in ours)
+        {
+            await RecurringMessageSql.EnsurePendingAsync(context, module, type.FullName!, cancellationToken);
+        }
     }
 
     private Task<List<ClaimedScheduledMessage>> ClaimAsync(ModuleDbContext context, ModuleDatabase module, CancellationToken cancellationToken)
@@ -149,6 +171,12 @@ internal sealed partial class ScheduledMessageRunner(
                 }
 
                 await handler.Invoke(provider.GetRequiredService(handler.HandlerType), payload, token);
+
+                if (recurring.IntervalOf(message.Type) is { } interval)
+                {
+                    await RecurringMessageSql.ScheduleNextAsync(moduleContext, module, message.Type, interval, token);
+                }
+
                 return Unit.Value;
             },
             cancellationToken);

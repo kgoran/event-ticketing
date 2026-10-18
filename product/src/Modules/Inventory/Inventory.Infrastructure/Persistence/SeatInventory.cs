@@ -112,37 +112,60 @@ internal sealed class SeatInventory(InventoryDbContext db) : ISeatInventory
             $"""
             UPDATE inventory.seats
             SET status = 'Available', hold_id = NULL, held_until = NULL
-            WHERE hold_id = {holdId} AND status = 'Held'
+            WHERE hold_id = {holdId} AND status IN ('Held', 'Available')
             """,
             cancellationToken);
 
-    public async Task<bool> TryExtendAsync(Guid holdId, int seatCount, TimeSpan lifetime, CancellationToken cancellationToken)
+    public async Task<DateTimeOffset?> TryExtendAsync(Guid holdId, int seatCount, TimeSpan lifetime, CancellationToken cancellationToken)
     {
-        var extended = await db.Database.ExecuteSqlAsync(
-            $"""
+        var extended = await ModuleSql.QueryAsync(
+            db,
+            """
             WITH ours AS (
-                SELECT seat_id FROM inventory.seats
-                WHERE hold_id = {holdId} AND status = 'Held' AND held_until > now()
+                SELECT event_id, seat_id FROM inventory.seats
+                WHERE hold_id = @hold AND status = 'Held' AND held_until > now()
                 FOR UPDATE)
             UPDATE inventory.seats AS s
-            SET held_until = now() + make_interval(secs => {lifetime.TotalSeconds})
+            SET held_until = now() + @lifetime
             FROM ours
-            WHERE s.seat_id = ours.seat_id AND s.hold_id = {holdId}
-              AND (SELECT count(*) FROM ours) = {seatCount}
+            WHERE s.event_id = ours.event_id AND s.seat_id = ours.seat_id
+              AND (SELECT count(*) FROM ours) = @count
+            RETURNING s.held_until
+            """,
+            reader => reader.GetFieldValue<DateTimeOffset>(0),
+            cancellationToken,
+            ("hold", holdId),
+            ("lifetime", lifetime),
+            ("count", (long)seatCount));
+
+        return extended.Count == seatCount ? extended[0] : null;
+    }
+
+    public async Task<int> MarkExpiredAvailableAsync(int batch, CancellationToken cancellationToken) =>
+        await db.Database.ExecuteSqlAsync(
+            $"""
+            WITH expired AS (
+                SELECT event_id, seat_id FROM inventory.seats
+                WHERE status = 'Held' AND held_until < now()
+                ORDER BY held_until
+                LIMIT {batch}
+                FOR UPDATE SKIP LOCKED)
+            UPDATE inventory.seats AS s
+            SET status = 'Available'
+            FROM expired
+            WHERE s.event_id = expired.event_id AND s.seat_id = expired.seat_id
             """,
             cancellationToken);
-
-        return extended == seatCount;
-    }
 
     public async Task<bool> TrySellAsync(Guid holdId, Guid orderId, int seatCount, CancellationToken cancellationToken)
     {
-        // No expiry check: if nobody has taken the seats since the hold expired, they're still ours.
+        // No expiry check: if nobody has taken the seats since the hold expired, they're still ours,
+        // whether or not the sweeper has shown them as Available meanwhile.
         var sold = await db.Database.ExecuteSqlAsync(
             $"""
             WITH ours AS (
                 SELECT seat_id FROM inventory.seats
-                WHERE hold_id = {holdId} AND status = 'Held'
+                WHERE hold_id = {holdId} AND status IN ('Held', 'Available')
                 FOR UPDATE)
             UPDATE inventory.seats AS s
             SET status = 'Sold', order_id = {orderId}, held_until = NULL
@@ -184,7 +207,8 @@ internal sealed class HoldRepository(InventoryDbContext db) : IHoldRepository
         await db.Database.ExecuteSqlAsync(
             $"""
             UPDATE inventory.holds SET status = 'Expired'
-            WHERE event_id = {eventId} AND customer_id = {customerId} AND status = 'Active' AND expires_at < now()
+            WHERE event_id = {eventId} AND customer_id = {customerId}
+              AND status IN ('Active', 'InCheckout') AND expires_at < now()
             """,
             cancellationToken);
 
@@ -193,6 +217,28 @@ internal sealed class HoldRepository(InventoryDbContext db) : IHoldRepository
                 && (hold.Status == HoldStatus.Active || hold.Status == HoldStatus.InCheckout),
             cancellationToken);
     }
+
+    public Task<int> ExpireLapsedAsync(int batch, CancellationToken cancellationToken) =>
+        HoldSweeps.ExpireLapsedAsync(db, batch, cancellationToken);
+}
+
+internal static class HoldSweeps
+{
+    public static async Task<int> ExpireLapsedAsync(InventoryDbContext db, int batch, CancellationToken cancellationToken) =>
+        await db.Database.ExecuteSqlAsync(
+            $"""
+            WITH lapsed AS (
+                SELECT id FROM inventory.holds
+                WHERE status IN ('Active', 'InCheckout') AND expires_at < now()
+                ORDER BY expires_at
+                LIMIT {batch}
+                FOR UPDATE SKIP LOCKED)
+            UPDATE inventory.holds AS h
+            SET status = 'Expired'
+            FROM lapsed
+            WHERE h.id = lapsed.id
+            """,
+            cancellationToken);
 }
 
 internal sealed class SalesWindows(InventoryDbContext db) : ISalesWindows

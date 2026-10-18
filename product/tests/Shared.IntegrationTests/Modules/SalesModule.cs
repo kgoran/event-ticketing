@@ -100,6 +100,18 @@ internal sealed class ScheduleReminderHandler(IMessageScheduler scheduler) : ICo
 
 internal sealed record ReminderDue(string Text);
 
+/// <summary>A message with no data, for recurring-message tests: each run adds a "tick" reminder.</summary>
+internal sealed record Tick;
+
+internal sealed class TickHandler(SalesDbContext db) : IScheduledMessageHandler<Tick>
+{
+    public Task HandleAsync(Tick message, CancellationToken cancellationToken)
+    {
+        db.Reminders.Add(new Reminder { Id = Guid.CreateVersion7(), Text = "tick" });
+        return Task.CompletedTask;
+    }
+}
+
 internal sealed class ReminderDueHandler(SalesDbContext db) : IScheduledMessageHandler<ReminderDue>
 {
     public Task HandleAsync(ReminderDue message, CancellationToken cancellationToken)

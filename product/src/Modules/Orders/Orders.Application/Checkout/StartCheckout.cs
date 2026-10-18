@@ -36,14 +36,16 @@ internal sealed class StartCheckoutHandler(
     IInventoryApi inventory,
     IPaymentsApi payments,
     ICommandHandler<CreateOrder, CreatedOrder> createOrder,
+    IExecutionContext caller,
     CheckoutPolicy policy)
     : ICommandHandler<StartCheckout, CheckoutStarted>
 {
     public async Task<Result<CheckoutStarted>> HandleAsync(StartCheckout command, CancellationToken cancellationToken)
     {
+        var customerId = caller.UserId ?? throw new InvalidOperationException("Checkout needs a signed-in caller.");
         var orderId = Guid.CreateVersion7();
 
-        var checkout = await inventory.BeginCheckoutAsync(command.HoldId, orderId, cancellationToken);
+        var checkout = await inventory.BeginCheckoutAsync(command.HoldId, orderId, customerId, cancellationToken);
         if (checkout.Outcome != BeginCheckoutOutcome.Started)
         {
             return Error.Conflict("checkout.hold_not_active", "The hold has expired or isn't yours.");
