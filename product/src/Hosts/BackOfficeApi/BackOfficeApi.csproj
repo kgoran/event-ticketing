@@ -12,6 +12,7 @@
     <ProjectReference Include="..\..\Modules\Catalog\Catalog\Catalog.csproj" />
     <ProjectReference Include="..\..\Modules\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Orders\Orders.Infrastructure\Orders.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Organizers\Organizers\Organizers.csproj" />
     <ProjectReference Include="..\..\Modules\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj" />
   </ItemGroup>
 

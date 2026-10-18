@@ -17,6 +17,8 @@
     <ProjectReference Include="..\..\src\Modules\Orders\Orders.Contracts\Orders.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Orders\Orders.Domain\Orders.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Orders\Orders.Infrastructure\Orders.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Organizers\Organizers.Contracts\Organizers.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Organizers\Organizers\Organizers.csproj" />
     <ProjectReference Include="..\..\src\Modules\Payments\Payments.Application\Payments.Application.csproj" />
     <ProjectReference Include="..\..\src\Modules\Payments\Payments.Contracts\Payments.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Payments\Payments.Domain\Payments.Domain.csproj" />

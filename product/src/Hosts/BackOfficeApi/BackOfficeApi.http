@@ -5,7 +5,21 @@
 @keycloak = http://localhost:8180
 @organizerId = 0199f2a0-0000-7000-8000-000000000001
 
-### Sign in as olga, a member of the seeded organizer (password grant, development client only)
+### Sign in as adam, an admin (password grant, development client only)
+# @name adam
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=adam&password=adam
+
+### Register the realm's seeded organizer under its Keycloak ID (once per AppHost run; 409 after that)
+POST {{backOffice}}/organizers
+Authorization: Bearer {{adam.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "organizerId": "{{organizerId}}", "name": "Demo Organizer" }
+
+### Sign in as olga, a member of the seeded organizer
 # @name olga
 POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
 Content-Type: application/x-www-form-urlencoded

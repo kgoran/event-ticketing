@@ -3,6 +3,7 @@ using EventTicketing.BackOfficeApi;
 using EventTicketing.Catalog;
 using EventTicketing.Inventory.Infrastructure;
 using EventTicketing.Orders.Infrastructure;
+using EventTicketing.Organizers;
 using EventTicketing.Payments.Infrastructure;
 using EventTicketing.PublicApi;
 using EventTicketing.Shared.Infrastructure.Messaging;
@@ -144,7 +145,7 @@ public sealed class TestSystem : IAsyncLifetime
         return client;
     }
 
-    private static IModule[] Modules() => [new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule()];
+    private static IModule[] Modules() => [new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule()];
 
     private WebApplicationFactory<TEntryPoint> InMemory<TEntryPoint>(WebApplicationFactory<TEntryPoint> factory)
         where TEntryPoint : class =>
