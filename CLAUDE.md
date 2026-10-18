@@ -13,8 +13,9 @@ Design complete (architecture agreed 2026-10-18: `docs/architecture/overview.md`
 `docs/adr/`). Repository: https://github.com/kgoran/event-ticketing (public).
 M1a is in progress (`docs/milestones/m1a.md`). Done: the walking skeleton (F1–F3, F5, F6) and the
 outbox, inbox and scheduler (F4), Keycloak (K1), the first vertical slice (S2: thin Catalog,
-Inventory, Orders, Payments and LocalPay, proven end to end by `dev/AppHost.Tests`). Next: the
-breadth items (C1, C2, G1, I1, I2, O1, O2, P1, P2, L1, T1, Q1–Q4).
+Inventory, Orders, Payments and LocalPay, proven end to end by `dev/AppHost.Tests`), Catalog
+(C1: venues, seat maps, prices, on-sale schedule). Next: C2, G1, I1, I2, L1, P1, O1, O2, P2, T1,
+Q1–Q4. Implementation decisions awaiting review: design-decisions.md §14.
 The M1a time-box is still to be agreed.
 
 ## Commands

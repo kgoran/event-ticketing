@@ -1,4 +1,5 @@
 using EventTicketing.Catalog.Events;
+using EventTicketing.Catalog.Venues;
 using EventTicketing.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -9,6 +10,8 @@ internal sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> option
 {
     public const string SchemaName = "catalog";
 
+    public DbSet<Venue> Venues => Set<Venue>();
+
     public DbSet<Event> Events => Set<Event>();
 
     protected override string Schema => SchemaName;
@@ -17,6 +20,36 @@ internal sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> option
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<Venue>(entity =>
+        {
+            entity.ToTable("venues");
+            entity.HasKey(v => v.Id);
+            entity.Property(v => v.Name).HasMaxLength(200);
+            entity.Property(v => v.TimeZone).HasMaxLength(64);
+            entity.HasMany(v => v.Sections).WithOne().HasForeignKey(s => s.VenueId);
+            entity.HasIndex(v => v.OrganizerId);
+        });
+
+        modelBuilder.Entity<VenueSection>(entity =>
+        {
+            entity.ToTable("venue_sections");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Code).HasMaxLength(20);
+            entity.Property(s => s.Name).HasMaxLength(100);
+            entity.Property(s => s.Kind).HasConversion<string>().HasMaxLength(20);
+            entity.HasMany(s => s.Seats).WithOne().HasForeignKey(seat => seat.SectionId);
+            entity.HasIndex(s => new { s.VenueId, s.Code }).IsUnique();
+            entity.Ignore(s => s.PlaceCount);
+        });
+
+        modelBuilder.Entity<VenueSeat>(entity =>
+        {
+            entity.ToTable("venue_seats");
+            entity.HasKey(seat => seat.Id);
+            entity.Property(seat => seat.Row).HasMaxLength(20);
+            entity.HasIndex(seat => new { seat.SectionId, seat.Row, seat.Number }).IsUnique();
+        });
+
         modelBuilder.Entity<Event>(entity =>
         {
             entity.ToTable("events");
@@ -24,8 +57,9 @@ internal sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> option
             entity.Property(e => e.Name).HasMaxLength(200);
             entity.Property(e => e.Currency).HasMaxLength(3);
             entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+            entity.HasOne<Venue>().WithMany().HasForeignKey(e => e.VenueId).OnDelete(DeleteBehavior.Restrict);
             entity.HasMany(e => e.PriceCategories).WithOne().HasForeignKey(c => c.EventId);
-            entity.HasMany(e => e.Seats).WithOne().HasForeignKey(s => s.EventId);
+            entity.HasMany(e => e.PriceAssignments).WithOne().HasForeignKey(a => a.EventId);
             entity.HasIndex(e => e.OrganizerId);
         });
 
@@ -36,12 +70,12 @@ internal sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> option
             entity.Property(c => c.Name).HasMaxLength(100);
         });
 
-        modelBuilder.Entity<Seat>(entity =>
+        modelBuilder.Entity<PriceAssignment>(entity =>
         {
-            entity.ToTable("seats");
-            entity.HasKey(s => s.Id);
-            entity.Property(s => s.Section).HasMaxLength(50);
-            entity.Property(s => s.Row).HasMaxLength(20);
+            entity.ToTable("price_assignments");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Section).HasMaxLength(20);
+            entity.Property(a => a.Row).HasMaxLength(20);
         });
     }
 }

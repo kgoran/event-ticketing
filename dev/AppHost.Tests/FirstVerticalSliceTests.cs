@@ -17,23 +17,42 @@ public sealed class FirstVerticalSliceTests(RunningApp running)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        // An organizer creates and publishes an event with 10 seats at 25.00 EUR.
+        // An organizer imports a 10-seat venue, creates an event at 25.00 EUR a seat, opens sales and publishes it.
         using var olga = running.Client("backofficeapi", token: await running.TokenAsync("olga", cancellationToken));
+        var venue = await olga.PostAsJsonAsync(
+            new Uri("/venues", UriKind.Relative),
+            new
+            {
+                organizerId = SeededOrganizer.Id,
+                name = "First slice club",
+                timeZone = "Europe/Zagreb",
+                sections = new[]
+                {
+                    new { code = "A", name = "Hall", kind = "Seated", rows = new[] { new { label = "1", seats = 5 }, new { label = "2", seats = 5 } } },
+                },
+            },
+            cancellationToken);
+        venue.StatusCode.Should().Be(HttpStatusCode.Created);
+        var venueId = (await venue.Content.ReadFromJsonAsync<JsonElement>(cancellationToken)).GetProperty("venueId").GetGuid();
+
         var created = await olga.PostAsJsonAsync(
             new Uri("/events", UriKind.Relative),
             new
             {
                 organizerId = SeededOrganizer.Id,
+                venueId,
                 name = "First slice concert",
                 startsAt = DateTimeOffset.UtcNow.AddMonths(1),
                 currency = "EUR",
                 priceCategories = new[] { new { name = "Standard", priceMinorUnits = 2500 } },
-                sections = new[] { new { name = "A", rows = 2, seatsPerRow = 5, priceCategory = "Standard" } },
+                seating = new[] { new { section = "A", priceCategory = "Standard" } },
             },
             cancellationToken);
         created.StatusCode.Should().Be(HttpStatusCode.Created);
         var eventId = (await created.Content.ReadFromJsonAsync<JsonElement>(cancellationToken)).GetProperty("eventId").GetGuid();
 
+        (await olga.PutAsJsonAsync(new Uri($"/events/{eventId}/on-sale", UriKind.Relative), new { onSaleAt = DateTimeOffset.UtcNow }, cancellationToken))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await olga.PostAsync(new Uri($"/events/{eventId}/publish", UriKind.Relative), null, cancellationToken))
             .StatusCode.Should().Be(HttpStatusCode.NoContent);
 

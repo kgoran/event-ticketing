@@ -26,12 +26,98 @@
         }
       }
     },
+    "/venues": {
+      "post": {
+        "tags": [
+          "Venues"
+        ],
+        "summary": "Import a venue's seat map: seated sections with rows, and standing areas",
+        "operationId": "ImportVenue",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportVenue"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueImported"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/venues/{venueId}": {
+      "get": {
+        "tags": [
+          "Venues"
+        ],
+        "summary": "One of your venues: its sections and how many places each has",
+        "operationId": "GetVenue",
+        "parameters": [
+          {
+            "name": "venueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/events": {
       "post": {
         "tags": [
           "Events"
         ],
-        "summary": "Create an event in Draft, with its price categories and seat layout",
+        "summary": "Create an event in Draft at one of your venues, with price categories and which seats are in each",
         "operationId": "CreateEvent",
         "requestBody": {
           "content": {
@@ -73,6 +159,181 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/{eventId}": {
+      "get": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "One of your events, as you manage it",
+        "operationId": "GetEventDetails",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/events/{eventId}/on-sale": {
+      "put": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Set when sales start; a time in the past opens sales now",
+        "operationId": "ScheduleOnSale",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleOnSaleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/{eventId}/prices": {
+      "put": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Change the price of some price categories; orders already placed keep theirs",
+        "operationId": "ChangePrices",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePricesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -82,7 +343,7 @@
         "tags": [
           "Events"
         ],
-        "summary": "Publish a Draft event, so its seats can be sold",
+        "summary": "Publish a Draft event, so its seats can be sold once sales start",
         "operationId": "PublishEvent",
         "parameters": [
           {
@@ -151,18 +412,37 @@
           }
         }
       },
+      "ChangePricesRequest": {
+        "required": [
+          "prices"
+        ],
+        "type": "object",
+        "properties": {
+          "prices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriceChange"
+            }
+          }
+        }
+      },
       "CreateEvent": {
         "required": [
           "organizerId",
+          "venueId",
           "name",
           "startsAt",
           "currency",
           "priceCategories",
-          "sections"
+          "seating"
         ],
         "type": "object",
         "properties": {
           "organizerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venueId": {
             "type": "string",
             "format": "uuid"
           },
@@ -182,10 +462,10 @@
               "$ref": "#/components/schemas/PriceCategoryInput"
             }
           },
-          "sections": {
+          "seating": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SectionInput"
+              "$ref": "#/components/schemas/PriceAssignmentInput"
             }
           }
         }
@@ -199,6 +479,104 @@
           "eventId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "EventDetails": {
+        "required": [
+          "eventId",
+          "organizerId",
+          "venueId",
+          "name",
+          "startsAt",
+          "currency",
+          "status",
+          "salesPhase",
+          "onSaleAt",
+          "publishedAt",
+          "priceCategories",
+          "seating"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "salesPhase": {
+            "type": "string"
+          },
+          "onSaleAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "publishedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "priceCategories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventPriceCategory"
+            }
+          },
+          "seating": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatingRule"
+            }
+          }
+        }
+      },
+      "EventPriceCategory": {
+        "required": [
+          "priceCategoryId",
+          "name",
+          "priceMinorUnits"
+        ],
+        "type": "object",
+        "properties": {
+          "priceCategoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "priceMinorUnits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -249,6 +627,57 @@
           }
         }
       },
+      "ImportVenue": {
+        "required": [
+          "organizerId",
+          "name",
+          "timeZone",
+          "sections"
+        ],
+        "type": "object",
+        "properties": {
+          "organizerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VenueSectionInput"
+            }
+          }
+        }
+      },
+      "PriceAssignmentInput": {
+        "required": [
+          "section",
+          "priceCategory"
+        ],
+        "type": "object",
+        "properties": {
+          "section": {
+            "type": "string"
+          },
+          "priceCategory": {
+            "type": "string"
+          },
+          "rows": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "PriceCategoryInput": {
         "required": [
           "name",
@@ -258,6 +687,27 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "priceMinorUnits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "PriceChange": {
+        "required": [
+          "priceCategoryId",
+          "priceMinorUnits"
+        ],
+        "type": "object",
+        "properties": {
+          "priceCategoryId": {
+            "type": "string",
+            "format": "uuid"
           },
           "priceMinorUnits": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -307,16 +757,160 @@
           }
         }
       },
-      "SectionInput": {
+      "ScheduleOnSaleRequest": {
         "required": [
-          "name",
-          "rows",
-          "seatsPerRow",
-          "priceCategory"
+          "onSaleAt"
         ],
         "type": "object",
         "properties": {
+          "onSaleAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SeatingRule": {
+        "required": [
+          "section",
+          "row",
+          "priceCategoryId"
+        ],
+        "type": "object",
+        "properties": {
+          "section": {
+            "type": "string"
+          },
+          "row": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "priceCategoryId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SectionKind": {
+        "enum": [
+          "Seated",
+          "Standing"
+        ]
+      },
+      "VenueImported": {
+        "required": [
+          "venueId"
+        ],
+        "type": "object",
+        "properties": {
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "VenueRowInput": {
+        "required": [
+          "label",
+          "seats"
+        ],
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "seats": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "firstNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 1
+          }
+        }
+      },
+      "VenueSectionInput": {
+        "required": [
+          "code",
+          "name",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
           "name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SectionKind"
+          },
+          "rows": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/VenueRowInput"
+            }
+          },
+          "capacity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "x": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 0
+          },
+          "y": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 0
+          }
+        }
+      },
+      "VenueSectionSummary": {
+        "required": [
+          "code",
+          "name",
+          "kind",
+          "rows",
+          "places"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
             "type": "string"
           },
           "rows": {
@@ -327,7 +921,42 @@
             ],
             "format": "int32"
           },
-          "seatsPerRow": {
+          "places": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "VenueSummary": {
+        "required": [
+          "venueId",
+          "organizerId",
+          "name",
+          "timeZone",
+          "places",
+          "sections"
+        ],
+        "type": "object",
+        "properties": {
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "places": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -335,8 +964,11 @@
             ],
             "format": "int32"
           },
-          "priceCategory": {
-            "type": "string"
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VenueSectionSummary"
+            }
           }
         }
       }
@@ -345,6 +977,9 @@
   "tags": [
     {
       "name": "EventTicketing.BackOfficeApi"
+    },
+    {
+      "name": "Venues"
     },
     {
       "name": "Events"

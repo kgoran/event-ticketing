@@ -42,6 +42,10 @@ namespace EventTicketing.Catalog.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<DateTimeOffset?>("OnSaleAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("on_sale_at");
+
                     b.Property<Guid>("OrganizerId")
                         .HasColumnType("uuid")
                         .HasColumnName("organizer_id");
@@ -60,13 +64,55 @@ namespace EventTicketing.Catalog.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<Guid>("VenueId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("venue_id");
+
                     b.HasKey("Id")
                         .HasName("pk_events");
 
                     b.HasIndex("OrganizerId")
                         .HasDatabaseName("ix_events_organizer_id");
 
+                    b.HasIndex("VenueId")
+                        .HasDatabaseName("ix_events_venue_id");
+
                     b.ToTable("events", "catalog");
+                });
+
+            modelBuilder.Entity("EventTicketing.Catalog.Events.PriceAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid>("PriceCategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("price_category_id");
+
+                    b.Property<string>("Row")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("row");
+
+                    b.Property<string>("Section")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("section");
+
+                    b.HasKey("Id")
+                        .HasName("pk_price_assignments");
+
+                    b.HasIndex("EventId")
+                        .HasDatabaseName("ix_price_assignments_event_id");
+
+                    b.ToTable("price_assignments", "catalog");
                 });
 
             modelBuilder.Entity("EventTicketing.Catalog.Events.PriceCategory", b =>
@@ -99,24 +145,56 @@ namespace EventTicketing.Catalog.Persistence.Migrations
                     b.ToTable("price_categories", "catalog");
                 });
 
-            modelBuilder.Entity("EventTicketing.Catalog.Events.Seat", b =>
+            modelBuilder.Entity("EventTicketing.Catalog.Venues.Venue", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid>("EventId")
+                    b.Property<DateTimeOffset>("ImportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("imported_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OrganizerId")
                         .HasColumnType("uuid")
-                        .HasColumnName("event_id");
+                        .HasColumnName("organizer_id");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("time_zone");
+
+                    b.HasKey("Id")
+                        .HasName("pk_venues");
+
+                    b.HasIndex("OrganizerId")
+                        .HasDatabaseName("ix_venues_organizer_id");
+
+                    b.ToTable("venues", "catalog");
+                });
+
+            modelBuilder.Entity("EventTicketing.Catalog.Venues.VenueSeat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
 
                     b.Property<int>("Number")
                         .HasColumnType("integer")
                         .HasColumnName("number");
 
-                    b.Property<Guid>("PriceCategoryId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("price_category_id");
+                    b.Property<int>("Rank")
+                        .HasColumnType("integer")
+                        .HasColumnName("rank");
 
                     b.Property<string>("Row")
                         .IsRequired()
@@ -124,19 +202,81 @@ namespace EventTicketing.Catalog.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("row");
 
-                    b.Property<string>("Section")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("section");
+                    b.Property<Guid>("SectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("section_id");
+
+                    b.Property<int>("X")
+                        .HasColumnType("integer")
+                        .HasColumnName("x");
+
+                    b.Property<int>("Y")
+                        .HasColumnType("integer")
+                        .HasColumnName("y");
 
                     b.HasKey("Id")
-                        .HasName("pk_seats");
+                        .HasName("pk_venue_seats");
 
-                    b.HasIndex("EventId")
-                        .HasDatabaseName("ix_seats_event_id");
+                    b.HasIndex("SectionId", "Row", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_venue_seats_section_id_row_number");
 
-                    b.ToTable("seats", "catalog");
+                    b.ToTable("venue_seats", "catalog");
+                });
+
+            modelBuilder.Entity("EventTicketing.Catalog.Venues.VenueSection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int?>("Capacity")
+                        .HasColumnType("integer")
+                        .HasColumnName("capacity");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("VenueId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("venue_id");
+
+                    b.Property<int>("X")
+                        .HasColumnType("integer")
+                        .HasColumnName("x");
+
+                    b.Property<int>("Y")
+                        .HasColumnType("integer")
+                        .HasColumnName("y");
+
+                    b.HasKey("Id")
+                        .HasName("pk_venue_sections");
+
+                    b.HasIndex("VenueId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_venue_sections_venue_id_code");
+
+                    b.ToTable("venue_sections", "catalog");
                 });
 
             modelBuilder.Entity("EventTicketing.Shared.Infrastructure.Persistence.AuditRecord", b =>
@@ -343,6 +483,26 @@ namespace EventTicketing.Catalog.Persistence.Migrations
                     b.ToTable("scheduled_messages", "catalog");
                 });
 
+            modelBuilder.Entity("EventTicketing.Catalog.Events.Event", b =>
+                {
+                    b.HasOne("EventTicketing.Catalog.Venues.Venue", null)
+                        .WithMany()
+                        .HasForeignKey("VenueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_events_venues_venue_id");
+                });
+
+            modelBuilder.Entity("EventTicketing.Catalog.Events.PriceAssignment", b =>
+                {
+                    b.HasOne("EventTicketing.Catalog.Events.Event", null)
+                        .WithMany("PriceAssignments")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_price_assignments_events_event_id");
+                });
+
             modelBuilder.Entity("EventTicketing.Catalog.Events.PriceCategory", b =>
                 {
                     b.HasOne("EventTicketing.Catalog.Events.Event", null)
@@ -353,20 +513,40 @@ namespace EventTicketing.Catalog.Persistence.Migrations
                         .HasConstraintName("fk_price_categories_events_event_id");
                 });
 
-            modelBuilder.Entity("EventTicketing.Catalog.Events.Seat", b =>
+            modelBuilder.Entity("EventTicketing.Catalog.Venues.VenueSeat", b =>
                 {
-                    b.HasOne("EventTicketing.Catalog.Events.Event", null)
+                    b.HasOne("EventTicketing.Catalog.Venues.VenueSection", null)
                         .WithMany("Seats")
-                        .HasForeignKey("EventId")
+                        .HasForeignKey("SectionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_seats_events_event_id");
+                        .HasConstraintName("fk_venue_seats_venue_sections_section_id");
+                });
+
+            modelBuilder.Entity("EventTicketing.Catalog.Venues.VenueSection", b =>
+                {
+                    b.HasOne("EventTicketing.Catalog.Venues.Venue", null)
+                        .WithMany("Sections")
+                        .HasForeignKey("VenueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_venue_sections_venues_venue_id");
                 });
 
             modelBuilder.Entity("EventTicketing.Catalog.Events.Event", b =>
                 {
-                    b.Navigation("PriceCategories");
+                    b.Navigation("PriceAssignments");
 
+                    b.Navigation("PriceCategories");
+                });
+
+            modelBuilder.Entity("EventTicketing.Catalog.Venues.Venue", b =>
+                {
+                    b.Navigation("Sections");
+                });
+
+            modelBuilder.Entity("EventTicketing.Catalog.Venues.VenueSection", b =>
+                {
                     b.Navigation("Seats");
                 });
 #pragma warning restore 612, 618

@@ -4,33 +4,36 @@ using EventTicketing.Shared.Application.Commands;
 using EventTicketing.Shared.Application.Context;
 using EventTicketing.Shared.Domain;
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 
 namespace EventTicketing.Catalog.Events;
 
 public sealed record PriceCategoryInput(string Name, long PriceMinorUnits);
 
-public sealed record SectionInput(string Name, int Rows, int SeatsPerRow, string PriceCategory);
+/// <summary>Puts a section's places, or only the listed rows of it, in a price category.</summary>
+public sealed record PriceAssignmentInput(string Section, string PriceCategory, IReadOnlyList<string>? Rows = null);
 
-/// <summary>An organizer creates an event in Draft. Also the request body of POST /events.</summary>
+/// <summary>An organizer creates an event in Draft at one of its venues. Also the request body of POST /events.</summary>
 public sealed record CreateEvent(
     Guid OrganizerId,
+    Guid VenueId,
     string Name,
     DateTimeOffset StartsAt,
     string Currency,
     IReadOnlyList<PriceCategoryInput> PriceCategories,
-    IReadOnlyList<SectionInput> Sections) : ICommand<Guid>;
+    IReadOnlyList<PriceAssignmentInput> Seating) : ICommand<Guid>;
 
 internal sealed class CreateEventValidator : AbstractValidator<CreateEvent>
 {
-    public const int MaxSeats = 100_000;
-
     public CreateEventValidator()
     {
         RuleFor(command => command.OrganizerId).NotEmpty();
+        RuleFor(command => command.VenueId).NotEmpty();
         RuleFor(command => command.Name).NotEmpty().MaximumLength(200);
         RuleFor(command => command.Currency).Must(code => CurrencyCode.Create(code).IsSuccess)
             .WithMessage("Use a three-letter ISO 4217 currency code, e.g. EUR.");
         RuleFor(command => command.PriceCategories).NotEmpty();
+        RuleFor(command => command.PriceCategories.Count).LessThanOrEqualTo(50).WithName(nameof(CreateEvent.PriceCategories));
         RuleForEach(command => command.PriceCategories).ChildRules(category =>
         {
             category.RuleFor(c => c.Name).NotEmpty().MaximumLength(100);
@@ -39,20 +42,20 @@ internal sealed class CreateEventValidator : AbstractValidator<CreateEvent>
         RuleFor(command => command.PriceCategories)
             .Must(categories => categories.Select(c => c.Name).Distinct().Count() == categories.Count)
             .WithMessage("Price category names must be unique.");
-        RuleFor(command => command.Sections).NotEmpty();
-        RuleForEach(command => command.Sections).ChildRules(section =>
-        {
-            section.RuleFor(s => s.Name).NotEmpty().MaximumLength(50);
-            section.RuleFor(s => s.Rows).InclusiveBetween(1, 200);
-            section.RuleFor(s => s.SeatsPerRow).InclusiveBetween(1, 200);
-        });
+        RuleFor(command => command.Seating).NotEmpty();
         RuleFor(command => command)
-            .Must(command => command.Sections.All(s => command.PriceCategories.Any(c => c.Name == s.PriceCategory)))
-            .WithName(nameof(CreateEvent.Sections))
-            .WithMessage("Every section must use one of the event's price categories.");
-        RuleFor(command => command.Sections)
-            .Must(sections => sections.Sum(s => (long)s.Rows * s.SeatsPerRow) <= MaxSeats)
-            .WithMessage($"An event can have at most {MaxSeats} seats.");
+            .Must(command => command.Seating.All(rule => command.PriceCategories.Any(c => c.Name == rule.PriceCategory)))
+            .WithName(nameof(CreateEvent.Seating))
+            .WithMessage("Every seating rule must use one of the event's price categories.");
+        RuleFor(command => command.Seating)
+            .Must(seating => seating.Where(rule => rule.Rows is not { Count: > 0 }).GroupBy(rule => rule.Section).All(group => group.Count() == 1))
+            .WithMessage("A section can have only one rule without rows.");
+        RuleFor(command => command.Seating)
+            .Must(seating => seating
+                .SelectMany(rule => (rule.Rows ?? []).Select(row => (rule.Section, row)))
+                .GroupBy(place => place)
+                .All(group => group.Count() == 1))
+            .WithMessage("A row can be in only one seating rule.");
     }
 }
 
@@ -65,17 +68,33 @@ internal sealed class CreateEventAuthorizer : ICommandAuthorizer<CreateEvent>
 
 internal sealed class CreateEventHandler(CatalogDbContext db) : ICommandHandler<CreateEvent, Guid>
 {
-    public Task<Result<Guid>> HandleAsync(CreateEvent command, CancellationToken cancellationToken)
+    public async Task<Result<Guid>> HandleAsync(CreateEvent command, CancellationToken cancellationToken)
     {
-        var @event = Event.Create(
-            command.OrganizerId,
+        // Another organizer's venue is reported as missing, not as forbidden: its existence isn't ours to know.
+        var venue = await db.Venues
+            .Include(v => v.Sections).ThenInclude(s => s.Seats)
+            .AsSplitQuery()
+            .SingleOrDefaultAsync(v => v.Id == command.VenueId && v.OrganizerId == command.OrganizerId, cancellationToken);
+
+        if (venue is null)
+        {
+            return Error.NotFound("venue.not_found", "The venue does not exist.");
+        }
+
+        var created = Event.Create(
+            venue,
             command.Name,
             command.StartsAt,
             CurrencyCode.Create(command.Currency).Value,
             command.PriceCategories,
-            command.Sections);
+            command.Seating);
 
-        db.Events.Add(@event);
-        return Task.FromResult<Result<Guid>>(@event.Id);
+        if (created.IsFailure)
+        {
+            return created.Error;
+        }
+
+        db.Events.Add(created.Value);
+        return created.Value.Id;
     }
 }
