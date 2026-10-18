@@ -1,0 +1,15 @@
+# Normalize line endings: LF in the repository and in working copies,
+# so diffs don't change between Windows, Linux CI runners and containers.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary files.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
