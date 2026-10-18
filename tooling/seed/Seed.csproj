@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The demo seeder (M1a T1): prepares the demo through the product's APIs, using the Kiota
+       clients. Tooling: it never references product code (ADR-0021). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\clients\Clients.csproj" />
+  </ItemGroup>
+</Project>

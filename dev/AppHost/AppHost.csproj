@@ -15,6 +15,7 @@
     <ProjectReference Include="..\..\product\src\Hosts\PublicApi\PublicApi.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\WebhookIngress\WebhookIngress.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\Workers\Workers.csproj" />
+    <ProjectReference Include="..\..\tooling\seed\Seed.csproj" />
     <ProjectReference Include="..\..\tooling\simulators\LocalPay\LocalPay.csproj" />
   </ItemGroup>
 

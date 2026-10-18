@@ -33,6 +33,18 @@ jobs:
       - name: Restore
         run: dotnet restore tooling/Tooling.slnx
 
+      # The Kiota clients must match the product's committed OpenAPI documents (ADR-0037).
+      - name: Generated API clients are committed and current
+        run: |
+          bash tooling/clients/generate.sh
+          changes="$(git status --porcelain -- tooling/clients)"
+          if [ -n "$changes" ]; then
+            echo "$changes"
+            git --no-pager diff --stat -- tooling/clients
+            echo "::error::The API clients are out of date. Run 'bash tooling/clients/generate.sh' and commit tooling/clients."
+            exit 1
+          fi
+
       - name: Build
         run: dotnet build tooling/Tooling.slnx --no-restore -c Release
 

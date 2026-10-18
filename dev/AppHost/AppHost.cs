@@ -48,7 +48,7 @@ publicApi
     .WaitFor(keycloak)
     .WaitForCompletion(migrator);
 
-builder.AddProject<Projects.BackOfficeApi>("backofficeapi")
+var backOfficeApi = builder.AddProject<Projects.BackOfficeApi>("backofficeapi")
     .WithReference(database)
     .WithEnvironment("Authentication__Authority", authority)
     .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
@@ -56,10 +56,21 @@ builder.AddProject<Projects.BackOfficeApi>("backofficeapi")
     .WaitFor(keycloak)
     .WaitForCompletion(migrator);
 
-builder.AddProject<Projects.Workers>("workers")
+var workers = builder.AddProject<Projects.Workers>("workers")
     .WithReference(database)
     .WithEnvironment("Payments__LocalPay__WebhookSecret", webhookSecret)
     .WithHttpHealthCheck("/health")
     .WaitForCompletion(migrator);
+
+// The demo seeder (T1): press Start in the dashboard when the demo begins. It prepares a venue and
+// an event on sale through the APIs, then exits. `dotnet run --project tooling/seed` does the same.
+builder.AddProject<Projects.Seed>("seed")
+    .WithEnvironment("BACKOFFICEAPI_URL", backOfficeApi.GetEndpoint("http"))
+    .WithEnvironment("PUBLICAPI_URL", publicApi.GetEndpoint("http"))
+    .WithEnvironment("KEYCLOAK_URL", keycloak.GetEndpoint("http"))
+    .WaitFor(backOfficeApi)
+    .WaitFor(publicApi)
+    .WaitFor(workers)
+    .WithExplicitStart();
 
 builder.Build().Run();
