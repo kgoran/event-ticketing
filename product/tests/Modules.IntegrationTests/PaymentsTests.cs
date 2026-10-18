@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using EventTicketing.Payments.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -178,16 +177,7 @@ public sealed class PaymentsTests(TestSystem system)
     private Task<T> PaymentsAsync<T>(Func<IPaymentsApi, Task<T>> call) =>
         system.InWorkersAsync(services => call(services.GetRequiredService<IPaymentsApi>()));
 
-    private async Task<HttpResponseMessage> PostAsync((string Body, string Signature) webhook)
-    {
-        using var ingress = system.WebhookIngress();
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/webhooks/localpay")
-        {
-            Content = new StringContent(webhook.Body, Encoding.UTF8, "application/json"),
-        };
-        request.Headers.Add("LocalPay-Signature", webhook.Signature);
-        return await ingress.SendAsync(request, Ct);
-    }
+    private Task<HttpResponseMessage> PostAsync((string Body, string Signature) webhook) => system.PostWebhookAsync(webhook);
 
     private Task<string> StatusAsync(Guid orderId) =>
         system.ScalarAsync<string>("SELECT status FROM payments.payment_attempts WHERE order_id = @p0", orderId);

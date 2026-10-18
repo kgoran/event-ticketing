@@ -94,6 +94,10 @@ internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> op
                 .HasFilter("status IN ('Active', 'InCheckout')")
                 .HasDatabaseName(OneCurrentHoldPerFan);
             entity.HasIndex(h => h.ExpiresAt).HasFilter("status IN ('Active', 'InCheckout')").HasDatabaseName("ix_holds_expires_at_current");
+
+            // Confirming and releasing a hold can race (a late payment at the deadline): the later
+            // save fails instead of overwriting, and its message is retried (ADR-0011).
+            entity.Property<uint>("Version").IsRowVersion();
         });
 
         modelBuilder.Entity<SalesWindow>(entity =>

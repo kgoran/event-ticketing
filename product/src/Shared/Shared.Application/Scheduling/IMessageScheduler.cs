@@ -20,3 +20,13 @@ public interface IScheduledMessageHandler<in TMessage>
 {
     Task HandleAsync(TMessage message, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Marks a scheduled message handler that coordinates, like an <c>INonTransactionalCommand</c>: it
+/// calls other modules or external services, so it runs outside any transaction and every step it
+/// takes is a command with its own. The scheduled row is deleted only after the handler finishes,
+/// so a crash in between runs it again: each of its steps must be safe to repeat.
+/// </summary>
+public interface INonTransactionalMessageHandler
+{
+}

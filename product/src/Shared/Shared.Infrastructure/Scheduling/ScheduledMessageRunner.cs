@@ -1,4 +1,5 @@
 using System.Text.Json;
+using EventTicketing.Shared.Application.Scheduling;
 using EventTicketing.Shared.Application.Transactions;
 using EventTicketing.Shared.Domain;
 using EventTicketing.Shared.Infrastructure.Context;
@@ -152,6 +153,15 @@ internal sealed partial class ScheduledMessageRunner(
             ?? throw new InvalidOperationException($"Scheduled message {message.Id} has an empty payload.");
 
         using var activity = MessagingTelemetry.StartProcessing("scheduled", message.Type, message.Id, MessageHeaders.FromJson(message.Headers));
+
+        if (typeof(INonTransactionalMessageHandler).IsAssignableFrom(handler.HandlerType))
+        {
+            // A coordinator: run it first, outside any transaction, then mark it done.
+            await handler.Invoke(provider.GetRequiredService(handler.HandlerType), payload, cancellationToken);
+            var context = (ModuleDbContext)provider.GetRequiredService(module.ContextType);
+            await ModuleSql.ExecuteAsync(context, $"DELETE FROM {module.Schema}.scheduled_messages WHERE id = {{0}}", [message.Id], cancellationToken);
+            return;
+        }
 
         await provider.GetRequiredService<ITransactionRunner>().RunAsync<Unit>(
             handler.HandlerType,

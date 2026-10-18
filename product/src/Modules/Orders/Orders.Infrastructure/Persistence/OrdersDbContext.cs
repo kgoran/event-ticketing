@@ -30,6 +30,10 @@ internal sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options)
             entity.HasMany(o => o.Lines).WithOne().HasForeignKey(line => line.OrderId);
             entity.HasIndex(o => o.HoldId).IsUnique(); // one order per hold
             entity.HasIndex(o => o.CustomerId);
+
+            // Payment events and the deadline can change an order at the same moment: the later
+            // save fails instead of overwriting, and its message is retried (ADR-0011).
+            entity.Property<uint>("Version").IsRowVersion();
         });
 
         modelBuilder.Entity<OrderLine>(entity =>
@@ -64,7 +68,21 @@ internal sealed class OrderRepository(OrdersDbContext db) : IOrderRepository
 
 internal sealed class PriceList(OrdersDbContext db) : IPriceList
 {
-    public void Add(IEnumerable<PriceListEntry> entries) => db.PriceList.AddRange(entries);
+    public async Task ApplyAsync(IReadOnlyCollection<PriceListEntry> entries, CancellationToken cancellationToken)
+    {
+        foreach (var entry in entries)
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""
+                INSERT INTO orders.price_list (event_id, price_category_id, price_minor_units, currency, set_at)
+                VALUES ({entry.EventId}, {entry.PriceCategoryId}, {entry.PriceMinorUnits}, {entry.Currency}, {entry.SetAt})
+                ON CONFLICT (event_id, price_category_id) DO UPDATE
+                SET price_minor_units = excluded.price_minor_units, currency = excluded.currency, set_at = excluded.set_at
+                WHERE orders.price_list.set_at < excluded.set_at
+                """,
+                cancellationToken);
+        }
+    }
 
     public async Task<IReadOnlyDictionary<Guid, PriceListEntry>> ForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
         await db.PriceList.AsNoTracking()
