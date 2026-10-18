@@ -9,10 +9,10 @@ It is not a product. Keep the domain simple and the engineering concerns rich.
 
 ## Current status
 
-Design phase. The high-level architecture was agreed on 2026-10-18
-(`docs/architecture/overview.md`, ADRs in `docs/adr/`). **No application code yet.**
-All design questions are closed. Repository: https://github.com/kgoran/event-ticketing
-(public). Next step: plan M1a.
+Design complete (architecture agreed 2026-10-18: `docs/architecture/overview.md`, ADRs in
+`docs/adr/`). Repository: https://github.com/kgoran/event-ticketing (public).
+M1a is planned in `docs/milestones/m1a.md`. Next step: M1a kickoff (agree the time-box), then
+the walking skeleton (backlog items F1–F3). Application code starts there.
 
 ## Working agreements
 
@@ -36,6 +36,7 @@ All design questions are closed. Repository: https://github.com/kgoran/event-tic
 | `docs/payments.md` | Payment design: Stripe + LocalPay simulator, consistency flow, failure handling |
 | `docs/architecture/overview.md` | Agreed architecture: modules, hosts, key flows, targets, milestones, repository, Scaling Lab |
 | `docs/adr/` | Architecture decision records, one per agreed decision (index in `README.md`) |
+| `docs/milestones/` | Milestone plans: scope, backlog, definition of done, demo script |
 
 ## Background
 

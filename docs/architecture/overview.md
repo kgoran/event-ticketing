@@ -349,6 +349,7 @@ Full definitions and how each is checked: [0015](../adr/0015-performance-targets
 | 6. Disaster recovery, runbooks | orphan-payment reconciliation; restore drill | every flow, after a restore | restore drill |
 
 Observability grows in every milestone. Each milestone gets a time-box, agreed at its kickoff.
+Detailed plans: [M1a](../milestones/m1a.md).
 
 ---
 

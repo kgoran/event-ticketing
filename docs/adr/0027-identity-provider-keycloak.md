@@ -52,3 +52,8 @@
 - Because the product only speaks OIDC, moving to Entra ID, Okta or another provider later is a
   configuration change plus the membership adapter.
 - Membership changes are visible after a token refresh, not instantly.
+
+## Updates
+
+- **2026-10-18:** Organizers keeping Keycloak in step arrives in M1b. In M1a, organizer
+  memberships are seeded in the imported realm ([M1a plan](../milestones/m1a.md)).

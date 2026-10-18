@@ -49,6 +49,7 @@ recommended, no objection raised, not explicitly confirmed · **Open** = needs a
 | [0034](adr/0034-test-stack.md) | Test stack |
 | [0035](adr/0035-blazor-for-all-uis.md) | Blazor for the user interfaces |
 | [0036](adr/0036-trunk-based-development.md) | Trunk-based development with pull-request checks |
+| [0037](adr/0037-kiota-api-clients.md) | Kiota for the tooling's API clients |
 
 ---
 
@@ -166,6 +167,7 @@ agreed exception to optimistic concurrency ([ADR-0011](adr/0011-seat-inventory-c
 | Object storage | S3 API; SeaweedFS locally | Agreed — [ADR-0025](adr/0025-object-storage-and-secrets.md) |
 | Secrets | .NET user-secrets (dev), Kubernetes Secrets (lab), GitHub Actions secrets (CI) | Agreed — [ADR-0025](adr/0025-object-storage-and-secrets.md) |
 | Way of working | Trunk-based development, pull-request checks | Agreed — [ADR-0036](adr/0036-trunk-based-development.md) |
+| API clients (tooling) | Kiota, generated from the committed OpenAPI documents | Agreed — [ADR-0037](adr/0037-kiota-api-clients.md) |
 | IaC / CI/CD | GitHub Actions (within free minutes), Argo CD; Terraform only if a cloud environment is ever added | Proposed |
 | Analytics | Debezium (CDC) → ClickHouse | Proposed (later milestone) |
 | Cloud | None | Agreed — [ADR-0005](adr/0005-no-paid-services-local-first.md) |

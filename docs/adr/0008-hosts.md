@@ -43,3 +43,8 @@ frontends, and the identity provider if we host it ourselves.
 
 - Seven deployables to build, deploy and monitor; each host is a thin composition root.
 - The autoscaling signal for each host is in [0019](0019-autoscaling-signals.md).
+
+## Updates
+
+- **2026-10-18:** From M1a the Migrator also runs under Aspire, before the other hosts start
+  ([0016](0016-teaching-milestones.md), update).
