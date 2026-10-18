@@ -4,17 +4,18 @@ namespace EventTicketing.Shared.Application.Idempotency;
 
 /// <summary>
 /// Remembers the outcome of each idempotency key, so a repeated request returns the first
-/// outcome instead of running again. A claim is a lease: if the process dies before completing
-/// it, the claim expires and the key can be claimed again.
+/// outcome instead of running again. Keys are scoped per command type and stored with the
+/// module that owns the command. A claim is a lease: if the process dies before completing it,
+/// the claim expires and the key can be claimed again.
 /// </summary>
 public interface IIdempotencyStore
 {
-    Task<IdempotencyClaim> TryClaimAsync(string key, string requestName, CancellationToken cancellationToken);
+    Task<IdempotencyClaim> TryClaimAsync(string key, Type commandType, CancellationToken cancellationToken);
 
-    Task CompleteAsync(string key, string requestName, StoredResult result, CancellationToken cancellationToken);
+    Task CompleteAsync(string key, Type commandType, StoredResult result, CancellationToken cancellationToken);
 
     /// <summary>Gives the key back after an exception, so the client can retry with it.</summary>
-    Task ReleaseAsync(string key, string requestName, CancellationToken cancellationToken);
+    Task ReleaseAsync(string key, Type commandType, CancellationToken cancellationToken);
 }
 
 public abstract record IdempotencyClaim

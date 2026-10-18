@@ -35,8 +35,12 @@ internal sealed class HttpExecutionContext(IHttpContextAccessor accessor) : IExe
             : null;
 }
 
-/// <summary>Work started by the system itself: scheduled jobs and, until messages carry their own context (F4), consumers.</summary>
-internal sealed class SystemExecutionContext : IExecutionContext
+/// <summary>
+/// Work started by the system itself: consumed messages, scheduled messages, migrations. The
+/// relay and scheduler set the idempotency key to the message ID, so commands a handler runs are
+/// idempotent per message (ADR-0033).
+/// </summary>
+internal sealed class MessageExecutionContext : IExecutionContext
 {
     public string? UserId => null;
 
@@ -46,7 +50,7 @@ internal sealed class SystemExecutionContext : IExecutionContext
 
     public IReadOnlySet<Guid> OrganizerIds => EmptySet<Guid>.Instance;
 
-    public string? IdempotencyKey => null;
+    public string? IdempotencyKey { get; set; }
 }
 
 internal static class EmptySet<T>

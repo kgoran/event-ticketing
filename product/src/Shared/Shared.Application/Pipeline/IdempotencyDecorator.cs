@@ -18,8 +18,6 @@ internal sealed class IdempotencyDecorator<TCommand, TResult>(
     : ICommandHandler<TCommand, TResult>
     where TCommand : ICommand<TResult>
 {
-    private static readonly string RequestName = typeof(TCommand).FullName ?? typeof(TCommand).Name;
-
     public async Task<Result<TResult>> HandleAsync(TCommand command, CancellationToken cancellationToken)
     {
         if (context.IdempotencyKey is not { Length: > 0 } key)
@@ -27,7 +25,7 @@ internal sealed class IdempotencyDecorator<TCommand, TResult>(
             return await inner.HandleAsync(command, cancellationToken);
         }
 
-        var claim = await store.TryClaimAsync(key, RequestName, cancellationToken);
+        var claim = await store.TryClaimAsync(key, typeof(TCommand), cancellationToken);
 
         switch (claim)
         {
@@ -46,11 +44,11 @@ internal sealed class IdempotencyDecorator<TCommand, TResult>(
         }
         catch
         {
-            await store.ReleaseAsync(key, RequestName, CancellationToken.None);
+            await store.ReleaseAsync(key, typeof(TCommand), CancellationToken.None);
             throw;
         }
 
-        await store.CompleteAsync(key, RequestName, ToStored(result), cancellationToken);
+        await store.CompleteAsync(key, typeof(TCommand), ToStored(result), cancellationToken);
         return result;
     }
 

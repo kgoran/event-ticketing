@@ -11,8 +11,8 @@ It is not a product. Keep the domain simple and the engineering concerns rich.
 
 Design complete (architecture agreed 2026-10-18: `docs/architecture/overview.md`, ADRs in
 `docs/adr/`). Repository: https://github.com/kgoran/event-ticketing (public).
-M1a is in progress (`docs/milestones/m1a.md`). Done: the walking skeleton (F1–F3, F5, F6).
-Next: the outbox, inbox and scheduler (F4) and Keycloak (K1), then the first vertical slice (S2).
+M1a is in progress (`docs/milestones/m1a.md`). Done: the walking skeleton (F1–F3, F5, F6) and the
+outbox, inbox and scheduler (F4). Next: Keycloak (K1), then the first vertical slice (S2).
 The M1a time-box is still to be agreed.
 
 ## Commands

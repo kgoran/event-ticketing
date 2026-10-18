@@ -120,7 +120,7 @@ internal sealed class FakeExecutionContext(Scenario scenario) : IExecutionContex
 
 internal sealed class FakeIdempotencyStore(Steps steps, Scenario scenario) : IIdempotencyStore
 {
-    public Task<IdempotencyClaim> TryClaimAsync(string key, string requestName, CancellationToken cancellationToken)
+    public Task<IdempotencyClaim> TryClaimAsync(string key, Type commandType, CancellationToken cancellationToken)
     {
         steps.Add("idempotency claim");
         IdempotencyClaim claim = scenario.PreviousResult is { } previous
@@ -129,13 +129,13 @@ internal sealed class FakeIdempotencyStore(Steps steps, Scenario scenario) : IId
         return Task.FromResult(claim);
     }
 
-    public Task CompleteAsync(string key, string requestName, StoredResult result, CancellationToken cancellationToken)
+    public Task CompleteAsync(string key, Type commandType, StoredResult result, CancellationToken cancellationToken)
     {
         steps.Add("idempotency complete");
         return Task.CompletedTask;
     }
 
-    public Task ReleaseAsync(string key, string requestName, CancellationToken cancellationToken)
+    public Task ReleaseAsync(string key, Type commandType, CancellationToken cancellationToken)
     {
         steps.Add("idempotency release");
         return Task.CompletedTask;
