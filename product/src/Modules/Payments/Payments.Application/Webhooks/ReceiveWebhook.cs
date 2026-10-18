@@ -1,9 +1,7 @@
-using EventTicketing.Payments.Contracts;
 using EventTicketing.Payments.Domain;
 using EventTicketing.Shared.Application.Authorization;
 using EventTicketing.Shared.Application.Commands;
 using EventTicketing.Shared.Application.Context;
-using EventTicketing.Shared.Application.Messaging;
 using EventTicketing.Shared.Application.Scheduling;
 using EventTicketing.Shared.Domain;
 
@@ -14,6 +12,12 @@ namespace EventTicketing.Payments.Application.Webhooks;
 /// quickly. Processing happens afterwards in Workers, through a scheduled message due immediately.
 /// </summary>
 public sealed record ReceiveWebhook(string Provider, string Payload, IReadOnlyDictionary<string, string> Headers) : ICommand<Unit>;
+
+public static class WebhookErrors
+{
+    /// <summary>The webhook was stored before: the provider retried it or sent it twice. Answer 200.</summary>
+    public static readonly Error Duplicate = Error.Conflict("webhook.duplicate", "This webhook was received before.");
+}
 
 /// <summary>Webhooks come from providers, not signed-in users: the signature, checked by the handler, is the authentication.</summary>
 internal sealed class ReceiveWebhookAuthorizer : ICommandAuthorizer<ReceiveWebhook>
@@ -43,14 +47,24 @@ internal sealed class ReceiveWebhookHandler(
             return Error.Forbidden("webhook.invalid_signature", "The webhook signature is missing or invalid.");
         }
 
-        // A provider retries until it gets a 2xx, so the same webhook can arrive more than once.
+        // A provider retries until it gets a 2xx, so the same webhook can arrive more than once, even
+        // at the same moment: then the unique index catches the second (PaymentsDbContext).
         if (await webhooks.ExistsAsync(provider.Name, webhook.EventId, cancellationToken))
         {
-            return Unit.Value;
+            return WebhookErrors.Duplicate;
         }
 
         var now = time.GetUtcNow();
-        var received = ReceivedWebhook.Receive(provider.Name, webhook.EventId, webhook.Type, webhook.ProviderPaymentId, command.Payload, now);
+        var received = ReceivedWebhook.Receive(
+            provider.Name,
+            webhook.EventId,
+            webhook.Type,
+            webhook.ProviderPaymentId,
+            webhook.Reference,
+            webhook.AmountMinorUnits,
+            webhook.Currency,
+            command.Payload,
+            now);
         webhooks.Add(received);
         scheduler.Schedule(new ProcessPaymentWebhook(received.Id), now);
 
@@ -64,7 +78,7 @@ public sealed record ProcessPaymentWebhook(Guid WebhookId);
 internal sealed class ProcessPaymentWebhookHandler(
     IWebhookRepository webhooks,
     IPaymentAttemptRepository attempts,
-    IIntegrationEventPublisher events,
+    PaymentOutcomes outcomes,
     TimeProvider time)
     : IScheduledMessageHandler<ProcessPaymentWebhook>
 {
@@ -78,22 +92,50 @@ internal sealed class ProcessPaymentWebhookHandler(
             return;
         }
 
-        // The session is stored before the fan ever sees the payment page, so a missing attempt is a
-        // real problem: throwing makes the scheduler retry and eventually dead-letter it.
-        var attempt = await attempts.FindByProviderPaymentAsync(webhook.Provider, webhook.ProviderPaymentId, cancellationToken)
-            ?? throw new InvalidOperationException($"No payment attempt for {webhook.Provider} payment {webhook.ProviderPaymentId}.");
+        var attempt = await FindAttemptAsync(webhook, cancellationToken);
 
-        var now = time.GetUtcNow();
-        switch (webhook.Type)
+        // A report about a different amount is not about our payment. Throwing retries it and then
+        // dead-letters it, where someone looks at it; nothing is marked paid meanwhile.
+        if (!attempt.Matches(webhook.AmountMinorUnits, webhook.Currency))
         {
-            case ProviderWebhookTypes.PaymentSucceeded when attempt.Succeed(now):
-                events.Publish(new PaymentSucceeded(Guid.CreateVersion7(), now, attempt.OrderId, attempt.Id, attempt.AmountMinorUnits, attempt.Currency));
-                break;
-            case ProviderWebhookTypes.PaymentFailed:
-                attempt.Fail(now);
-                break;
+            throw new InvalidOperationException(
+                $"Webhook {webhook.ProviderEventId} reports {webhook.AmountMinorUnits} {webhook.Currency}; order {attempt.OrderId} expects {attempt.AmountMinorUnits} {attempt.Currency}.");
         }
 
-        webhook.MarkProcessed(now);
+        var status = webhook.Type switch
+        {
+            ProviderWebhookTypes.PaymentSucceeded => ProviderPaymentStatus.Succeeded,
+            ProviderWebhookTypes.PaymentFailed => ProviderPaymentStatus.Failed,
+            _ => (ProviderPaymentStatus?)null,
+        };
+
+        if (status is { } reported)
+        {
+            outcomes.Apply(attempt, reported);
+        }
+
+        webhook.MarkProcessed(time.GetUtcNow());
+    }
+
+    /// <summary>
+    /// By the provider's payment ID, or, if the webhook overtook the call that stores the session,
+    /// by our reference (the order ID). A missing attempt is a real problem: throwing makes the
+    /// scheduler retry and eventually dead-letter it.
+    /// </summary>
+    private async Task<PaymentAttempt> FindAttemptAsync(ReceivedWebhook webhook, CancellationToken cancellationToken)
+    {
+        if (await attempts.FindByProviderPaymentAsync(webhook.Provider, webhook.ProviderPaymentId, cancellationToken) is { } attempt)
+        {
+            return attempt;
+        }
+
+        if (Guid.TryParse(webhook.Reference, out var orderId)
+            && await attempts.FindByOrderAsync(orderId, cancellationToken) is { ProviderPaymentId: null } beforeSession
+            && beforeSession.Provider == webhook.Provider)
+        {
+            return beforeSession;
+        }
+
+        throw new InvalidOperationException($"No payment attempt for {webhook.Provider} payment {webhook.ProviderPaymentId}.");
     }
 }

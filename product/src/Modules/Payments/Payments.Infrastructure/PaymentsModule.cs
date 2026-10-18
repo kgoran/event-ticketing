@@ -38,6 +38,7 @@ public sealed class PaymentsModule : IModule
         builder.Services.AddSingleton(builder.Configuration.GetSection("Payments").Get<PaymentsPolicy>() ?? new PaymentsPolicy());
         builder.Services.AddScoped<IPaymentAttemptRepository, PaymentAttemptRepository>();
         builder.Services.AddScoped<IWebhookRepository, WebhookRepository>();
+        builder.Services.AddScoped<PaymentOutcomes>();
         builder.Services.AddScoped<IPaymentsApi, PaymentsApi>();
 
         builder.Services.Configure<LocalPayOptions>(builder.Configuration.GetSection("Payments:LocalPay"));
@@ -60,8 +61,9 @@ public sealed class PaymentsModule : IModule
                 var payload = await reader.ReadToEndAsync(cancellationToken);
                 var headers = request.Headers.ToDictionary(header => header.Key, header => header.Value.ToString(), StringComparer.OrdinalIgnoreCase);
 
+                // A duplicate is acknowledged like the original, so the provider stops retrying it.
                 var result = await handler.HandleAsync(new ReceiveWebhook(provider, payload, headers), cancellationToken);
-                return result.IsSuccess ? Results.Ok() : result.Error.ToProblem();
+                return result.IsSuccess || result.Error == WebhookErrors.Duplicate ? Results.Ok() : result.Error.ToProblem();
             })
             .AllowAnonymous()
             .WithTags("Webhooks")
@@ -73,7 +75,11 @@ public sealed class PaymentsModule : IModule
 }
 
 /// <summary>The in-process implementation of Payments' module API; a gRPC client if the module is ever extracted (ADR-0001).</summary>
-internal sealed class PaymentsApi(ICommandHandler<CreateCheckout, string> createCheckout) : IPaymentsApi
+internal sealed class PaymentsApi(
+    ICommandHandler<CreateCheckout, string> createCheckout,
+    ICommandHandler<CancelCheckout, CheckoutCancellation> cancelCheckout,
+    ICommandHandler<CheckPaymentStatus, ProviderPaymentStatus> checkStatus)
+    : IPaymentsApi
 {
     public async Task<CreateCheckoutResult> CreateCheckoutAsync(CreateCheckoutRequest request, CancellationToken cancellationToken)
     {
@@ -86,5 +92,31 @@ internal sealed class PaymentsApi(ICommandHandler<CreateCheckout, string> create
         return result.IsSuccess
             ? new CreateCheckoutResult(CreateCheckoutOutcome.Created, result.Value)
             : new CreateCheckoutResult(CreateCheckoutOutcome.ProviderUnavailable, null);
+    }
+
+    public async Task<CancelCheckoutResult> CancelCheckoutAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await cancelCheckout.HandleAsync(new CancelCheckout(orderId), cancellationToken);
+        return new CancelCheckoutResult(result switch
+        {
+            { IsSuccess: true, Value: CheckoutCancellation.AlreadyCompleted } => CancelCheckoutOutcome.AlreadyCompleted,
+            { IsSuccess: true } => CancelCheckoutOutcome.Cancelled,
+            _ when result.Error == CheckoutErrors.ProviderUnavailable => CancelCheckoutOutcome.ProviderUnavailable,
+            _ => throw new InvalidOperationException($"Could not cancel the payment of order {orderId}: {result.Error.Code}."),
+        });
+    }
+
+    public async Task<PaymentStatusResult> CheckPaymentStatusAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await checkStatus.HandleAsync(new CheckPaymentStatus(orderId), cancellationToken);
+        return new PaymentStatusResult(result switch
+        {
+            { IsSuccess: true, Value: ProviderPaymentStatus.Open } => PaymentStatusOutcome.Pending,
+            { IsSuccess: true, Value: ProviderPaymentStatus.Succeeded } => PaymentStatusOutcome.Succeeded,
+            { IsSuccess: true, Value: ProviderPaymentStatus.Failed } => PaymentStatusOutcome.Failed,
+            { IsSuccess: true } => PaymentStatusOutcome.Cancelled,
+            _ when result.Error == CheckoutErrors.ProviderUnavailable => PaymentStatusOutcome.ProviderUnavailable,
+            _ => PaymentStatusOutcome.Cancelled, // no session was ever created: nothing can be paid
+        });
     }
 }

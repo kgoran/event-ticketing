@@ -1,5 +1,7 @@
 using EventTicketing.Payments.Application;
+using EventTicketing.Payments.Application.Webhooks;
 using EventTicketing.Payments.Domain;
+using EventTicketing.Shared.Domain;
 using EventTicketing.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -10,11 +12,21 @@ internal sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> opti
 {
     public const string SchemaName = "payments";
 
+    /// <summary>Each provider event is stored once: a duplicate arriving at the same moment fails here.</summary>
+    public const string OneWebhookPerEvent = "ux_received_webhooks_provider_event";
+
+    private static readonly IReadOnlyDictionary<string, Error> Constraints = new Dictionary<string, Error>
+    {
+        [OneWebhookPerEvent] = WebhookErrors.Duplicate,
+    };
+
     public DbSet<PaymentAttempt> Attempts => Set<PaymentAttempt>();
 
     public DbSet<ReceivedWebhook> Webhooks => Set<ReceivedWebhook>();
 
     protected override string Schema => SchemaName;
+
+    protected override IReadOnlyDictionary<string, Error> ConstraintErrors => Constraints;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,6 +42,10 @@ internal sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> opti
             entity.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
             entity.HasIndex(a => a.OrderId).IsUnique();
             entity.HasIndex(a => new { a.Provider, a.ProviderPaymentId }).IsUnique().HasFilter("provider_payment_id IS NOT NULL");
+
+            // Webhooks, status checks and the checkout coordinator can change an attempt at the same
+            // moment: PostgreSQL's xmin makes the later save fail instead of overwriting (ADR-0011).
+            entity.Property<uint>("Version").IsRowVersion();
         });
 
         modelBuilder.Entity<ReceivedWebhook>(entity =>
@@ -40,7 +56,9 @@ internal sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> opti
             entity.Property(w => w.ProviderEventId).HasMaxLength(200);
             entity.Property(w => w.Type).HasMaxLength(100);
             entity.Property(w => w.ProviderPaymentId).HasMaxLength(200);
-            entity.HasIndex(w => new { w.Provider, w.ProviderEventId }).IsUnique();
+            entity.Property(w => w.Reference).HasMaxLength(200);
+            entity.Property(w => w.Currency).HasMaxLength(3);
+            entity.HasIndex(w => new { w.Provider, w.ProviderEventId }).IsUnique().HasDatabaseName(OneWebhookPerEvent);
         });
     }
 }
