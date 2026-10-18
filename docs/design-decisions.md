@@ -243,3 +243,28 @@ Closed:
 | 15 | Container images | One per host — [ADR-0029](adr/0029-container-image-per-host.md) |
 | 16 | KEDA scaling CloudNativePG replicas | Approach agreed in [ADR-0019](adr/0019-autoscaling-signals.md); verified by the M5 spike above |
 | 17 | Where the repository lives; public or private | Public: [github.com/kgoran/event-ticketing](https://github.com/kgoran/event-ticketing). Required checks can be enforced on the free plan — [ADR-0036](adr/0036-trunk-based-development.md) (update) |
+
+## 14. Decided during M1a implementation — Proposed (please review)
+
+Implementation-level choices made while building M1a, where neither an ADR nor the plan
+said. Each stays Proposed until reviewed; agreed items with lasting weight become ADRs (or
+updates to existing ones), and the rest stay here as the record.
+
+| # | Item | Decision | Why / alternative |
+|---|---|---|---|
+| S2-a | S2 | Integration events identify the message with `MessageId`, not `EventId` | "Event" means a ticketed event everywhere else; noted in [ADR-0007](adr/0007-module-communication.md) |
+| S2-b | S2 | `INonTransactionalCommand` built in S2 (planned for O1): coordinators run without the transaction and audit steps | `StartCheckout` needed it for the first slice; noted in [ADR-0033](adr/0033-command-pipeline.md) |
+| S2-c | S2 | Module APIs return plain outcome records (`BeginCheckoutOutcome`, ...), not `Result` | Contracts may reference only Shared.Contracts ([ADR-0002](adr/0002-module-boundary-rules.md)) |
+| S2-d | S2 | A received webhook is stored and a scheduled message due at once hands it to Workers | Keeps WebhookIngress to "verify, store, 200" ([ADR-0009](adr/0009-checkout-without-shared-transaction.md)) |
+| S2-e | S2 | Every host registers every module; each module decides per host kind what it adds | One composition list per host; the alternative, per-host module lists, drifts |
+| S2-f | S2 | Paid-but-seats-lost orders end in status `SeatsLost`; the refund arrives with P2 | As planned |
+| C1-a | C1 | Venues belong to an organizer and are never edited: a new layout is a new import | Events refer to venue seats; editing a layout under an event on sale would change it. Alternative: platform-wide venues managed by admins |
+| C1-b | C1 | Seat-map import: seated sections list rows (label, seat count, first number); standing areas give a capacity. Grid positions and "best available" ranks are derived (front rows first, then seats nearest the middle) | Alternative: explicit coordinates per seat, as seat-map products do; much bigger files, nothing more to learn |
+| C1-c | C1 | A venue seat's ID is that seat's identity in every event at the venue | Inventory's rows and the seat-map geometry join on it in the client ([ADR-0007](adr/0007-module-communication.md) rule 4) |
+| C1-d | C1 | Price categories are assigned by rules: one per section, overridden per row; every place must be covered; resolved into `EventPublished` at publish time | Simple to state and validate; per-seat lists would be 2,000 lines of input |
+| C1-e | C1 | The stored lifecycle is Draft → Published (Cancelled comes later). "On sale" is the time window [OnSaleAt, StartsAt), not a stored state; Inventory enforces it against the database clock (I1). A time in the past opens sales now; once sales start, the time can't move | A stored "OnSale" flipped by a scheduled job would lag behind the clock and give two answers |
+| C1-f | C1 | `EventPublished` v1 changed in place (time zone, on-sale time, seat rank, standing areas) | Nothing has been released and the lab is disposable; contract versioning applies from the end of M1a |
+| C1-g | C1 | `PricesChanged` carries the full price list; `OnSaleScheduled` is sent only for published events (a Draft's schedule travels in `EventPublished`) | Consumers apply a full list without knowing the previous one |
+| C1-h | C1 | NodaTime's bundled TZDB validates IANA time zones | The repository runs with `InvariantGlobalization`, where `TimeZoneInfo` can't resolve IANA IDs on Windows and depends on tzdata in Linux images |
+| C1-i | C1 | Commands on another organizer's event get 403 (from the authorizer); reads of it get 404; another organizer's venue in `CreateEvent` is "not found" | Reads don't confirm that someone else's IDs exist; commands fail closed in the pipeline |
+| C1-j | C1 | `product/tests/Modules.IntegrationTests`: the real hosts in memory against one PostgreSQL, tests isolated by their own organizers and events; messages move only when a test steps the relay and scheduler | Deterministic, and it exercises the real migrations, pipeline and HTTP surface |

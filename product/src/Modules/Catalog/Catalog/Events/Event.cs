@@ -1,18 +1,41 @@
+using EventTicketing.Catalog.Venues;
 using EventTicketing.Shared.Domain;
 
 namespace EventTicketing.Catalog.Events;
 
+/// <summary>
+/// The stored lifecycle. Draft → Published; cancellation joins later (EventCancelled). Whether an
+/// event is on sale is not a stored state but a time window, <see cref="Event.SalesPhaseAt"/>.
+/// </summary>
 public enum EventStatus
 {
     Draft,
     Published,
 }
 
-/// <summary>An event an organizer sells tickets for, with its seat layout and price categories.</summary>
+/// <summary>Where a published event stands in its sales window [OnSaleAt, StartsAt).</summary>
+public enum SalesPhase
+{
+    /// <summary>Not published, or published without an on-sale time.</summary>
+    NotScheduled,
+    Scheduled,
+    OnSale,
+    Ended,
+}
+
+/// <summary>
+/// An event an organizer sells tickets for at one of its venues: price categories, which category
+/// each seat is in, and the on-sale schedule. Its state machine:
+/// <code>
+///   Draft ──Publish──► Published
+///     │ ScheduleOnSale, ChangePrices   │ ScheduleOnSale (until sales start) → OnSaleScheduled
+///     │ (no events)                    │ ChangePrices (until the event starts) → PricesChanged
+/// </code>
+/// </summary>
 internal sealed class Event
 {
     private readonly List<PriceCategory> _priceCategories = [];
-    private readonly List<Seat> _seats = [];
+    private readonly List<PriceAssignment> _priceAssignments = [];
 
     private Event()
     {
@@ -22,6 +45,8 @@ internal sealed class Event
 
     public Guid OrganizerId { get; private set; }
 
+    public Guid VenueId { get; private set; }
+
     public string Name { get; private set; } = string.Empty;
 
     public DateTimeOffset StartsAt { get; private set; }
@@ -30,24 +55,31 @@ internal sealed class Event
 
     public EventStatus Status { get; private set; }
 
+    public DateTimeOffset? OnSaleAt { get; private set; }
+
     public DateTimeOffset? PublishedAt { get; private set; }
 
     public IReadOnlyList<PriceCategory> PriceCategories => _priceCategories;
 
-    public IReadOnlyList<Seat> Seats => _seats;
+    public IReadOnlyList<PriceAssignment> PriceAssignments => _priceAssignments;
 
-    public static Event Create(
-        Guid organizerId,
+    /// <summary>
+    /// Creates a Draft event. Every place in the venue must end up in exactly one price category:
+    /// a row rule wins over its section's rule, and standing areas take section rules only.
+    /// </summary>
+    public static Result<Event> Create(
+        Venue venue,
         string name,
         DateTimeOffset startsAt,
         CurrencyCode currency,
-        IEnumerable<PriceCategoryInput> priceCategories,
-        IEnumerable<SectionInput> sections)
+        IReadOnlyList<PriceCategoryInput> priceCategories,
+        IReadOnlyList<PriceAssignmentInput> seating)
     {
         var @event = new Event
         {
             Id = Guid.CreateVersion7(),
-            OrganizerId = organizerId,
+            OrganizerId = venue.OrganizerId,
+            VenueId = venue.Id,
             Name = name,
             StartsAt = startsAt.ToUniversalTime(),
             Currency = currency.Value,
@@ -59,21 +91,70 @@ internal sealed class Event
             @event._priceCategories.Add(new PriceCategory(Guid.CreateVersion7(), @event.Id, category.Name, category.PriceMinorUnits));
         }
 
-        // A simple layout: each section has rows 1..N with seats 1..M, all in one price category.
-        foreach (var section in sections)
+        var errors = new List<FieldError>();
+        foreach (var rule in seating)
         {
-            var category = @event._priceCategories.Single(c => c.Name == section.PriceCategory);
-            for (var row = 1; row <= section.Rows; row++)
+            var section = venue.Section(rule.Section);
+            var category = @event._priceCategories.Single(c => c.Name == rule.PriceCategory);
+            if (section is null)
             {
-                for (var number = 1; number <= section.SeatsPerRow; number++)
+                errors.Add(new FieldError(nameof(CreateEvent.Seating), $"The venue has no section '{rule.Section}'."));
+                continue;
+            }
+
+            if (rule.Rows is not { Count: > 0 })
+            {
+                @event._priceAssignments.Add(new PriceAssignment(Guid.CreateVersion7(), @event.Id, section.Code, null, category.Id));
+                continue;
+            }
+
+            if (section.Kind == SectionKind.Standing)
+            {
+                errors.Add(new FieldError(nameof(CreateEvent.Seating), $"Section '{section.Code}' is a standing area and has no rows."));
+                continue;
+            }
+
+            foreach (var row in rule.Rows)
+            {
+                if (!section.HasRow(row))
                 {
-                    @event._seats.Add(new Seat(Guid.CreateVersion7(), @event.Id, section.Name, row.ToString(System.Globalization.CultureInfo.InvariantCulture), number, category.Id));
+                    errors.Add(new FieldError(nameof(CreateEvent.Seating), $"Section '{section.Code}' has no row '{row}'."));
+                    continue;
                 }
+
+                @event._priceAssignments.Add(new PriceAssignment(Guid.CreateVersion7(), @event.Id, section.Code, row, category.Id));
             }
         }
 
-        return @event;
+        if (errors.Count == 0)
+        {
+            errors.AddRange(venue.Sections
+                .SelectMany(section => section.Kind == SectionKind.Standing
+                    ? [(section.Code, Row: (string?)null)]
+                    : section.Seats.Select(seat => seat.Row).Distinct().Select(row => (section.Code, Row: (string?)row)))
+                .Where(place => @event.PriceCategoryIdFor(place.Code, place.Row) is null)
+                .Select(place => new FieldError(
+                    nameof(CreateEvent.Seating),
+                    place.Row is null
+                        ? $"Section '{place.Code}' has no price category."
+                        : $"Section '{place.Code}' row '{place.Row}' has no price category.")));
+        }
+
+        return errors.Count == 0 ? Result.Success(@event) : Result.Failure<Event>(new ValidationError(errors));
     }
+
+    /// <summary>The category of the seats in a row (or of a standing area, when <paramref name="row"/> is null).</summary>
+    public Guid? PriceCategoryIdFor(string section, string? row) =>
+        _priceAssignments.SingleOrDefault(a => a.Section == section && row is not null && a.Row == row)?.PriceCategoryId
+        ?? _priceAssignments.SingleOrDefault(a => a.Section == section && a.Row is null)?.PriceCategoryId;
+
+    public SalesPhase SalesPhaseAt(DateTimeOffset now) => this switch
+    {
+        { Status: not EventStatus.Published } or { OnSaleAt: null } => SalesPhase.NotScheduled,
+        _ when now >= StartsAt => SalesPhase.Ended,
+        _ when now >= OnSaleAt => SalesPhase.OnSale,
+        _ => SalesPhase.Scheduled,
+    };
 
     public Result Publish(DateTimeOffset now)
     {
@@ -82,12 +163,70 @@ internal sealed class Event
             return Result.Failure(Error.Conflict("event.already_published", "The event is already published."));
         }
 
+        if (StartsAt <= now)
+        {
+            return Result.Failure(Error.Conflict("event.started", "The event has already started."));
+        }
+
         Status = EventStatus.Published;
         PublishedAt = now.ToUniversalTime();
         return Result.Success();
     }
+
+    /// <summary>
+    /// Sets when sales start. A time in the past means "now". Once sales have started the time can't
+    /// move, because fans may already hold seats.
+    /// </summary>
+    public Result ScheduleOnSale(DateTimeOffset onSaleAt, DateTimeOffset now)
+    {
+        if (SalesPhaseAt(now) is SalesPhase.OnSale or SalesPhase.Ended)
+        {
+            return Result.Failure(Error.Conflict("event.sales_started", "Sales have already started; the on-sale time can't change."));
+        }
+
+        if (onSaleAt >= StartsAt)
+        {
+            return Result.Failure(Error.Validation("event.on_sale_after_start", "Sales must start before the event does."));
+        }
+
+        OnSaleAt = (onSaleAt < now ? now : onSaleAt).ToUniversalTime();
+        return Result.Success();
+    }
+
+    /// <summary>Changes prices for orders placed from now on; orders keep the price they were placed at.</summary>
+    public Result ChangePrices(IReadOnlyList<PriceChange> changes, DateTimeOffset now)
+    {
+        if (StartsAt <= now)
+        {
+            return Result.Failure(Error.Conflict("event.started", "The event has already started."));
+        }
+
+        var unknown = changes.Where(change => _priceCategories.All(c => c.Id != change.PriceCategoryId)).ToList();
+        if (unknown.Count > 0)
+        {
+            return Result.Failure(new ValidationError(
+                [.. unknown.Select(change => new FieldError("Prices", $"The event has no price category {change.PriceCategoryId}."))]));
+        }
+
+        foreach (var change in changes)
+        {
+            _priceCategories.Single(c => c.Id == change.PriceCategoryId).PriceMinorUnits = change.PriceMinorUnits;
+        }
+
+        return Result.Success();
+    }
 }
 
-internal sealed record PriceCategory(Guid Id, Guid EventId, string Name, long PriceMinorUnits);
+internal sealed class PriceCategory(Guid id, Guid eventId, string name, long priceMinorUnits)
+{
+    public Guid Id { get; private set; } = id;
 
-internal sealed record Seat(Guid Id, Guid EventId, string Section, string Row, int Number, Guid PriceCategoryId);
+    public Guid EventId { get; private set; } = eventId;
+
+    public string Name { get; private set; } = name;
+
+    public long PriceMinorUnits { get; set; } = priceMinorUnits;
+}
+
+/// <summary>Which price category a section's places are in, or one row's seats when <see cref="Row"/> is set.</summary>
+internal sealed record PriceAssignment(Guid Id, Guid EventId, string Section, string? Row, Guid PriceCategoryId);

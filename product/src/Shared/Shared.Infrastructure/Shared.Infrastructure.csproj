@@ -20,5 +20,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="EventTicketing.Shared.IntegrationTests" />
     <InternalsVisibleTo Include="EventTicketing.Hosts.Tests" />
+    <InternalsVisibleTo Include="EventTicketing.Modules.IntegrationTests" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,6 @@
 using EventTicketing.Catalog.Events;
 using EventTicketing.Catalog.Persistence;
+using EventTicketing.Catalog.Venues;
 using EventTicketing.Shared.Application;
 using EventTicketing.Shared.Infrastructure.Messaging;
 using EventTicketing.Shared.Infrastructure.Modules;
@@ -26,6 +27,7 @@ public sealed class CatalogModule : IModule
     {
         if (host == HostKind.BackOfficeApi)
         {
+            VenueEndpoints.MapManagement(endpoints);
             EventEndpoints.MapManagement(endpoints);
         }
     }

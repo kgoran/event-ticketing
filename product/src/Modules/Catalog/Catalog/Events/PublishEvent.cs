@@ -1,29 +1,22 @@
 using EventTicketing.Catalog.Contracts;
 using EventTicketing.Catalog.Persistence;
-using EventTicketing.Shared.Application.Authorization;
+using EventTicketing.Catalog.Venues;
 using EventTicketing.Shared.Application.Commands;
-using EventTicketing.Shared.Application.Context;
 using EventTicketing.Shared.Application.Messaging;
 using EventTicketing.Shared.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace EventTicketing.Catalog.Events;
 
-/// <summary>Publishes a Draft event, which tells Inventory and Orders it exists (EventPublished).</summary>
+/// <summary>
+/// Publishes a Draft event. EventPublished carries every place with its price category, so
+/// Inventory creates its rows and Orders its price list without calling Catalog (ADR-0007).
+/// </summary>
 internal sealed record PublishEvent(Guid EventId) : ICommand<Unit>;
 
-/// <summary>Only members of the event's organizer may publish it. An unknown event is refused, not reported as missing.</summary>
-internal sealed class PublishEventAuthorizer(CatalogDbContext db) : ICommandAuthorizer<PublishEvent>
+internal sealed class PublishEventAuthorizer(CatalogDbContext db) : EventOrganizerAuthorizer<PublishEvent>(db)
 {
-    public async ValueTask<bool> IsAllowedAsync(PublishEvent command, IExecutionContext context, CancellationToken cancellationToken)
-    {
-        var organizerId = await db.Events
-            .Where(e => e.Id == command.EventId)
-            .Select(e => (Guid?)e.OrganizerId)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        return organizerId is { } id && context.OrganizerIds.Contains(id);
-    }
+    protected override Guid EventIdOf(PublishEvent command) => command.EventId;
 }
 
 internal sealed class PublishEventHandler(CatalogDbContext db, IIntegrationEventPublisher events, TimeProvider time)
@@ -33,7 +26,8 @@ internal sealed class PublishEventHandler(CatalogDbContext db, IIntegrationEvent
     {
         var @event = await db.Events
             .Include(e => e.PriceCategories)
-            .Include(e => e.Seats)
+            .Include(e => e.PriceAssignments)
+            .AsSplitQuery()
             .SingleOrDefaultAsync(e => e.Id == command.EventId, cancellationToken);
 
         if (@event is null)
@@ -48,6 +42,14 @@ internal sealed class PublishEventHandler(CatalogDbContext db, IIntegrationEvent
             return published.Error;
         }
 
+        var venue = await db.Venues
+            .AsNoTracking()
+            .Include(v => v.Sections).ThenInclude(s => s.Seats)
+            .AsSplitQuery()
+            .SingleAsync(v => v.Id == @event.VenueId, cancellationToken);
+
+        var sections = venue.Sections.OrderBy(s => s.Position).ToList();
+
         events.Publish(new EventPublished(
             Guid.CreateVersion7(),
             now,
@@ -55,9 +57,17 @@ internal sealed class PublishEventHandler(CatalogDbContext db, IIntegrationEvent
             @event.OrganizerId,
             @event.Name,
             @event.StartsAt,
+            venue.TimeZone,
             @event.Currency,
+            @event.OnSaleAt,
             [.. @event.PriceCategories.Select(c => new PublishedPriceCategory(c.Id, c.Name, c.PriceMinorUnits))],
-            [.. @event.Seats.Select(s => new PublishedSeat(s.Id, s.Section, s.Row, s.Number, s.PriceCategoryId))]));
+            [.. sections
+                .Where(s => s.Kind == SectionKind.Seated)
+                .SelectMany(s => s.Seats.OrderBy(seat => seat.Rank).Select(seat => new PublishedSeat(
+                    seat.Id, s.Code, seat.Row, seat.Number, seat.Rank, @event.PriceCategoryIdFor(s.Code, seat.Row)!.Value)))],
+            [.. sections
+                .Where(s => s.Kind == SectionKind.Standing)
+                .Select(s => new PublishedStandingArea(s.Code, s.Capacity!.Value, @event.PriceCategoryIdFor(s.Code, null)!.Value))]));
 
         return Unit.Value;
     }
