@@ -1,4 +1,10 @@
 <Solution>
+  <Folder Name="/clients/">
+    <Project Path="clients/Clients.csproj" />
+  </Folder>
+  <Folder Name="/seed/">
+    <Project Path="seed/Seed.csproj" />
+  </Folder>
   <Folder Name="/simulators/">
     <Project Path="simulators/LocalPay/LocalPay.csproj" />
   </Folder>
