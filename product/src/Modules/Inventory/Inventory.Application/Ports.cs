@@ -14,6 +14,9 @@ public interface IHoldRepository
     /// out (database clock) is marked Expired first, so it no longer counts.
     /// </summary>
     Task<Hold?> FindCurrentAsync(Guid eventId, string customerId, CancellationToken cancellationToken);
+
+    /// <summary>Marks up to <paramref name="batch"/> Active or InCheckout holds whose time has run out as Expired.</summary>
+    Task<int> ExpireLapsedAsync(int batch, CancellationToken cancellationToken);
 }
 
 /// <summary>Each event's sales window, Inventory's copy of Catalog's schedule.</summary>
@@ -45,11 +48,20 @@ public interface ISeatInventory
     /// <summary>Whether the event is inside its sales window now (database clock).</summary>
     Task<bool> IsOnSaleAsync(Guid eventId, CancellationToken cancellationToken);
 
-    /// <summary>Frees the seats the hold still owns.</summary>
+    /// <summary>Frees the seats the hold still owns, so they can no longer be sold to it.</summary>
     Task ReleaseAsync(Guid holdId, CancellationToken cancellationToken);
 
-    /// <summary>Extends the hold, but only if it still owns all its seats and hasn't expired.</summary>
-    Task<bool> TryExtendAsync(Guid holdId, int seatCount, TimeSpan lifetime, CancellationToken cancellationToken);
+    /// <summary>
+    /// Extends the hold by <paramref name="lifetime"/>, but only if it still owns all its seats and
+    /// hasn't expired. Returns the new expiry (database clock), or null.
+    /// </summary>
+    Task<DateTimeOffset?> TryExtendAsync(Guid holdId, int seatCount, TimeSpan lifetime, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Shows up to <paramref name="batch"/> expired seats as Available. They keep their hold ID, so
+    /// a late confirmation can still sell them if nobody has claimed them since.
+    /// </summary>
+    Task<int> MarkExpiredAvailableAsync(int batch, CancellationToken cancellationToken);
 
     /// <summary>Sells the hold's seats to the order, but only if the hold still owns all of them.</summary>
     Task<bool> TrySellAsync(Guid holdId, Guid orderId, int seatCount, CancellationToken cancellationToken);
@@ -76,4 +88,10 @@ public sealed record InventoryPolicy
     public TimeSpan CheckoutBackstop { get; init; } = TimeSpan.FromMinutes(35);
 
     public int MaxSeatsPerHold { get; init; } = 8;
+
+    /// <summary>How often the sweeper tidies up expired holds (ADR-0010: about every 2 s).</summary>
+    public TimeSpan SweepInterval { get; init; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>At most this many seats, and as many holds, per sweep, to keep its transaction short.</summary>
+    public int SweepBatchSize { get; init; } = 1000;
 }

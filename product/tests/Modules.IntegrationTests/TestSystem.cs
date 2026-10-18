@@ -124,6 +124,16 @@ public sealed class TestSystem : IAsyncLifetime
         }
     }
 
+    /// <summary>Runs <paramref name="action"/> in a scope of the Workers host, as a message handler would: no signed-in caller.</summary>
+    public async Task<T> InWorkersAsync<T>(Func<IServiceProvider, Task<T>> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        var workers = _workers ?? throw new InvalidOperationException("The system has not started.");
+        await using var scope = workers.Services.CreateAsyncScope();
+        return await action(scope.ServiceProvider);
+    }
+
     /// <summary>Runs a query whose parameters are named @p0, @p1, ... and returns the first column of each row.</summary>
     public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, params object[] parameters)
     {

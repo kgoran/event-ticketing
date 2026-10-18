@@ -7,6 +7,7 @@ using EventTicketing.Shared.Application;
 using EventTicketing.Shared.Infrastructure.Messaging;
 using EventTicketing.Shared.Infrastructure.Modules;
 using EventTicketing.Shared.Infrastructure.Persistence;
+using EventTicketing.Shared.Infrastructure.Scheduling;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +29,9 @@ public sealed class InventoryModule : IModule
         builder.Services.AddCommandHandlers(application);
         builder.Services.AddMessageHandlers(application);
 
-        builder.Services.AddSingleton(builder.Configuration.GetSection("Inventory").Get<InventoryPolicy>() ?? new InventoryPolicy());
+        var policy = builder.Configuration.GetSection("Inventory").Get<InventoryPolicy>() ?? new InventoryPolicy();
+        builder.Services.AddSingleton(policy);
+        builder.Services.AddRecurringMessage<SweepExpiredHolds>(policy.SweepInterval);
         builder.Services.AddScoped<IHoldRepository, HoldRepository>();
         builder.Services.AddScoped<ISeatInventory, SeatInventory>();
         builder.Services.AddScoped<ISalesWindows, SalesWindows>();

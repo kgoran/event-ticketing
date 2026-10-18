@@ -38,7 +38,8 @@ internal sealed class TestApp : IAsyncDisposable
     public static async Task<TestApp> CreateAsync(
         string connectionString,
         Action<MessagingOptions>? configure = null,
-        bool createTables = true)
+        bool createTables = true,
+        Action<IServiceCollection>? services = null)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { EnvironmentName = Environments.Development });
         builder.Configuration["ConnectionStrings:" + ModuleDatabaseRegistration.ConnectionName] = connectionString;
@@ -49,6 +50,8 @@ internal sealed class TestApp : IAsyncDisposable
         {
             builder.Services.Configure(configure);
         }
+
+        services?.Invoke(builder.Services);
 
         var app = new TestApp(builder.Build(), connectionString);
         if (createTables)

@@ -11,12 +11,13 @@ namespace EventTicketing.Inventory.Infrastructure;
 /// </summary>
 internal sealed class InventoryApi(
     ICommandHandler<BeginCheckout, CheckoutSeats> beginCheckout,
-    ICommandHandler<ConfirmHold, HoldConfirmation> confirmHold)
+    ICommandHandler<ConfirmHold, HoldConfirmation> confirmHold,
+    ICommandHandler<ReleaseCheckoutHold, CheckoutHoldRelease> releaseHold)
     : IInventoryApi
 {
-    public async Task<BeginCheckoutResult> BeginCheckoutAsync(Guid holdId, Guid orderId, CancellationToken cancellationToken)
+    public async Task<BeginCheckoutResult> BeginCheckoutAsync(Guid holdId, Guid orderId, string customerId, CancellationToken cancellationToken)
     {
-        var result = await beginCheckout.HandleAsync(new BeginCheckout(holdId, orderId), cancellationToken);
+        var result = await beginCheckout.HandleAsync(new BeginCheckout(holdId, orderId, customerId), cancellationToken);
 
         return result.IsSuccess
             ? new BeginCheckoutResult(
@@ -38,5 +39,18 @@ internal sealed class InventoryApi(
         }
 
         return new ConfirmHoldResult(result.Value == HoldConfirmation.Confirmed ? ConfirmHoldOutcome.Confirmed : ConfirmHoldOutcome.SeatsLost);
+    }
+
+    public async Task<ReleaseHoldResult> ReleaseHoldAsync(Guid holdId, Guid orderId, CancellationToken cancellationToken)
+    {
+        var result = await releaseHold.HandleAsync(new ReleaseCheckoutHold(holdId, orderId), cancellationToken);
+
+        // Like a confirmation for a hold that doesn't exist: a bug, so fail loudly and let it retry.
+        if (result.IsFailure)
+        {
+            throw new InvalidOperationException($"Could not release hold {holdId} of order {orderId}: {result.Error.Code}.");
+        }
+
+        return new ReleaseHoldResult(result.Value == CheckoutHoldRelease.AlreadyConfirmed ? ReleaseHoldOutcome.AlreadyConfirmed : ReleaseHoldOutcome.Released);
     }
 }

@@ -16,8 +16,8 @@ outbox, inbox and scheduler (F4), Keycloak (K1), the first vertical slice (S2: t
 Inventory, Orders, Payments and LocalPay, proven end to end by `dev/AppHost.Tests`), Catalog
 (C1: venues, seat maps, prices, on-sale schedule), browsing (C2: search, event page, versioned seat
 map; `.http` files in the API hosts), Organizers (G1), Inventory holds (I1: seats and standing slots,
-claims with expiry inside, one hold per fan, best available, availability). Next: I2, L1, P1, O1, O2,
-P2, T1, Q1–Q4. Implementation decisions awaiting review: design-decisions.md §14.
+claims with expiry inside, one hold per fan, best available, availability), the Inventory module
+API with backstop and sweeper (I2; recurring scheduled messages). Next: L1, P1, O1, O2, P2, T1, Q1–Q4. Implementation decisions awaiting review: design-decisions.md §14.
 The M1a time-box is still to be agreed.
 
 ## Commands
