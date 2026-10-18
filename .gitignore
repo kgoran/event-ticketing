@@ -186,6 +186,8 @@ DocProject/Help/html
 
 # Click-Once directory
 publish/
+# ...but not the Kiota clients' request builders for routes named "publish" (ADR-0037).
+!tooling/clients/**/[Pp]ublish/
 
 # Publish Web Output
 *.[Pp]ublish.xml
