@@ -1,9 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using EventTicketing.Catalog.Browse;
 using EventTicketing.Catalog.Venues;
 using EventTicketing.Inventory.Application.Holds;
 using EventTicketing.Inventory.Infrastructure.Endpoints;
+using EventTicketing.Orders.Application.Checkout;
+using EventTicketing.Orders.Infrastructure;
 
 namespace EventTicketing.Modules.IntegrationTests;
 
@@ -71,6 +74,37 @@ internal static class Scenarios
             "h AS (UPDATE inventory.holds SET expires_at = now() - interval '1 second' WHERE id = @p0 RETURNING 1) " +
             "SELECT count(*)::int FROM s",
             holdId);
+
+    /// <summary>POST /orders: turns the hold into an order and returns where to pay.</summary>
+    public static async Task<CheckoutStarted> CheckoutAsync(this HttpClient fan, Guid holdId)
+    {
+        var response = await fan.PostAsJsonAsync(new Uri("/orders", UriKind.Relative), new StartCheckoutRequest(holdId), CancellationToken);
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync(CancellationToken));
+        return (await response.Content.ReadFromJsonAsync<CheckoutStarted>(CancellationToken))!;
+    }
+
+    public static async Task<OrderStatusResponse> OrderAsync(this HttpClient fan, Guid orderId) =>
+        (await fan.GetFromJsonAsync<OrderStatusResponse>(new Uri($"/orders/{orderId}", UriKind.Relative), CancellationToken))!;
+
+    /// <summary>Delivers a webhook to WebhookIngress, as LocalPay would.</summary>
+    public static async Task<HttpResponseMessage> PostWebhookAsync(this TestSystem system, (string Body, string Signature) webhook)
+    {
+        using var ingress = system.WebhookIngress();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/webhooks/localpay")
+        {
+            Content = new StringContent(webhook.Body, Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Add("LocalPay-Signature", webhook.Signature);
+        return await ingress.SendAsync(request, CancellationToken);
+    }
+
+    /// <summary>Makes the module's scheduled messages of a type for one order due now; returns how many there were.</summary>
+    public static async Task<int> MakeDueAsync(this TestSystem system, string schema, Type messageType, Guid orderId) =>
+        await system.ScalarAsync<int>(
+            $"WITH due AS (UPDATE {schema}.scheduled_messages SET due_at = now() - interval '1 second' " +
+            "WHERE type = @p0 AND payload->>'orderId' = @p1 AND dead_lettered_at IS NULL RETURNING 1) SELECT count(*)::int FROM due",
+            messageType.FullName!,
+            orderId.ToString());
 
     /// <summary>Makes the recurring sweeper due and runs it (the first delivery in a test run starts it).</summary>
     public static async Task SweepNowAsync(this TestSystem system)

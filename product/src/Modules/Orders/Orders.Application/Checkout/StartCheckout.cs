@@ -4,6 +4,7 @@ using EventTicketing.Payments.Contracts;
 using EventTicketing.Shared.Application.Authorization;
 using EventTicketing.Shared.Application.Commands;
 using EventTicketing.Shared.Application.Context;
+using EventTicketing.Shared.Application.Scheduling;
 using EventTicketing.Shared.Domain;
 using FluentValidation;
 
@@ -71,7 +72,10 @@ internal sealed class StartCheckoutHandler(
     }
 }
 
-/// <summary>Creates the Pending order with prices from Orders' price list (ADR-0009, step 2).</summary>
+/// <summary>
+/// Creates the Pending order with prices from Orders' price list (ADR-0009, step 2), and schedules
+/// its checkout deadline in the same transaction: an order can't exist without one.
+/// </summary>
 public sealed record CreateOrder(Guid OrderId, Guid HoldId, Guid EventId, IReadOnlyList<OrderSeat> Seats) : ICommand<CreatedOrder>;
 
 public sealed record OrderSeat(Guid SeatId, Guid PriceCategoryId);
@@ -80,7 +84,13 @@ public sealed record CreatedOrder(Guid OrderId, long TotalMinorUnits, string Cur
 
 internal sealed class CreateOrderAuthorizer : InternalCommandAuthorizer<CreateOrder>;
 
-internal sealed class CreateOrderHandler(IOrderRepository orders, IPriceList priceList, IExecutionContext caller, TimeProvider time)
+internal sealed class CreateOrderHandler(
+    IOrderRepository orders,
+    IPriceList priceList,
+    IMessageScheduler scheduler,
+    IExecutionContext caller,
+    CheckoutPolicy policy,
+    TimeProvider time)
     : ICommandHandler<CreateOrder, CreatedOrder>
 {
     public async Task<Result<CreatedOrder>> HandleAsync(CreateOrder command, CancellationToken cancellationToken)
@@ -92,6 +102,7 @@ internal sealed class CreateOrderHandler(IOrderRepository orders, IPriceList pri
         }
 
         var currency = CurrencyCode.Create(prices.Values.First().Currency).Value;
+        var now = time.GetUtcNow();
         var order = Order.Place(
             command.OrderId,
             caller.UserId ?? throw new InvalidOperationException("An order needs a signed-in caller."),
@@ -99,9 +110,11 @@ internal sealed class CreateOrderHandler(IOrderRepository orders, IPriceList pri
             command.EventId,
             currency,
             [.. command.Seats.Select(seat => (seat.SeatId, seat.PriceCategoryId, new Money(prices[seat.PriceCategoryId].PriceMinorUnits, currency)))],
-            time.GetUtcNow());
+            now,
+            now + policy.PaymentDeadline);
 
         orders.Add(order);
+        scheduler.Schedule(new CheckoutDeadline(order.Id), order.PaymentDeadline);
         return new CreatedOrder(order.Id, order.TotalMinorUnits, order.Currency);
     }
 }

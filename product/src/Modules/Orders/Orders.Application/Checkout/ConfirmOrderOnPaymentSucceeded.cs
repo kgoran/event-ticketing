@@ -3,6 +3,7 @@ using EventTicketing.Orders.Contracts;
 using EventTicketing.Orders.Domain;
 using EventTicketing.Payments.Contracts;
 using EventTicketing.Shared.Application.Messaging;
+using EventTicketing.Shared.Application.Scheduling;
 
 namespace EventTicketing.Orders.Application.Checkout;
 
@@ -28,24 +29,44 @@ internal sealed class ConfirmOrderOnPaymentSucceeded(
             return;
         }
 
+        var now = time.GetUtcNow();
         var confirmation = await inventory.ConfirmHoldAsync(order.HoldId, order.Id, cancellationToken);
         if (confirmation.Outcome == ConfirmHoldOutcome.SeatsLost)
         {
-            order.MarkSeatsLost(); // refunding it arrives with backlog item P2
+            order.MarkSeatsLost(now); // refunding it arrives with backlog item P2
             return;
         }
 
-        if (order.Confirm())
+        if (order.Confirm(now))
         {
             events.Publish(new OrderConfirmed(
                 Guid.CreateVersion7(),
-                time.GetUtcNow(),
+                now,
                 order.Id,
                 order.CustomerId,
                 order.EventId,
                 order.TotalMinorUnits,
                 order.Currency,
                 [.. order.Lines.Select(line => new ConfirmedSeat(line.SeatId, line.PriceCategoryId, line.PriceMinorUnits))]));
+        }
+    }
+}
+
+/// <summary>
+/// A declined payment closes the checkout at once instead of at its deadline: the same steps,
+/// payment cancelled first and seats released second (<see cref="CheckoutDeadlineHandler"/>).
+/// </summary>
+internal sealed class CloseCheckoutOnPaymentFailed(IOrderRepository orders, IMessageScheduler scheduler, TimeProvider time)
+    : IIntegrationEventHandler<PaymentFailed>
+{
+    public async Task HandleAsync(PaymentFailed integrationEvent, CancellationToken cancellationToken)
+    {
+        var order = await orders.FindAsync(integrationEvent.OrderId, cancellationToken)
+            ?? throw new InvalidOperationException($"Payment failed for unknown order {integrationEvent.OrderId}.");
+
+        if (order.Status == OrderStatus.Pending)
+        {
+            scheduler.Schedule(new CheckoutDeadline(order.Id, CheckoutCloseReason.PaymentFailed), time.GetUtcNow());
         }
     }
 }

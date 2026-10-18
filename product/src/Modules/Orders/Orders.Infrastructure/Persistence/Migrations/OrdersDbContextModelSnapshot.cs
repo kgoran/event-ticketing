@@ -30,6 +30,10 @@ namespace EventTicketing.Orders.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -54,6 +58,10 @@ namespace EventTicketing.Orders.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("hold_id");
 
+                    b.Property<DateTimeOffset>("PaymentDeadline")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("payment_deadline");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -63,6 +71,12 @@ namespace EventTicketing.Orders.Infrastructure.Persistence.Migrations
                     b.Property<long>("TotalMinorUnits")
                         .HasColumnType("bigint")
                         .HasColumnName("total_minor_units");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id")
                         .HasName("pk_orders");
@@ -120,6 +134,10 @@ namespace EventTicketing.Orders.Infrastructure.Persistence.Migrations
                     b.Property<long>("PriceMinorUnits")
                         .HasColumnType("bigint")
                         .HasColumnName("price_minor_units");
+
+                    b.Property<DateTimeOffset>("SetAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("set_at");
 
                     b.HasKey("EventId", "PriceCategoryId")
                         .HasName("pk_price_list");
