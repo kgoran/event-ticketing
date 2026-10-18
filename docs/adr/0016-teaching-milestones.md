@@ -52,3 +52,9 @@ Also part of the plan:
 - **2026-10-18:** M1 is split into **M1a** (Catalog, Organizers, Inventory, Orders, Payments
   with LocalPay) and **M1b** (Stripe adapter, Ticketing, Notifications). Team size is still unknown; splitting is the safer
   default. Each milestone gets a time-box, agreed at its kickoff.
+- **2026-10-18:** The Migrator is built in M1a and runs as an Aspire resource that the other
+  hosts wait for (`WaitForCompletion`), because [0031](0031-data-access-ef-core.md) forbids
+  migrations at application startup. M2 turns it into a Kubernetes Job and adds expand/contract.
+- **2026-10-18:** Single refunds (the seats-lost case) are in M1a, so that T2's "every paid order
+  ends Confirmed or Refunded" holds from M1; mass, rate-limited refunds stay in M4. Detailed
+  plan: [M1a](../milestones/m1a.md).

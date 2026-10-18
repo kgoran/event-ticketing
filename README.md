@@ -15,6 +15,7 @@ zero-downtime deployment.
 | [Decision records](docs/adr/README.md) | One ADR per agreed decision, with the alternatives considered |
 | [Decision log](docs/design-decisions.md) | Status of every decision |
 | [Payments](docs/payments.md) | Stripe test mode and the LocalPay simulator; consistency and failure handling |
+| [M1a plan](docs/milestones/m1a.md) | The first milestone: scope, backlog, definition of done, demo script |
 
 Everything runs locally with free tools; no paid services are used. This is not a product:
 no real money and no production use.

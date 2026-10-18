@@ -46,6 +46,7 @@ entry under **Updates** that settles something the ADR explicitly left open.
 | [0034](0034-test-stack.md) | Test stack |
 | [0035](0035-blazor-for-all-uis.md) | Blazor for the user interfaces |
 | [0036](0036-trunk-based-development.md) | Trunk-based development with pull-request checks |
+| [0037](0037-kiota-api-clients.md) | Kiota for the tooling's API clients |
 
 ## Template
 
