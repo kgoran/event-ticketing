@@ -21,7 +21,8 @@ env:
 jobs:
   build-and-test:
     name: "product: build and test"
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves to Ubuntu 26 from 2026-10-19. Upgrade deliberately, in its own PR.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -51,7 +52,8 @@ jobs:
 
   apphost-smoke:
     name: "product: apphost smoke test"
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves to Ubuntu 26 from 2026-10-19. Upgrade deliberately, in its own PR.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5

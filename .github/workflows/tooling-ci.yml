@@ -20,7 +20,8 @@ env:
 jobs:
   build:
     name: "tooling: build"
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves to Ubuntu 26 from 2026-10-19. Upgrade deliberately, in its own PR.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
