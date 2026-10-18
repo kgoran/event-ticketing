@@ -24,6 +24,8 @@ internal sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> opti
 
     public DbSet<ReceivedWebhook> Webhooks => Set<ReceivedWebhook>();
 
+    public DbSet<Refund> Refunds => Set<Refund>();
+
     protected override string Schema => SchemaName;
 
     protected override IReadOnlyDictionary<string, Error> ConstraintErrors => Constraints;
@@ -57,8 +59,23 @@ internal sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> opti
             entity.Property(w => w.Type).HasMaxLength(100);
             entity.Property(w => w.ProviderPaymentId).HasMaxLength(200);
             entity.Property(w => w.Reference).HasMaxLength(200);
+            entity.Property(w => w.ProviderRefundId).HasMaxLength(200);
             entity.Property(w => w.Currency).HasMaxLength(3);
             entity.HasIndex(w => new { w.Provider, w.ProviderEventId }).IsUnique().HasDatabaseName(OneWebhookPerEvent);
+        });
+
+        modelBuilder.Entity<Refund>(entity =>
+        {
+            entity.ToTable("refunds");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Currency).HasMaxLength(3);
+            entity.Property(r => r.Reason).HasMaxLength(200);
+            entity.Property(r => r.FailureReason).HasMaxLength(500);
+            entity.Property(r => r.ProviderRefundId).HasMaxLength(200);
+            entity.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(r => r.PaymentAttemptId).IsUnique(); // M1a: a single refund per payment
+            entity.HasIndex(r => r.ProviderRefundId);
+            entity.Property<uint>("Version").IsRowVersion();
         });
     }
 }
@@ -82,6 +99,20 @@ internal sealed class PaymentAttemptRepository(PaymentsDbContext db) : IPaymentA
 
     public Task<PaymentAttempt?> FindByProviderPaymentAsync(string provider, string providerPaymentId, CancellationToken cancellationToken) =>
         db.Attempts.SingleOrDefaultAsync(a => a.Provider == provider && a.ProviderPaymentId == providerPaymentId, cancellationToken);
+}
+
+internal sealed class RefundRepository(PaymentsDbContext db) : IRefundRepository
+{
+    public void Add(Refund refund) => db.Refunds.Add(refund);
+
+    public Task<Refund?> FindAsync(Guid refundId, CancellationToken cancellationToken) =>
+        db.Refunds.SingleOrDefaultAsync(r => r.Id == refundId, cancellationToken);
+
+    public Task<Refund?> FindByAttemptAsync(Guid attemptId, CancellationToken cancellationToken) =>
+        db.Refunds.SingleOrDefaultAsync(r => r.PaymentAttemptId == attemptId, cancellationToken);
+
+    public Task<Refund?> FindByProviderRefundAsync(string providerRefundId, CancellationToken cancellationToken) =>
+        db.Refunds.SingleOrDefaultAsync(r => r.ProviderRefundId == providerRefundId, cancellationToken);
 }
 
 internal sealed class WebhookRepository(PaymentsDbContext db) : IWebhookRepository

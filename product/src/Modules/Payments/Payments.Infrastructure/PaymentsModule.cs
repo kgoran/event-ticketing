@@ -1,5 +1,6 @@
 using EventTicketing.Payments.Application;
 using EventTicketing.Payments.Application.Checkout;
+using EventTicketing.Payments.Application.Refunds;
 using EventTicketing.Payments.Application.Webhooks;
 using EventTicketing.Payments.Contracts;
 using EventTicketing.Payments.Infrastructure.Persistence;
@@ -38,7 +39,9 @@ public sealed class PaymentsModule : IModule
         builder.Services.AddSingleton(builder.Configuration.GetSection("Payments").Get<PaymentsPolicy>() ?? new PaymentsPolicy());
         builder.Services.AddScoped<IPaymentAttemptRepository, PaymentAttemptRepository>();
         builder.Services.AddScoped<IWebhookRepository, WebhookRepository>();
+        builder.Services.AddScoped<IRefundRepository, RefundRepository>();
         builder.Services.AddScoped<PaymentOutcomes>();
+        builder.Services.AddScoped<RefundOutcomes>();
         builder.Services.AddScoped<IPaymentsApi, PaymentsApi>();
 
         builder.Services.Configure<LocalPayOptions>(builder.Configuration.GetSection("Payments:LocalPay"));
@@ -78,7 +81,8 @@ public sealed class PaymentsModule : IModule
 internal sealed class PaymentsApi(
     ICommandHandler<CreateCheckout, string> createCheckout,
     ICommandHandler<CancelCheckout, CheckoutCancellation> cancelCheckout,
-    ICommandHandler<CheckPaymentStatus, ProviderPaymentStatus> checkStatus)
+    ICommandHandler<CheckPaymentStatus, ProviderPaymentStatus> checkStatus,
+    ICommandHandler<RequestRefund, RefundRequestOutcome> requestRefund)
     : IPaymentsApi
 {
     public async Task<CreateCheckoutResult> CreateCheckoutAsync(CreateCheckoutRequest request, CancellationToken cancellationToken)
@@ -117,6 +121,17 @@ internal sealed class PaymentsApi(
             { IsSuccess: true } => PaymentStatusOutcome.Cancelled,
             _ when result.Error == CheckoutErrors.ProviderUnavailable => PaymentStatusOutcome.ProviderUnavailable,
             _ => PaymentStatusOutcome.Cancelled, // no session was ever created: nothing can be paid
+        });
+    }
+
+    public async Task<RefundRequestResult> RequestRefundAsync(Guid orderId, string reason, CancellationToken cancellationToken)
+    {
+        var result = await requestRefund.HandleAsync(new RequestRefund(orderId, reason), cancellationToken);
+        return new RefundRequestResult(result switch
+        {
+            { IsSuccess: true } => result.Value,
+            _ when result.Error == CheckoutErrors.ProviderUnavailable => RefundRequestOutcome.ProviderUnavailable,
+            _ => throw new InvalidOperationException($"Could not refund order {orderId}: {result.Error.Code}."),
         });
     }
 }

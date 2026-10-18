@@ -23,12 +23,52 @@ internal sealed class FakeLocalPay
     private readonly ConcurrentDictionary<string, string> _idempotencyKeys = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Func<FakePayment, Task>> _onCreated = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, bool> _unreachable = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, bool> _refusesRefunds = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, FakeRefund> _refunds = new(StringComparer.Ordinal);
 
     /// <summary>Runs <paramref name="hook"/> when the order's payment is created, before LocalPay answers.</summary>
     public void WhenCreated(Guid orderId, Func<FakePayment, Task> hook) => _onCreated[orderId.ToString()] = hook;
 
     /// <summary>Calls about this payment fail as if LocalPay were down.</summary>
     public void MakeUnreachable(string paymentId) => _unreachable[paymentId] = true;
+
+    public void MakeReachable(string paymentId) => _unreachable.TryRemove(paymentId, out _);
+
+    /// <summary>Refunds of this payment are refused (409), as LocalPay does for payments it can't refund.</summary>
+    public void RefuseRefunds(string paymentId) => _refusesRefunds[paymentId] = true;
+
+    /// <summary>The refunds LocalPay has made for a payment (a repeated Idempotency-Key makes none).</summary>
+    public IReadOnlyList<FakeRefund> RefundsOf(string paymentId) =>
+        [.. _refunds.Values.Where(refund => refund.PaymentId == paymentId).DistinctBy(refund => refund.Id)];
+
+    /// <summary>LocalPay's refund.succeeded webhook for a refund it made.</summary>
+    public static (string Body, string Signature) RefundWebhook(FakeRefund refund, FakePayment payment)
+    {
+        ArgumentNullException.ThrowIfNull(refund);
+        ArgumentNullException.ThrowIfNull(payment);
+
+        var body = JsonSerializer.Serialize(
+            new
+            {
+                id = "evt_" + Guid.NewGuid().ToString("N"),
+                type = "refund.succeeded",
+                created = DateTimeOffset.UtcNow,
+                data = new
+                {
+                    refundId = refund.Id,
+                    paymentId = payment.Id,
+                    reference = payment.Reference,
+                    amountMinorUnits = refund.AmountMinorUnits,
+                    currency = payment.Currency,
+                    status = "succeeded",
+                },
+            },
+            JsonSerializerOptions.Web);
+
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        var signature = Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(WebhookSecret), Encoding.UTF8.GetBytes($"{timestamp}.{body}")));
+        return (body, $"t={timestamp},v1={signature}");
+    }
 
     public FakePayment PaymentOf(Guid orderId) =>
         _payments.Values.Single(payment => payment.Reference == orderId.ToString());
@@ -106,6 +146,33 @@ internal sealed class FakeLocalPay
             return Json(HttpStatusCode.Created, stored);
         }
 
+        if (request.Method == HttpMethod.Post && path is ["v1", "refunds"])
+        {
+            var create = (await request.Content!.ReadFromJsonAsync<JsonElement>(cancellationToken))!;
+            var refundedPaymentId = create.GetProperty("paymentId").GetString()!;
+            if (_unreachable.ContainsKey(refundedPaymentId))
+            {
+                throw new HttpRequestException("LocalPay is unreachable.");
+            }
+
+            var key = request.Headers.GetValues("Idempotency-Key").Single();
+            if (_refunds.TryGetValue(key, out var existing))
+            {
+                return RefundJson(HttpStatusCode.OK, existing);
+            }
+
+            if (_refusesRefunds.ContainsKey(refundedPaymentId) || !_payments.TryGetValue(refundedPaymentId, out var paid) || paid.Status != "succeeded")
+            {
+                return new HttpResponseMessage(HttpStatusCode.Conflict)
+                {
+                    Content = JsonContent.Create(new { title = "Conflict", detail = "This payment can't be refunded.", status = 409 }),
+                };
+            }
+
+            var refund = _refunds.GetOrAdd(key, _ => new FakeRefund("re_" + Guid.NewGuid().ToString("N"), refundedPaymentId, create.GetProperty("amountMinorUnits").GetInt64()));
+            return RefundJson(HttpStatusCode.Created, refund);
+        }
+
         if (path is ["v1", "payments", var paymentId, ..])
         {
             if (_unreachable.ContainsKey(paymentId))
@@ -156,12 +223,19 @@ internal sealed class FakeLocalPay
         }),
     };
 
+    private static HttpResponseMessage RefundJson(HttpStatusCode status, FakeRefund refund) => new(status)
+    {
+        Content = JsonContent.Create(new { id = refund.Id, paymentId = refund.PaymentId, amountMinorUnits = refund.AmountMinorUnits, currency = "EUR", status = "succeeded" }),
+    };
+
     private sealed class Handler(FakeLocalPay fake) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             fake.HandleAsync(request, cancellationToken);
     }
 }
+
+internal sealed record FakeRefund(string Id, string PaymentId, long AmountMinorUnits);
 
 internal sealed class FakePayment(string id, string reference, long amountMinorUnits, string currency)
 {

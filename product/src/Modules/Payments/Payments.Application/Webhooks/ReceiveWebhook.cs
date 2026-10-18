@@ -1,3 +1,4 @@
+using EventTicketing.Payments.Application.Refunds;
 using EventTicketing.Payments.Domain;
 using EventTicketing.Shared.Application.Authorization;
 using EventTicketing.Shared.Application.Commands;
@@ -63,6 +64,7 @@ internal sealed class ReceiveWebhookHandler(
             webhook.Reference,
             webhook.AmountMinorUnits,
             webhook.Currency,
+            webhook.ProviderRefundId,
             command.Payload,
             now);
         webhooks.Add(received);
@@ -78,7 +80,9 @@ public sealed record ProcessPaymentWebhook(Guid WebhookId);
 internal sealed class ProcessPaymentWebhookHandler(
     IWebhookRepository webhooks,
     IPaymentAttemptRepository attempts,
+    IRefundRepository refunds,
     PaymentOutcomes outcomes,
+    RefundOutcomes refundOutcomes,
     TimeProvider time)
     : IScheduledMessageHandler<ProcessPaymentWebhook>
 {
@@ -93,6 +97,13 @@ internal sealed class ProcessPaymentWebhookHandler(
         }
 
         var attempt = await FindAttemptAsync(webhook, cancellationToken);
+
+        if (webhook.Type is ProviderWebhookTypes.RefundSucceeded or ProviderWebhookTypes.RefundFailed)
+        {
+            await ApplyRefundAsync(webhook, attempt, cancellationToken);
+            webhook.MarkProcessed(time.GetUtcNow());
+            return;
+        }
 
         // A report about a different amount is not about our payment. Throwing retries it and then
         // dead-letters it, where someone looks at it; nothing is marked paid meanwhile.
@@ -115,6 +126,28 @@ internal sealed class ProcessPaymentWebhookHandler(
         }
 
         webhook.MarkProcessed(time.GetUtcNow());
+    }
+
+    /// <summary>
+    /// A refund webhook completes the payment's refund. It may overtake the provider's API answer,
+    /// so the refund is found by its provider ID or, failing that, as the payment's refund.
+    /// </summary>
+    private async Task ApplyRefundAsync(ReceivedWebhook webhook, PaymentAttempt attempt, CancellationToken cancellationToken)
+    {
+        var refund = (webhook.ProviderRefundId is { } providerRefundId ? await refunds.FindByProviderRefundAsync(providerRefundId, cancellationToken) : null)
+            ?? await refunds.FindByAttemptAsync(attempt.Id, cancellationToken)
+            ?? throw new InvalidOperationException($"No refund for {webhook.Provider} payment {webhook.ProviderPaymentId}.");
+
+        if (webhook.AmountMinorUnits != refund.AmountMinorUnits)
+        {
+            throw new InvalidOperationException(
+                $"Webhook {webhook.ProviderEventId} reports a refund of {webhook.AmountMinorUnits}; refund {refund.Id} is for {refund.AmountMinorUnits}.");
+        }
+
+        refundOutcomes.Apply(refund, new RefundResult(
+            webhook.Type == ProviderWebhookTypes.RefundSucceeded ? ProviderRefundStatus.Succeeded : ProviderRefundStatus.Failed,
+            webhook.ProviderRefundId,
+            webhook.Type == ProviderWebhookTypes.RefundFailed ? "The provider reported the refund failed." : null));
     }
 
     /// <summary>

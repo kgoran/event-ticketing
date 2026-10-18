@@ -138,6 +138,11 @@ namespace EventTicketing.Payments.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("provider_payment_id");
 
+                    b.Property<string>("ProviderRefundId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("provider_refund_id");
+
                     b.Property<DateTimeOffset>("ReceivedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("received_at");
@@ -162,6 +167,80 @@ namespace EventTicketing.Payments.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ux_received_webhooks_provider_event");
 
                     b.ToTable("received_webhooks", "payments");
+                });
+
+            modelBuilder.Entity("EventTicketing.Payments.Domain.Refund", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("AmountMinorUnits")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_minor_units");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<Guid>("PaymentAttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_attempt_id");
+
+                    b.Property<string>("ProviderRefundId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("provider_refund_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_refunds");
+
+                    b.HasIndex("PaymentAttemptId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_refunds_payment_attempt_id");
+
+                    b.HasIndex("ProviderRefundId")
+                        .HasDatabaseName("ix_refunds_provider_refund_id");
+
+                    b.ToTable("refunds", "payments");
                 });
 
             modelBuilder.Entity("EventTicketing.Shared.Infrastructure.Persistence.AuditRecord", b =>

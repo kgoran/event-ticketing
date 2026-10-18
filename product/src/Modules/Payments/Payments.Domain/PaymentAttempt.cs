@@ -135,6 +135,9 @@ public sealed class ReceivedWebhook
 
     public string Currency { get; private set; } = string.Empty;
 
+    /// <summary>Set for refund webhooks.</summary>
+    public string? ProviderRefundId { get; private set; }
+
     public string Payload { get; private set; } = string.Empty;
 
     public DateTimeOffset ReceivedAt { get; private set; }
@@ -149,6 +152,7 @@ public sealed class ReceivedWebhook
         string reference,
         long amountMinorUnits,
         string currency,
+        string? providerRefundId,
         string payload,
         DateTimeOffset now) => new()
     {
@@ -160,6 +164,7 @@ public sealed class ReceivedWebhook
         Reference = reference,
         AmountMinorUnits = amountMinorUnits,
         Currency = currency,
+        ProviderRefundId = providerRefundId,
         Payload = payload,
         ReceivedAt = now.ToUniversalTime(),
     };
