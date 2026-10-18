@@ -1,0 +1,10 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- Tooling assemblies start with "EventTicketing.Tooling.". Tooling never references product
+       assemblies; it uses the product only through its APIs (ADR-0021). -->
+  <PropertyGroup>
+    <AssemblyName>EventTicketing.Tooling.$(MSBuildProjectName)</AssemblyName>
+    <RootNamespace>EventTicketing.Tooling.$(MSBuildProjectName)</RootNamespace>
+  </PropertyGroup>
+</Project>

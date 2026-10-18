@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/simulators/">
+    <Project Path="simulators/LocalPay/LocalPay.csproj" />
+  </Folder>
+</Solution>

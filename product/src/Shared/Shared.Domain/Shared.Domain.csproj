@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Value objects and types that mean the same in every module. No framework or infrastructure
+       packages here (ADR-0026). -->
+</Project>

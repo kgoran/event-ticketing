@@ -1,0 +1,29 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.1">
+  <!-- Day-to-day development: runs the product hosts, LocalPay, PostgreSQL and Keycloak (ADR-0020).
+       It lives in dev/, so it may reference both product and tooling projects (ADR-0021). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- ASPIRE010: we deliberately use the orchestrator and dashboard restored from NuGet (pinned in
+         Directory.Packages.props) instead of an installed Aspire CLI, so the AppHost runs the same
+         on every laptop and in CI. -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\product\src\Hosts\BackOfficeApi\BackOfficeApi.csproj" />
+    <ProjectReference Include="..\..\product\src\Hosts\Migrator\Migrator.csproj" />
+    <ProjectReference Include="..\..\product\src\Hosts\PublicApi\PublicApi.csproj" />
+    <ProjectReference Include="..\..\product\src\Hosts\WebhookIngress\WebhookIngress.csproj" />
+    <ProjectReference Include="..\..\product\src\Hosts\Workers\Workers.csproj" />
+    <ProjectReference Include="..\..\tooling\simulators\LocalPay\LocalPay.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Keycloak" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Realms\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- Development composition (Aspire). It may reference product and tooling projects; it is
+       neither, and nothing references it. -->
+  <PropertyGroup>
+    <AssemblyName>EventTicketing.Dev.$(MSBuildProjectName)</AssemblyName>
+    <RootNamespace>EventTicketing.Dev.$(MSBuildProjectName)</RootNamespace>
+  </PropertyGroup>
+</Project>

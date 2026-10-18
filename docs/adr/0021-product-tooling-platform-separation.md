@@ -95,3 +95,10 @@ and `system-tests` (nightly: product and tooling in kind, k6 and the invariant c
 - Splitting the repository later is one `git filter-repo`, because only contracts cross the line.
 - The project structure inside `product/src/Modules` still depends on the open layout question
   (design-decisions §3).
+
+## Updates
+
+- **2026-10-18:** `dev/AppHost` references the LocalPay project directly instead of building it
+  from a Dockerfile. `dev/` sits outside `product/`, so the product-never-references-tooling
+  rule still holds, and [0029](0029-container-image-per-host.md) avoids Dockerfiles. Tooling
+  can't use the product's ServiceDefaults either; LocalPay configures OpenTelemetry itself.

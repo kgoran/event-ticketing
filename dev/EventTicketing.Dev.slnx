@@ -1,0 +1,17 @@
+<Solution>
+  <Project Path="../product/src/Hosts/BackOfficeApi/BackOfficeApi.csproj" />
+  <Project Path="../product/src/Hosts/Migrator/Migrator.csproj" />
+  <Project Path="../product/src/Hosts/PublicApi/PublicApi.csproj" />
+  <Project Path="../product/src/Hosts/ServiceDefaults/ServiceDefaults.csproj" />
+  <Project Path="../product/src/Hosts/WebhookIngress/WebhookIngress.csproj" />
+  <Project Path="../product/src/Hosts/Workers/Workers.csproj" />
+  <Project Path="../product/src/Shared/Shared.Application/Shared.Application.csproj" />
+  <Project Path="../product/src/Shared/Shared.Contracts/Shared.Contracts.csproj" />
+  <Project Path="../product/src/Shared/Shared.Domain/Shared.Domain.csproj" />
+  <Project Path="../product/src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
+  <Project Path="../product/tests/ArchitectureTests/ArchitectureTests.csproj" />
+  <Project Path="../product/tests/Shared.UnitTests/Shared.UnitTests.csproj" />
+  <Project Path="../tooling/simulators/LocalPay/LocalPay.csproj" />
+  <Project Path="AppHost.Tests/AppHost.Tests.csproj" />
+  <Project Path="AppHost/AppHost.csproj" />
+</Solution>

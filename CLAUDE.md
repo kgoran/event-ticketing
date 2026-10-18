@@ -11,8 +11,21 @@ It is not a product. Keep the domain simple and the engineering concerns rich.
 
 Design complete (architecture agreed 2026-10-18: `docs/architecture/overview.md`, ADRs in
 `docs/adr/`). Repository: https://github.com/kgoran/event-ticketing (public).
-M1a is planned in `docs/milestones/m1a.md`. Next step: M1a kickoff (agree the time-box), then
-the walking skeleton (backlog items F1–F3). Application code starts there.
+M1a is in progress (`docs/milestones/m1a.md`). Done: the walking skeleton (F1–F3, F5, F6).
+Next: the outbox, inbox and scheduler (F4) and Keycloak (K1), then the first vertical slice (S2).
+The M1a time-box is still to be agreed.
+
+## Commands
+
+```
+dotnet build product/EventTicketing.slnx            # product only (CI builds tooling separately)
+dotnet test --solution product/EventTicketing.slnx  # unit + architecture tests (Microsoft.Testing.Platform)
+dotnet test --project dev/AppHost.Tests             # whole system under Aspire; needs Docker
+dotnet run --project dev/AppHost                    # local development
+```
+
+Package versions live in `Directory.Packages.props`; warnings are errors. A build regenerates
+`product/src/Hosts/*/openapi/*.json`; commit them (CI fails if they are stale).
 
 ## Working agreements
 

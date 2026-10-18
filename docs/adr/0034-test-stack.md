@@ -40,3 +40,10 @@ A concurrency test that places many holds in parallel and then runs the invarian
   [0020](0020-local-kubernetes-on-docker-desktop.md)).
 - Integration tests are slower than in-memory ones; containers are shared per test collection
   to keep them fast.
+
+## Updates
+
+- **2026-10-18:** Tests run on Microsoft.Testing.Platform, switched on in `global.json`. xUnit
+  v3 4.x needs it with the .NET 10 SDK; the VSTest packages (`Microsoft.NET.Test.Sdk`,
+  `xunit.runner.visualstudio`) are not used. Commands: `dotnet test --solution <slnx>` or
+  `dotnet test --project <csproj>`.
