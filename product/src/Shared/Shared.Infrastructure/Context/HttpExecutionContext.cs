@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using EventTicketing.Shared.Application.Context;
+using EventTicketing.Shared.Infrastructure.Authentication;
 using Microsoft.AspNetCore.Http;
 
 namespace EventTicketing.Shared.Infrastructure.Context;
@@ -7,24 +8,23 @@ namespace EventTicketing.Shared.Infrastructure.Context;
 /// <summary>The caller of an HTTP request, read from the validated access token and request headers.</summary>
 internal sealed class HttpExecutionContext(IHttpContextAccessor accessor) : IExecutionContext
 {
-    // Claim names are settled together with the Keycloak realm (backlog item K1).
-    internal const string SubjectClaim = "sub";
-    internal const string OrganizerClaim = "organizer_id";
     internal const string IdempotencyKeyHeader = "Idempotency-Key";
 
     private ClaimsPrincipal? User => accessor.HttpContext?.User;
 
-    public string? UserId => User?.FindFirstValue(SubjectClaim) ?? User?.FindFirstValue(ClaimTypes.NameIdentifier);
+    public string? UserId => User?.FindFirstValue(TokenClaims.Subject);
 
     public bool IsAuthenticated => User?.Identity?.IsAuthenticated == true;
 
     public IReadOnlySet<string> Roles =>
-        User is null ? EmptySet<string>.Instance : User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToHashSet();
+        User is null
+            ? EmptySet<string>.Instance
+            : User.Identities.SelectMany(identity => identity.FindAll(identity.RoleClaimType)).Select(c => c.Value).ToHashSet();
 
     public IReadOnlySet<Guid> OrganizerIds =>
         User is null
             ? EmptySet<Guid>.Instance
-            : User.FindAll(OrganizerClaim)
+            : User.FindAll(TokenClaims.OrganizerId)
                 .Select(c => Guid.TryParse(c.Value, out var id) ? id : Guid.Empty)
                 .Where(id => id != Guid.Empty)
                 .ToHashSet();

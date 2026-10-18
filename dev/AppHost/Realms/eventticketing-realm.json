@@ -1,5 +1,128 @@
 {
   "realm": "eventticketing",
+  "displayName": "EventTicketing (development)",
   "enabled": true,
-  "displayName": "EventTicketing"
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "accessTokenLifespan": 300,
+  "roles": {
+    "realm": [
+      { "name": "fan", "description": "Buys tickets." },
+      { "name": "organizer", "description": "Member of at least one organizer; which ones comes from groups." },
+      { "name": "admin", "description": "Back-office administrator." },
+      { "name": "door-staff", "description": "Scans tickets at the door." },
+      {
+        "name": "default-roles-eventticketing",
+        "description": "Given to every new user, so a self-registered user is a fan.",
+        "composite": true,
+        "composites": { "realm": ["fan"] }
+      }
+    ]
+  },
+  "defaultRole": { "name": "default-roles-eventticketing" },
+  "groups": [
+    {
+      "name": "organizers",
+      "subGroups": [
+        { "name": "0199f2a0-0000-7000-8000-000000000001" }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "eventticketing-api",
+      "name": "EventTicketing APIs (the audience of access tokens)",
+      "enabled": true,
+      "bearerOnly": true
+    },
+    {
+      "clientId": "eventticketing-dev",
+      "name": "Development tools: .http files, the seeder, system tests (development realm only)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "eventticketing-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "name": "organizer-ids",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "organizer_id",
+            "full.path": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "ana",
+      "email": "ana@example.test",
+      "firstName": "Ana",
+      "lastName": "Fan",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "ana", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "ben",
+      "email": "ben@example.test",
+      "firstName": "Ben",
+      "lastName": "Fan",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "ben", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "olga",
+      "email": "olga@example.test",
+      "firstName": "Olga",
+      "lastName": "Organizer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "olga", "temporary": false }],
+      "realmRoles": ["organizer"],
+      "groups": ["/organizers/0199f2a0-0000-7000-8000-000000000001"]
+    },
+    {
+      "username": "adam",
+      "email": "adam@example.test",
+      "firstName": "Adam",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "adam", "temporary": false }],
+      "realmRoles": ["admin"]
+    }
+  ]
 }
