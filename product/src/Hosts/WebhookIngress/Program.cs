@@ -1,6 +1,7 @@
 using EventTicketing.Catalog;
 using EventTicketing.Inventory.Infrastructure;
 using EventTicketing.Orders.Infrastructure;
+using EventTicketing.Organizers;
 using EventTicketing.Payments.Infrastructure;
 using EventTicketing.Shared.Infrastructure.Modules;
 using Scalar.AspNetCore;
@@ -9,7 +10,7 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-builder.AddModules(HostKind.WebhookIngress, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule());
+builder.AddModules(HostKind.WebhookIngress, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule());
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 
