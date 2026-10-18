@@ -96,6 +96,34 @@ internal sealed class LocalPayProvider(HttpClient http, IOptions<LocalPayOptions
         return StatusOf(payment.Status);
     }
 
+    /// <summary>
+    /// POST /v1/refunds with our refund ID as the Idempotency-Key. LocalPay refunds at once (201, or 200
+    /// for a repeated key); 409 means it refuses, e.g. the payment didn't succeed or is already refunded.
+    /// </summary>
+    public async Task<RefundResult> RefundAsync(RefundRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        using var message = new HttpRequestMessage(HttpMethod.Post, new Uri("v1/refunds", UriKind.Relative))
+        {
+            Content = JsonContent.Create(new LocalPayCreateRefund(request.ProviderPaymentId, request.AmountMinorUnits, request.Reason)),
+        };
+        message.Headers.Add("Idempotency-Key", request.RefundId.ToString());
+
+        using var response = await http.SendAsync(message, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            var problem = await response.Content.ReadFromJsonAsync<LocalPayProblem>(cancellationToken);
+            return new RefundResult(ProviderRefundStatus.Failed, null, problem?.Detail ?? problem?.Title ?? "LocalPay refused the refund.");
+        }
+
+        response.EnsureSuccessStatusCode();
+        var refund = await response.Content.ReadFromJsonAsync<LocalPayRefund>(cancellationToken)
+            ?? throw new InvalidOperationException("LocalPay returned an empty refund.");
+
+        return new RefundResult(refund.Status == "succeeded" ? ProviderRefundStatus.Succeeded : ProviderRefundStatus.Pending, refund.Id);
+    }
+
     /// <summary>LocalPay gets a payment-listing API with reconciliation in M4 (M1a scope).</summary>
     public async IAsyncEnumerable<ProviderPayment> ListPaymentsAsync(DateTimeOffset from, DateTimeOffset to, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -133,7 +161,7 @@ internal sealed class LocalPayProvider(HttpClient http, IOptions<LocalPayOptions
         var webhook = JsonSerializer.Deserialize<LocalPayWebhook>(payload, JsonSerializerOptions.Web);
         return webhook is null
             ? null
-            : new ProviderWebhook(webhook.Id, webhook.Type, webhook.Data.PaymentId, webhook.Data.Reference, webhook.Data.AmountMinorUnits, webhook.Data.Currency);
+            : new ProviderWebhook(webhook.Id, webhook.Type, webhook.Data.PaymentId, webhook.Data.Reference, webhook.Data.AmountMinorUnits, webhook.Data.Currency, webhook.Data.RefundId);
     }
 
     private static ProviderPaymentStatus StatusOf(string status) => status switch
@@ -193,5 +221,11 @@ internal sealed class LocalPayProvider(HttpClient http, IOptions<LocalPayOptions
 
     private sealed record LocalPayWebhook(string Id, string Type, LocalPayWebhookData Data);
 
-    private sealed record LocalPayWebhookData(string PaymentId, string Reference, long AmountMinorUnits, string Currency);
+    private sealed record LocalPayWebhookData(string PaymentId, string Reference, long AmountMinorUnits, string Currency, string? RefundId = null);
+
+    private sealed record LocalPayCreateRefund(string PaymentId, long AmountMinorUnits, string Reason);
+
+    private sealed record LocalPayRefund(string Id, string Status);
+
+    private sealed record LocalPayProblem(string? Title, string? Detail);
 }

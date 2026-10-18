@@ -4,7 +4,7 @@ namespace EventTicketing.Payments.Application;
 
 /// <summary>
 /// A payment provider behind one interface (ADR-0004, docs/payments.md): Stripe and LocalPay. Each
-/// adapter translates the provider's model into ours. Refunds join with backlog item P2.
+/// adapter translates the provider's model into ours.
 /// </summary>
 public interface IPaymentProvider
 {
@@ -25,9 +25,26 @@ public interface IPaymentProvider
     /// <summary>Payments created in a period, for reconciliation (M4): finds payments that have no order.</summary>
     IAsyncEnumerable<ProviderPayment> ListPaymentsAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Refunds (part of) a succeeded payment. Our refund ID is the idempotency key, so asking again
+    /// returns the same refund. Pending means the provider reports the outcome by webhook.
+    /// </summary>
+    Task<RefundResult> RefundAsync(RefundRequest request, CancellationToken cancellationToken);
+
     /// <summary>Checks the webhook's signature and reads it; null if the signature is missing, wrong or too old.</summary>
     ProviderWebhook? VerifyWebhook(string payload, IReadOnlyDictionary<string, string> headers);
 }
+
+public sealed record RefundRequest(Guid RefundId, string ProviderPaymentId, long AmountMinorUnits, string Currency, string Reason);
+
+public enum ProviderRefundStatus
+{
+    Pending,
+    Succeeded,
+    Failed,
+}
+
+public sealed record RefundResult(ProviderRefundStatus Status, string? ProviderRefundId, string? FailureReason = null);
 
 public sealed record CreatePaymentRequest(Guid OrderId, long AmountMinorUnits, string Currency, string ReturnUrl, DateTimeOffset ExpiresAt);
 
@@ -53,12 +70,23 @@ public enum ProviderPaymentStatus
 public sealed record ProviderPayment(string ProviderPaymentId, string Reference, long AmountMinorUnits, string Currency, ProviderPaymentStatus Status);
 
 /// <param name="Reference">Our reference at the provider: the order ID.</param>
-public sealed record ProviderWebhook(string EventId, string Type, string ProviderPaymentId, string Reference, long AmountMinorUnits, string Currency);
+/// <param name="AmountMinorUnits">The payment's amount, or for a refund webhook the refund's.</param>
+/// <param name="ProviderRefundId">Set for refund webhooks.</param>
+public sealed record ProviderWebhook(
+    string EventId,
+    string Type,
+    string ProviderPaymentId,
+    string Reference,
+    long AmountMinorUnits,
+    string Currency,
+    string? ProviderRefundId = null);
 
 public static class ProviderWebhookTypes
 {
     public const string PaymentSucceeded = "payment.succeeded";
     public const string PaymentFailed = "payment.failed";
+    public const string RefundSucceeded = "refund.succeeded";
+    public const string RefundFailed = "refund.failed";
 }
 
 public interface IPaymentAttemptRepository
@@ -70,6 +98,17 @@ public interface IPaymentAttemptRepository
     Task<PaymentAttempt?> FindByOrderAsync(Guid orderId, CancellationToken cancellationToken);
 
     Task<PaymentAttempt?> FindByProviderPaymentAsync(string provider, string providerPaymentId, CancellationToken cancellationToken);
+}
+
+public interface IRefundRepository
+{
+    void Add(Refund refund);
+
+    Task<Refund?> FindAsync(Guid refundId, CancellationToken cancellationToken);
+
+    Task<Refund?> FindByAttemptAsync(Guid attemptId, CancellationToken cancellationToken);
+
+    Task<Refund?> FindByProviderRefundAsync(string providerRefundId, CancellationToken cancellationToken);
 }
 
 public interface IWebhookRepository
