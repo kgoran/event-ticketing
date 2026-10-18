@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -23,7 +25,8 @@ internal sealed class LocalPayOptions
 
 /// <summary>
 /// The adapter for LocalPay, our payment simulator (ADR-0004). It speaks LocalPay's published HTTP
-/// API and translates it into our model; it shares no code with the simulator (ADR-0021).
+/// API (tooling/simulators/LocalPay/openapi/LocalPay.json) and translates it into our model; it
+/// shares no code with the simulator (ADR-0021).
 /// </summary>
 internal sealed class LocalPayProvider(HttpClient http, IOptions<LocalPayOptions> options, TimeProvider time) : IPaymentProvider
 {
@@ -56,6 +59,53 @@ internal sealed class LocalPayProvider(HttpClient http, IOptions<LocalPayOptions
         return new CreatePaymentResult(payment.Id, payment.CheckoutUrl);
     }
 
+    /// <summary>
+    /// POST /v1/payments/{id}/expire: 200 when expired; 409 with the payment when it already
+    /// succeeded or failed. A failed payment can't be paid either, so it counts as cancelled. A
+    /// payment LocalPay doesn't know (it keeps state in memory) can't be paid at all.
+    /// </summary>
+    public async Task<CancelPaymentResult> CancelPaymentAsync(string providerPaymentId, CancellationToken cancellationToken)
+    {
+        using var response = await http.PostAsync(new Uri($"v1/payments/{Uri.EscapeDataString(providerPaymentId)}/expire", UriKind.Relative), null, cancellationToken);
+
+        switch (response.StatusCode)
+        {
+            case HttpStatusCode.OK or HttpStatusCode.NotFound:
+                return CancelPaymentResult.Cancelled;
+            case HttpStatusCode.Conflict:
+                var payment = await response.Content.ReadFromJsonAsync<LocalPayPayment>(cancellationToken);
+                return payment?.Status == "succeeded" ? CancelPaymentResult.AlreadyCompleted : CancelPaymentResult.Cancelled;
+            default:
+                response.EnsureSuccessStatusCode();
+                throw new HttpRequestException($"LocalPay answered {(int)response.StatusCode} to expiring a payment.");
+        }
+    }
+
+    public async Task<ProviderPaymentStatus> GetStatusAsync(string providerPaymentId, CancellationToken cancellationToken)
+    {
+        using var response = await http.GetAsync(new Uri($"v1/payments/{Uri.EscapeDataString(providerPaymentId)}", UriKind.Relative), cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return ProviderPaymentStatus.Expired;
+        }
+
+        response.EnsureSuccessStatusCode();
+        var payment = await response.Content.ReadFromJsonAsync<LocalPayPayment>(cancellationToken)
+            ?? throw new InvalidOperationException("LocalPay returned an empty payment.");
+
+        return StatusOf(payment.Status);
+    }
+
+    /// <summary>LocalPay gets a payment-listing API with reconciliation in M4 (M1a scope).</summary>
+    public async IAsyncEnumerable<ProviderPayment> ListPaymentsAsync(DateTimeOffset from, DateTimeOffset to, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        throw new NotSupportedException("LocalPay can't list payments yet; reconciliation brings it in M4.");
+#pragma warning disable CS0162 // Unreachable code: the method must stay an iterator.
+        yield break;
+#pragma warning restore CS0162
+    }
+
     public ProviderWebhook? VerifyWebhook(string payload, IReadOnlyDictionary<string, string> headers)
     {
         ArgumentNullException.ThrowIfNull(headers);
@@ -81,8 +131,19 @@ internal sealed class LocalPayProvider(HttpClient http, IOptions<LocalPayOptions
         }
 
         var webhook = JsonSerializer.Deserialize<LocalPayWebhook>(payload, JsonSerializerOptions.Web);
-        return webhook is null ? null : new ProviderWebhook(webhook.Id, webhook.Type, webhook.Data.PaymentId);
+        return webhook is null
+            ? null
+            : new ProviderWebhook(webhook.Id, webhook.Type, webhook.Data.PaymentId, webhook.Data.Reference, webhook.Data.AmountMinorUnits, webhook.Data.Currency);
     }
+
+    private static ProviderPaymentStatus StatusOf(string status) => status switch
+    {
+        "requires_payment" => ProviderPaymentStatus.Open,
+        "succeeded" => ProviderPaymentStatus.Succeeded,
+        "failed" => ProviderPaymentStatus.Failed,
+        "expired" => ProviderPaymentStatus.Expired,
+        _ => throw new InvalidOperationException($"LocalPay reported an unknown payment status '{status}'."),
+    };
 
     /// <summary>Parses "t=1700000000,v1=hex".</summary>
     private static bool TryParseSignature(string header, out long timestamp, out byte[] signature)
@@ -132,5 +193,5 @@ internal sealed class LocalPayProvider(HttpClient http, IOptions<LocalPayOptions
 
     private sealed record LocalPayWebhook(string Id, string Type, LocalPayWebhookData Data);
 
-    private sealed record LocalPayWebhookData(string PaymentId);
+    private sealed record LocalPayWebhookData(string PaymentId, string Reference, long AmountMinorUnits, string Currency);
 }

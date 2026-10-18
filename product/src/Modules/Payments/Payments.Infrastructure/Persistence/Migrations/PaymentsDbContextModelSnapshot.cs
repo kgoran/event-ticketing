@@ -73,6 +73,12 @@ namespace EventTicketing.Payments.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("pk_payment_attempts");
 
@@ -94,6 +100,16 @@ namespace EventTicketing.Payments.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<long>("AmountMinorUnits")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_minor_units");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
 
                     b.Property<string>("Payload")
                         .IsRequired()
@@ -126,6 +142,12 @@ namespace EventTicketing.Payments.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("received_at");
 
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reference");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -137,7 +159,7 @@ namespace EventTicketing.Payments.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Provider", "ProviderEventId")
                         .IsUnique()
-                        .HasDatabaseName("ix_received_webhooks_provider_provider_event_id");
+                        .HasDatabaseName("ux_received_webhooks_provider_event");
 
                     b.ToTable("received_webhooks", "payments");
                 });

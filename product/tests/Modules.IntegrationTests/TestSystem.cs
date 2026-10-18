@@ -11,6 +11,7 @@ using EventTicketing.Shared.Infrastructure.Modules;
 using EventTicketing.Shared.Infrastructure.Persistence;
 using EventTicketing.Shared.Infrastructure.Scheduling;
 using EventTicketing.Testing;
+using EventTicketing.WebhookIngress;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -25,7 +26,8 @@ namespace EventTicketing.Modules.IntegrationTests;
 
 /// <summary>
 /// The product's hosts in memory against one migrated PostgreSQL database, started once for the
-/// test run. PublicApi and BackOfficeApi take HTTP requests with test tokens. The Workers host is
+/// test run. PublicApi and BackOfficeApi take HTTP requests with test tokens; WebhookIngress takes
+/// webhooks; every outgoing HTTP call goes to <see cref="LocalPay"/>. The Workers host is
 /// built but never started: <see cref="DeliverMessagesAsync"/> runs the outbox relay and the
 /// scheduler one pass at a time, so tests decide when messages move. Tests share the database and
 /// stay apart by using their own organizers, venues and events.
@@ -42,9 +44,13 @@ public sealed class TestSystem : IAsyncLifetime
 
     private WebApplicationFactory<PublicApiEntryPoint>? _publicApi;
     private WebApplicationFactory<BackOfficeApiEntryPoint>? _backOfficeApi;
+    private WebApplicationFactory<WebhookIngressEntryPoint>? _webhookIngress;
     private IHost? _workers;
 
     public string ConnectionString { get; private set; } = string.Empty;
+
+    /// <summary>The payment provider every host talks to.</summary>
+    internal FakeLocalPay LocalPay { get; } = new();
 
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
@@ -57,6 +63,7 @@ public sealed class TestSystem : IAsyncLifetime
 
         _publicApi = InMemory(new WebApplicationFactory<PublicApiEntryPoint>());
         _backOfficeApi = InMemory(new WebApplicationFactory<BackOfficeApiEntryPoint>());
+        _webhookIngress = InMemory(new WebApplicationFactory<WebhookIngressEntryPoint>());
         _workers = BuildHost(HostKind.Workers);
     }
 
@@ -73,12 +80,19 @@ public sealed class TestSystem : IAsyncLifetime
             await _backOfficeApi.DisposeAsync();
         }
 
+        if (_webhookIngress is not null)
+        {
+            await _webhookIngress.DisposeAsync();
+        }
+
         await _postgres.DisposeAsync();
     }
 
     public HttpClient PublicApi(string? token = null) => WithToken(Started(_publicApi).CreateClient(), token);
 
     public HttpClient BackOfficeApi(string? token = null) => WithToken(Started(_backOfficeApi).CreateClient(), token);
+
+    public HttpClient WebhookIngress() => Started(_webhookIngress).CreateClient();
 
     /// <summary>
     /// What the Workers host does in the background, until there is nothing left: relays every
@@ -196,14 +210,37 @@ public sealed class TestSystem : IAsyncLifetime
         {
             host.UseEnvironment("Development");
             host.UseSetting(ConnectionSetting, ConnectionString);
-            host.ConfigureTestServices(services => services.UseTestTokens());
+            foreach (var (key, value) in Settings)
+            {
+                host.UseSetting(key, value);
+            }
+
+            host.ConfigureTestServices(services =>
+            {
+                services.UseTestTokens();
+                services.ConfigureHttpClientDefaults(client => client.ConfigurePrimaryHttpMessageHandler(LocalPay.CreateHandler));
+            });
         });
+
+    /// <summary>Configuration every host gets, as the AppHost would give it.</summary>
+    private static IEnumerable<KeyValuePair<string, string>> Settings =>
+    [
+        new("Payments:LocalPay:BaseUrl", FakeLocalPay.BaseUrl),
+        new("Payments:LocalPay:WebhookSecret", FakeLocalPay.WebhookSecret),
+        new("Checkout:ReturnUrlTemplate", "http://publicapi.test/orders/{orderId}"),
+    ];
 
     private IHost BuildHost(HostKind kind)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { EnvironmentName = Environments.Development });
         builder.Configuration[ConnectionSetting] = ConnectionString;
+        foreach (var (key, value) in Settings)
+        {
+            builder.Configuration[key] = value;
+        }
+
         builder.AddModules(kind, Modules());
+        builder.Services.ConfigureHttpClientDefaults(client => client.ConfigurePrimaryHttpMessageHandler(LocalPay.CreateHandler));
         return builder.Build();
     }
 

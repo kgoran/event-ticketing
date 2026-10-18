@@ -55,7 +55,16 @@ internal sealed class TransactionRunner(IServiceProvider services, ModuleRegistr
 
                 await context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
+
+                // The next command in this scope must load current state, not this command's copies.
+                context.ChangeTracker.Clear();
                 return result;
+            }
+            catch (DbUpdateConcurrencyException exception)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                context.ChangeTracker.Clear();
+                throw new ConcurrencyConflictException($"{commandType.Name} lost a race: another transaction changed the same data first.", exception);
             }
             catch (DbUpdateException exception) when (context.ErrorFor(exception) is { } error)
             {

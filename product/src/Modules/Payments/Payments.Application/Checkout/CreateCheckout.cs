@@ -1,6 +1,7 @@
 using EventTicketing.Payments.Domain;
 using EventTicketing.Shared.Application.Authorization;
 using EventTicketing.Shared.Application.Commands;
+using EventTicketing.Shared.Application.Transactions;
 using EventTicketing.Shared.Domain;
 
 namespace EventTicketing.Payments.Application.Checkout;
@@ -53,9 +54,17 @@ internal sealed class CreateCheckoutHandler(
             return CheckoutErrors.ProviderUnavailable;
         }
 
-        var stored = await storeSession.HandleAsync(
-            new StorePaymentSession(recorded.Value.AttemptId, created.ProviderPaymentId, created.CheckoutUrl),
-            cancellationToken);
+        var store = new StorePaymentSession(recorded.Value.AttemptId, created.ProviderPaymentId, created.CheckoutUrl);
+        Result<Unit> stored;
+        try
+        {
+            stored = await storeSession.HandleAsync(store, cancellationToken);
+        }
+        catch (ConcurrencyConflictException)
+        {
+            // The webhook overtook us and changed the attempt; store the session on top of its outcome.
+            stored = await storeSession.HandleAsync(store, cancellationToken);
+        }
 
         return stored.IsSuccess ? created.CheckoutUrl : stored.Error;
     }
