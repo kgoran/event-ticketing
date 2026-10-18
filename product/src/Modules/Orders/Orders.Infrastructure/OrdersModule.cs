@@ -20,7 +20,20 @@ namespace EventTicketing.Orders.Infrastructure;
 
 public sealed record StartCheckoutRequest(Guid HoldId);
 
-public sealed record OrderStatusResponse(Guid OrderId, string Status, long TotalMinorUnits, string Currency);
+public sealed record OrderSeatResponse(Guid SeatId, long PriceMinorUnits);
+
+/// <summary>What the return page shows while it polls: the redirect from the provider proves nothing, the status does.</summary>
+/// <param name="PaymentDeadline">Until when a Pending order can still be paid.</param>
+/// <param name="RefundReason">Set while refunding: SeatsLost or PaidAfterClose.</param>
+public sealed record OrderStatusResponse(
+    Guid OrderId,
+    string Status,
+    long TotalMinorUnits,
+    string Currency,
+    Guid EventId,
+    DateTimeOffset PaymentDeadline,
+    string? RefundReason,
+    IReadOnlyList<OrderSeatResponse> Seats);
 
 public sealed class OrdersModule : IModule
 {
@@ -63,17 +76,31 @@ public sealed class OrdersModule : IModule
             .ProducesProblem(StatusCodes.Status409Conflict);
 
         // The provider's redirect proves nothing; the return page polls this until the webhook has confirmed the order.
-        orders.MapGet("/{orderId:guid}", async (Guid orderId, OrdersDbContext db, IExecutionContext caller, CancellationToken cancellationToken) =>
+        // Someone else's order is "not found": order IDs reveal nothing about other fans.
+        orders.MapGet("/{orderId:guid}", async (Guid orderId, OrdersDbContext db, IExecutionContext caller, HttpResponse response, CancellationToken cancellationToken) =>
             {
                 var order = await db.Orders.AsNoTracking()
-                    .Where(o => o.Id == orderId && o.CustomerId == caller.UserId)
-                    .Select(o => new OrderStatusResponse(o.Id, o.Status.ToString(), o.TotalMinorUnits, o.Currency))
-                    .SingleOrDefaultAsync(cancellationToken);
+                    .Include(o => o.Lines)
+                    .SingleOrDefaultAsync(o => o.Id == orderId && o.CustomerId == caller.UserId, cancellationToken);
 
-                return order is null ? Results.NotFound() : Results.Ok(order);
+                if (order is null)
+                {
+                    return Results.NotFound();
+                }
+
+                response.Headers.CacheControl = "no-store"; // the return page polls this for changes
+                return Results.Ok(new OrderStatusResponse(
+                    order.Id,
+                    order.Status.ToString(),
+                    order.TotalMinorUnits,
+                    order.Currency,
+                    order.EventId,
+                    order.PaymentDeadline,
+                    order.RefundReason?.ToString(),
+                    [.. order.Lines.OrderBy(line => line.SeatId).Select(line => new OrderSeatResponse(line.SeatId, line.PriceMinorUnits))]));
             })
             .WithName("GetOrder")
-            .WithSummary("Your order's status")
+            .WithSummary("Your order: what the return page polls until the payment's outcome is known")
             .Produces<OrderStatusResponse>()
             .Produces(StatusCodes.Status404NotFound);
     }

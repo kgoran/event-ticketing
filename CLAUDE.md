@@ -20,7 +20,8 @@ claims with expiry inside, one hold per fan, best available, availability), the 
 API with backstop and sweeper (I2; recurring scheduled messages), the LocalPay simulator (L1: expiry,
 refunds, scenarios by amount, headless mode, OpenAPI document, tests), Payments (P1: cancel, status
 check, PaymentFailed, duplicate and out-of-order webhooks), Orders (O1: price list, checkout deadline:
-payment cancelled first, seats released second), refunds (P2). Next: O2, T1, Q1–Q4. Implementation decisions awaiting review: design-decisions.md §14.
+payment cancelled first, seats released second), refunds (P2), paid orders (O2: confirmed once, or
+refunded when the seats were lost; return-page status). Next: T1, Q1–Q4. Implementation decisions awaiting review: design-decisions.md §14.
 The M1a time-box is still to be agreed.
 
 ## Commands

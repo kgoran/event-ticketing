@@ -62,6 +62,10 @@ namespace EventTicketing.Orders.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("payment_deadline");
 
+                    b.Property<int?>("RefundReason")
+                        .HasColumnType("integer")
+                        .HasColumnName("refund_reason");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)

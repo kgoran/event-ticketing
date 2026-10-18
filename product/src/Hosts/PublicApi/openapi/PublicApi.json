@@ -353,7 +353,7 @@
         "tags": [
           "Orders"
         ],
-        "summary": "Your order's status",
+        "summary": "Your order: what the return page polls until the payment's outcome is known",
         "operationId": "GetOrder",
         "parameters": [
           {
@@ -682,12 +682,37 @@
           }
         }
       },
+      "OrderSeatResponse": {
+        "required": [
+          "seatId",
+          "priceMinorUnits"
+        ],
+        "type": "object",
+        "properties": {
+          "seatId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "priceMinorUnits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "OrderStatusResponse": {
         "required": [
           "orderId",
           "status",
           "totalMinorUnits",
-          "currency"
+          "currency",
+          "eventId",
+          "paymentDeadline",
+          "refundReason",
+          "seats"
         ],
         "type": "object",
         "properties": {
@@ -708,6 +733,26 @@
           },
           "currency": {
             "type": "string"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paymentDeadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refundReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "seats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderSeatResponse"
+            }
           }
         }
       },

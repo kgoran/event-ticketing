@@ -14,8 +14,22 @@ public enum OrderStatus
     /// <summary>The payment was declined: it was cancelled and the seats released.</summary>
     Failed,
 
-    /// <summary>Paid, but the hold had expired and someone else took a seat: to be refunded (backlog item P2).</summary>
+    /// <summary>Paid, but there are no seats to sell for it: the money is on its way back.</summary>
+    Refunding,
+    Refunded,
+
+    /// <summary>The provider refused the refund: a person has to sort it out.</summary>
+    RefundFailed,
+}
+
+/// <summary>Why a paid order is refunded.</summary>
+public enum RefundReason
+{
+    /// <summary>The hold expired before the payment was confirmed and someone else took a seat (ADR-0009).</summary>
     SeatsLost,
+
+    /// <summary>The money arrived after the checkout had closed (a race at the deadline; ADR-0010).</summary>
+    PaidAfterClose,
 }
 
 /// <summary>Why a checkout closed without a sale.</summary>
@@ -30,11 +44,11 @@ public enum CheckoutCloseReason
 /// machine:
 /// <code>
 ///   Pending ──paid, seats sold──────────────► Confirmed
-///      │    └─paid, seats taken meanwhile──► SeatsLost (refund, P2)
-///      ├──deadline: payment cancelled, seats released──► Expired
-///      └──declined: payment cancelled, seats released──► Failed
+///      │    └─paid, seats taken meanwhile──► Refunding ──► Refunded | RefundFailed
+///      ├──deadline: payment cancelled, seats released──► Expired ─┐
+///      └──declined: payment cancelled, seats released──► Failed ──┴─paid after all──► Refunding
 /// </code>
-/// Every transition is safe to repeat; only Pending moves.
+/// Every transition is safe to repeat: a repeated message finds the order already moved on.
 /// </summary>
 public sealed class Order
 {
@@ -64,6 +78,8 @@ public sealed class Order
     public DateTimeOffset PaymentDeadline { get; private set; }
 
     public DateTimeOffset? ClosedAt { get; private set; }
+
+    public RefundReason? RefundReason { get; private set; }
 
     public IReadOnlyList<OrderLine> Lines => _lines;
 
@@ -98,7 +114,38 @@ public sealed class Order
     /// <summary>Marks the order confirmed. Returns false if it wasn't Pending (a repeated message).</summary>
     public bool Confirm(DateTimeOffset now) => Close(OrderStatus.Confirmed, now);
 
-    public bool MarkSeatsLost(DateTimeOffset now) => Close(OrderStatus.SeatsLost, now);
+    /// <summary>
+    /// The order was paid but can't get its seats: from Pending (seats lost) or from a closed
+    /// checkout (paid after close). Returns false if it is already being refunded or past that.
+    /// </summary>
+    public bool StartRefund(RefundReason reason, DateTimeOffset now)
+    {
+        if (Status is not (OrderStatus.Pending or OrderStatus.Expired or OrderStatus.Failed))
+        {
+            return false;
+        }
+
+        Status = OrderStatus.Refunding;
+        RefundReason = reason;
+        ClosedAt ??= now.ToUniversalTime();
+        return true;
+    }
+
+    /// <summary>Returns false unless the order was Refunding (a repeated message).</summary>
+    public bool CompleteRefund() => MoveFromRefunding(OrderStatus.Refunded);
+
+    public bool FailRefund() => MoveFromRefunding(OrderStatus.RefundFailed);
+
+    private bool MoveFromRefunding(OrderStatus status)
+    {
+        if (Status != OrderStatus.Refunding)
+        {
+            return false;
+        }
+
+        Status = status;
+        return true;
+    }
 
     /// <summary>Closes the checkout unsold, after its payment was cancelled and its seats released.</summary>
     public bool CloseUnsold(CheckoutCloseReason reason, DateTimeOffset now) =>
