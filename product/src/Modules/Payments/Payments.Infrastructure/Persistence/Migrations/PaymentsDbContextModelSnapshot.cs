@@ -34,6 +34,11 @@ namespace EventTicketing.Payments.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("amount_minor_units");
 
+                    b.Property<string>("CheckoutTraceParent")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("checkout_trace_parent");
+
                     b.Property<string>("CheckoutUrl")
                         .HasColumnType("text")
                         .HasColumnName("checkout_url");

@@ -49,6 +49,7 @@ internal sealed class ConfirmOrderOnPaymentSucceeded(
 
         if (order.Confirm(now))
         {
+            OrdersTelemetry.Moved(OrderStatus.Confirmed);
             events.Publish(new OrderConfirmed(
                 Guid.CreateVersion7(),
                 now,
@@ -65,6 +66,7 @@ internal sealed class ConfirmOrderOnPaymentSucceeded(
     {
         if (order.StartRefund(reason, now))
         {
+            OrdersTelemetry.Moved(OrderStatus.Refunding);
             scheduler.Schedule(new RefundOrder(order.Id), now);
         }
     }

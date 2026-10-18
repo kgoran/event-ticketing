@@ -88,6 +88,7 @@ internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> op
             entity.ToTable("holds");
             entity.HasKey(h => h.Id);
             entity.Property(h => h.CustomerId).HasMaxLength(200);
+            entity.Property(h => h.TraceParent).HasMaxLength(100);
             entity.Property(h => h.Status).HasConversion<string>().HasMaxLength(20);
             entity.HasIndex(h => new { h.EventId, h.CustomerId })
                 .IsUnique()

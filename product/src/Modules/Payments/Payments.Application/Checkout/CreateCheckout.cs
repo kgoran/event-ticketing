@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using EventTicketing.Payments.Domain;
 using EventTicketing.Shared.Application.Authorization;
 using EventTicketing.Shared.Application.Commands;
@@ -91,7 +92,7 @@ internal sealed class RecordPaymentAttemptHandler(IPaymentAttemptRepository atte
         var attempt = await attempts.FindByOrderAsync(command.OrderId, cancellationToken);
         if (attempt is null)
         {
-            attempt = PaymentAttempt.Create(command.OrderId, command.AmountMinorUnits, command.Currency, command.Provider, time.GetUtcNow());
+            attempt = PaymentAttempt.Create(command.OrderId, command.AmountMinorUnits, command.Currency, command.Provider, time.GetUtcNow(), Activity.Current?.Id);
             attempts.Add(attempt);
         }
 

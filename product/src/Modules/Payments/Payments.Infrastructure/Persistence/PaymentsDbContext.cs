@@ -41,6 +41,7 @@ internal sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> opti
             entity.Property(a => a.Currency).HasMaxLength(3);
             entity.Property(a => a.Provider).HasMaxLength(50);
             entity.Property(a => a.ProviderPaymentId).HasMaxLength(200);
+            entity.Property(a => a.CheckoutTraceParent).HasMaxLength(100);
             entity.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
             entity.HasIndex(a => a.OrderId).IsUnique();
             entity.HasIndex(a => new { a.Provider, a.ProviderPaymentId }).IsUnique().HasFilter("provider_payment_id IS NOT NULL");
