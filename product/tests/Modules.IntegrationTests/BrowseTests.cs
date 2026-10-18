@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using EventTicketing.Catalog.Browse;
 using EventTicketing.Catalog.Events;
+using EventTicketing.Inventory.Infrastructure.Endpoints;
 
 namespace EventTicketing.Modules.IntegrationTests;
 
@@ -104,8 +105,8 @@ public sealed class BrowseTests(TestSystem system)
 
         // Seat IDs are the ones Inventory sells, so the client can join availability on them.
         await system.DeliverMessagesAsync();
-        var available = await fan.GetFromJsonAsync<List<Dictionary<string, object>>>(new Uri($"/events/{eventId}/seats", UriKind.Relative), CancellationToken);
-        available!.Select(seat => Guid.Parse(seat["seatId"].ToString()!)).Should().BeEquivalentTo(seats.Select(s => s.SeatId));
+        var availability = await fan.GetFromJsonAsync<Availability>(new Uri($"/events/{eventId}/availability", UriKind.Relative), CancellationToken);
+        availability!.AvailableSeatIds.Should().BeEquivalentTo(seats.Select(s => s.SeatId));
 
         // Prices aren't in the seat map, so changing them leaves its URL valid.
         var back = page.PriceCategories.Single(c => c.Name == "Back").PriceCategoryId;

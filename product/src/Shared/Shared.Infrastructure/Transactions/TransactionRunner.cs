@@ -1,6 +1,7 @@
 using EventTicketing.Shared.Application.Transactions;
 using EventTicketing.Shared.Domain;
 using EventTicketing.Shared.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EventTicketing.Shared.Infrastructure.Transactions;
@@ -55,6 +56,12 @@ internal sealed class TransactionRunner(IServiceProvider services, ModuleRegistr
                 await context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
                 return result;
+            }
+            catch (DbUpdateException exception) when (context.ErrorFor(exception) is { } error)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                context.ChangeTracker.Clear();
+                return Result.Failure<TResult>(error);
             }
             catch
             {

@@ -9,7 +9,7 @@ namespace EventTicketing.Shared.Infrastructure.Persistence;
 /// Schema names in the SQL come only from <see cref="ModuleDatabase.Schema"/>, which
 /// AddModuleDatabase validates as an identifier; every value is passed as a parameter.
 /// </remarks>
-internal static class ModuleSql
+public static class ModuleSql
 {
     public static Task<int> ExecuteAsync(ModuleDbContext context, string sql, object[] parameters, CancellationToken cancellationToken) =>
         context.Database.ExecuteSqlRawAsync(sql, parameters, cancellationToken);

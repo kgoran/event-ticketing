@@ -31,6 +31,7 @@ public sealed class InventoryModule : IModule
         builder.Services.AddSingleton(builder.Configuration.GetSection("Inventory").Get<InventoryPolicy>() ?? new InventoryPolicy());
         builder.Services.AddScoped<IHoldRepository, HoldRepository>();
         builder.Services.AddScoped<ISeatInventory, SeatInventory>();
+        builder.Services.AddScoped<ISalesWindows, SalesWindows>();
         builder.Services.AddScoped<IInventoryApi, InventoryApi>();
     }
 

@@ -68,9 +68,36 @@ namespace EventTicketing.Inventory.Infrastructure.Persistence.Migrations
                         .HasName("pk_holds");
 
                     b.HasIndex("EventId", "CustomerId")
-                        .HasDatabaseName("ix_holds_event_id_customer_id");
+                        .IsUnique()
+                        .HasDatabaseName("ux_holds_one_current_per_fan")
+                        .HasFilter("status IN ('Active', 'InCheckout')");
 
                     b.ToTable("holds", "inventory");
+                });
+
+            modelBuilder.Entity("EventTicketing.Inventory.Domain.SalesWindow", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTimeOffset?>("OnSaleAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("on_sale_at");
+
+                    b.Property<DateTimeOffset?>("OnSaleSetAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("on_sale_set_at");
+
+                    b.Property<DateTimeOffset?>("SalesEndAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sales_end_at");
+
+                    b.HasKey("EventId")
+                        .HasName("pk_sales_windows");
+
+                    b.ToTable("sales_windows", "inventory");
                 });
 
             modelBuilder.Entity("EventTicketing.Inventory.Infrastructure.Persistence.SeatUnit", b =>
@@ -91,7 +118,7 @@ namespace EventTicketing.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("hold_id");
 
-                    b.Property<int>("Number")
+                    b.Property<int?>("Number")
                         .HasColumnType("integer")
                         .HasColumnName("number");
 
@@ -103,8 +130,11 @@ namespace EventTicketing.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("price_category_id");
 
+                    b.Property<int>("Rank")
+                        .HasColumnType("integer")
+                        .HasColumnName("rank");
+
                     b.Property<string>("Row")
-                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("row");
@@ -126,6 +156,9 @@ namespace EventTicketing.Inventory.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("HoldId")
                         .HasDatabaseName("ix_seats_hold_id");
+
+                    b.HasIndex("EventId", "Section", "Rank")
+                        .HasDatabaseName("ix_seats_event_id_section_rank");
 
                     b.ToTable("seats", "inventory");
                 });
