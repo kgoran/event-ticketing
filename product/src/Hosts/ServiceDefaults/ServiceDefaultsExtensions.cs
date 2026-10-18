@@ -77,15 +77,16 @@ public static class ServiceDefaultsExtensions
 
     /// <summary>
     /// Maps /health (ready: every check passes) and /alive (live: only checks tagged "live").
-    /// Mapped in every environment, because Kubernetes probes use them from M2 on.
+    /// Mapped in every environment, because Kubernetes probes use them from M2 on, and open to
+    /// anonymous callers even where every other endpoint needs a token.
     /// </summary>
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        app.MapHealthChecks(HealthEndpointPath);
+        app.MapHealthChecks(HealthEndpointPath).AllowAnonymous();
         app.MapHealthChecks(AlivenessEndpointPath, new HealthCheckOptions
         {
             Predicate = registration => registration.Tags.Contains("live"),
-        });
+        }).AllowAnonymous();
 
         return app;
     }

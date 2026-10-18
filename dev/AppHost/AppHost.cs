@@ -5,10 +5,13 @@ var builder = DistributedApplication.CreateBuilder(args);
 var postgres = builder.AddPostgres("postgres");
 var database = postgres.AddDatabase("eventticketing");
 
-// The realm (clients, roles, test users) is filled in by backlog item K1; the hosts reference
-// Keycloak and LocalPay once they use them (K1, P1).
-builder.AddKeycloak("keycloak")
+// The development realm: roles, one organizer group, test users ana, ben (fans), olga (organizer),
+// adam (admin), passwords equal to the user names. A fixed port keeps token URLs stable in .http files.
+var keycloak = builder.AddKeycloak("keycloak", port: 8180)
     .WithRealmImport("./Realms");
+
+// The APIs validate tokens with standard OIDC discovery against the realm (ADR-0027).
+var authority = ReferenceExpression.Create($"{keycloak.GetEndpoint("http")}/realms/eventticketing");
 
 builder.AddProject<Projects.LocalPay>("localpay")
     .WithHttpHealthCheck("/health");
@@ -19,11 +22,17 @@ var migrator = builder.AddProject<Projects.Migrator>("migrator")
     .WaitFor(database);
 
 builder.AddProject<Projects.PublicApi>("publicapi")
+    .WithEnvironment("Authentication__Authority", authority)
+    .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
     .WithHttpHealthCheck("/health")
+    .WaitFor(keycloak)
     .WaitForCompletion(migrator);
 
 builder.AddProject<Projects.BackOfficeApi>("backofficeapi")
+    .WithEnvironment("Authentication__Authority", authority)
+    .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
     .WithHttpHealthCheck("/health")
+    .WaitFor(keycloak)
     .WaitForCompletion(migrator);
 
 builder.AddProject<Projects.WebhookIngress>("webhookingress")

@@ -29,5 +29,26 @@ dotnet test --project dev/AppHost.Tests              # starts the whole system a
 
 `dev/EventTicketing.Dev.slnx` opens product, tooling and the AppHost together in an IDE.
 
+### Signing in locally
+
+The AppHost imports a development realm into Keycloak at http://localhost:8180. Every test user's
+password is the user name:
+
+| User | Role | Notes |
+|---|---|---|
+| `ana`, `ben` | fan | |
+| `olga` | organizer | member of organizer `0199f2a0-0000-7000-8000-000000000001` |
+| `adam` | admin | |
+
+To get a token, use the development-only client (password grant), then call `GET /me` on
+PublicApi with `Authorization: Bearer <token>`:
+
+```http
+POST http://localhost:8180/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=ana&password=ana
+```
+
 Everything runs locally with free tools; no paid services are used. This is not a product:
 no real money and no production use.

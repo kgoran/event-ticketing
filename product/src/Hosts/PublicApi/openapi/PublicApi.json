@@ -4,5 +4,62 @@
     "title": "EventTicketing.PublicApi | v1",
     "version": "1.0.0"
   },
-  "paths": { }
+  "paths": {
+    "/me": {
+      "get": {
+        "tags": [
+          "EventTicketing.PublicApi"
+        ],
+        "summary": "Who the access token says you are",
+        "operationId": "GetCaller",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallerResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CallerResponse": {
+        "required": [
+          "userId",
+          "roles",
+          "organizerIds"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "organizerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "EventTicketing.PublicApi"
+    }
+  ]
 }

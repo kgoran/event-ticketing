@@ -57,3 +57,12 @@
 
 - **2026-10-18:** Organizers keeping Keycloak in step arrives in M1b. In M1a, organizer
   memberships are seeded in the imported realm ([M1a plan](../milestones/m1a.md)).
+- **2026-10-18 (built in K1):** the hosts validate tokens with ASP.NET Core's JwtBearer; there is no
+  Keycloak package in the product. A fallback authorization policy requires a signed-in caller on
+  every endpoint unless it opts out (health, OpenAPI, and later browsing). Claims: `sub`, a flat
+  `roles` list, and `organizer_id`, which comes from Keycloak **group** membership: one group per
+  organizer under `/organizers`. Groups replace user attributes because Keycloak's user profile
+  drops undeclared attributes, and groups are what Organizers will manage through the admin API in
+  M1b. Access tokens carry the audience `eventticketing-api`. The development realm has a public
+  client `eventticketing-dev` with the password grant, for `.http` files, the seeder and system tests
+  only, and the test users ana, ben (fans), olga (organizer) and adam (admin).
