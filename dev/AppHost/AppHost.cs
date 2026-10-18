@@ -13,33 +13,52 @@ var keycloak = builder.AddKeycloak("keycloak", port: 8180)
 // The APIs validate tokens with standard OIDC discovery against the realm (ADR-0027).
 var authority = ReferenceExpression.Create($"{keycloak.GetEndpoint("http")}/realms/eventticketing");
 
-builder.AddProject<Projects.LocalPay>("localpay")
-    .WithHttpHealthCheck("/health");
+// LocalPay signs its webhooks with this secret; the hosts that verify them get the same value.
+// Generated fresh on every run, like every other secret in the disposable lab (ADR-0025).
+var webhookSecret = builder.AddParameter(
+    "localpay-webhook-secret",
+    new GenerateParameterDefault { MinLength = 32, Special = false },
+    secret: true);
 
 // Migrations run first; every other host starts only after the Migrator has exited successfully.
 var migrator = builder.AddProject<Projects.Migrator>("migrator")
     .WithReference(database)
     .WaitFor(database);
 
-builder.AddProject<Projects.PublicApi>("publicapi")
+var webhookIngress = builder.AddProject<Projects.WebhookIngress>("webhookingress")
+    .WithReference(database)
+    .WithEnvironment("Payments__LocalPay__WebhookSecret", webhookSecret)
+    .WithHttpHealthCheck("/health")
+    .WaitForCompletion(migrator);
+
+var localPay = builder.AddProject<Projects.LocalPay>("localpay")
+    .WithEnvironment("Webhooks__Url", ReferenceExpression.Create($"{webhookIngress.GetEndpoint("http")}/webhooks/localpay"))
+    .WithEnvironment("Webhooks__Secret", webhookSecret)
+    .WithHttpHealthCheck("/health");
+
+var publicApi = builder.AddProject<Projects.PublicApi>("publicapi");
+publicApi
+    .WithReference(database)
+    .WithReference(localPay)
     .WithEnvironment("Authentication__Authority", authority)
     .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
+    .WithEnvironment("Payments__LocalPay__BaseUrl", "http://localpay")
+    .WithEnvironment("Checkout__ReturnUrlTemplate", ReferenceExpression.Create($"{publicApi.GetEndpoint("http")}/orders/{{orderId}}"))
     .WithHttpHealthCheck("/health")
     .WaitFor(keycloak)
     .WaitForCompletion(migrator);
 
 builder.AddProject<Projects.BackOfficeApi>("backofficeapi")
+    .WithReference(database)
     .WithEnvironment("Authentication__Authority", authority)
     .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
     .WithHttpHealthCheck("/health")
     .WaitFor(keycloak)
     .WaitForCompletion(migrator);
 
-builder.AddProject<Projects.WebhookIngress>("webhookingress")
-    .WithHttpHealthCheck("/health")
-    .WaitForCompletion(migrator);
-
 builder.AddProject<Projects.Workers>("workers")
+    .WithReference(database)
+    .WithEnvironment("Payments__LocalPay__WebhookSecret", webhookSecret)
     .WithHttpHealthCheck("/health")
     .WaitForCompletion(migrator);
 

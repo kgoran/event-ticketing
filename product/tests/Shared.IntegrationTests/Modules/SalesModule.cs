@@ -66,7 +66,7 @@ internal sealed class Reminder
 }
 
 [IntegrationEvent("sales.order-placed", 1)]
-internal sealed record OrderPlaced(Guid EventId, DateTimeOffset OccurredAt, Guid OrderId, string Customer) : IIntegrationEvent;
+internal sealed record OrderPlaced(Guid MessageId, DateTimeOffset OccurredAt, Guid OrderId, string Customer) : IIntegrationEvent;
 
 internal sealed record PlaceOrder(string Customer, bool RejectAfterPublishing = false) : ICommand<Guid>;
 

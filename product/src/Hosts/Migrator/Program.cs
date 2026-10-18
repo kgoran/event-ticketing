@@ -1,3 +1,7 @@
+using EventTicketing.Catalog;
+using EventTicketing.Inventory.Infrastructure;
+using EventTicketing.Orders.Infrastructure;
+using EventTicketing.Payments.Infrastructure;
 using EventTicketing.Shared.Infrastructure.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,7 +13,7 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddNpgsqlDataSource("eventticketing");
-builder.AddModules(HostKind.Migrator); // modules are added here as they are built
+builder.AddModules(HostKind.Migrator, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule());
 
 using var host = builder.Build();
 await host.StartAsync();

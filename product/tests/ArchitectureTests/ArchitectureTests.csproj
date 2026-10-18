@@ -7,6 +7,20 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Catalog\Catalog.Contracts\Catalog.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Catalog\Catalog\Catalog.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Inventory.Application\Inventory.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Inventory.Contracts\Inventory.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Inventory.Domain\Inventory.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Orders\Orders.Application\Orders.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Orders\Orders.Contracts\Orders.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Orders\Orders.Domain\Orders.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Orders\Orders.Infrastructure\Orders.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Payments\Payments.Application\Payments.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Payments\Payments.Contracts\Payments.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Payments\Payments.Domain\Payments.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Shared\Shared.Application\Shared.Application.csproj" />
     <ProjectReference Include="..\..\src\Shared\Shared.Contracts\Shared.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Shared\Shared.Domain\Shared.Domain.csproj" />

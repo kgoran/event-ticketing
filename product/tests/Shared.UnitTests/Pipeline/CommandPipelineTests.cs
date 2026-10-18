@@ -117,6 +117,21 @@ public sealed class CommandPipelineTests : IDisposable
         _steps.Items.Should().EndWith("idempotency complete", "a business failure is stored and replayed too");
     }
 
+    [Fact]
+    public async Task Runs_a_coordinating_command_without_a_transaction_or_an_audit_entry()
+    {
+        await using var services = BuildServices(new Scenario());
+        await using var scope = services.CreateAsyncScope();
+        var handler = scope.ServiceProvider.GetRequiredService<ICommandHandler<CoordinatingCommand, string>>();
+
+        var result = await handler.HandleAsync(new CoordinatingCommand(), TestContext.Current.CancellationToken);
+
+        result.Value.Should().Be("coordinated");
+        _steps.Items.Should().Contain("coordinator")
+            .And.NotContain(step => step.StartsWith("transaction", StringComparison.Ordinal))
+            .And.NotContain("audit");
+    }
+
     private async Task<Result<string>> Send(Scenario scenario, SampleCommand command)
     {
         await using var services = BuildServices(scenario);
