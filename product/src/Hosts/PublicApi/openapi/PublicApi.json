@@ -26,6 +26,51 @@
         }
       }
     },
+    "/holds/{holdId}": {
+      "delete": {
+        "tags": [
+          "Seats"
+        ],
+        "summary": "Let go of your hold before checkout; its places are free again at once",
+        "operationId": "ReleaseHold",
+        "parameters": [
+          {
+            "name": "holdId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/events": {
       "get": {
         "tags": [
@@ -168,13 +213,13 @@
         }
       }
     },
-    "/events/{eventId}/seats": {
+    "/events/{eventId}/availability": {
       "get": {
         "tags": [
           "Seats"
         ],
-        "summary": "Seats of an event and whether each is available",
-        "operationId": "GetSeats",
+        "summary": "Free places per section, and which seats are free",
+        "operationId": "GetAvailability",
         "parameters": [
           {
             "name": "eventId",
@@ -192,10 +237,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SeatAvailability"
-                  }
+                  "$ref": "#/components/schemas/Availability"
                 }
               }
             }
@@ -208,7 +250,7 @@
         "tags": [
           "Seats"
         ],
-        "summary": "Hold seats for a few minutes, all or none",
+        "summary": "Hold places for a few minutes, all or none: the seats you picked, or the best free places of a section",
         "operationId": "PlaceHold",
         "parameters": [
           {
@@ -344,6 +386,37 @@
   },
   "components": {
     "schemas": {
+      "Availability": {
+        "required": [
+          "eventId",
+          "onSale",
+          "sections",
+          "availableSeatIds"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "onSale": {
+            "type": "boolean"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SectionAvailability"
+            }
+          },
+          "availableSeatIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
       "CallerResponse": {
         "required": [
           "userId",
@@ -639,17 +712,32 @@
         }
       },
       "PlaceHoldRequest": {
-        "required": [
-          "seatIds"
-        ],
         "type": "object",
         "properties": {
           "seatIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
             }
+          },
+          "section": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -713,44 +801,6 @@
               "string"
             ],
             "format": "int64"
-          }
-        }
-      },
-      "SeatAvailability": {
-        "required": [
-          "seatId",
-          "section",
-          "row",
-          "number",
-          "priceCategoryId",
-          "available"
-        ],
-        "type": "object",
-        "properties": {
-          "seatId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "section": {
-            "type": "string"
-          },
-          "row": {
-            "type": "string"
-          },
-          "number": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "priceCategoryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "available": {
-            "type": "boolean"
           }
         }
       },
@@ -910,6 +960,35 @@
           }
         }
       },
+      "SectionAvailability": {
+        "required": [
+          "section",
+          "available",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "section": {
+            "type": "string"
+          },
+          "available": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "StartCheckoutRequest": {
         "required": [
           "holdId"
@@ -929,10 +1008,10 @@
       "name": "EventTicketing.PublicApi"
     },
     {
-      "name": "Browse"
+      "name": "Seats"
     },
     {
-      "name": "Seats"
+      "name": "Browse"
     },
     {
       "name": "Orders"

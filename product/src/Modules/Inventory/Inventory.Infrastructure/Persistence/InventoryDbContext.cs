@@ -1,11 +1,15 @@
 using EventTicketing.Inventory.Domain;
+using EventTicketing.Shared.Domain;
 using EventTicketing.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
 namespace EventTicketing.Inventory.Infrastructure.Persistence;
 
-/// <summary>One row per sellable seat per event. Changed only by the conditional SQL in SeatInventory.</summary>
+/// <summary>
+/// One row per sellable place per event: a seat, or an anonymous slot in a standing area (ADR-0011).
+/// Changed only by the conditional SQL in SeatInventory.
+/// </summary>
 internal sealed class SeatUnit
 {
     public Guid EventId { get; init; }
@@ -14,9 +18,14 @@ internal sealed class SeatUnit
 
     public required string Section { get; init; }
 
-    public required string Row { get; init; }
+    /// <summary>Null for a standing slot.</summary>
+    public string? Row { get; init; }
 
-    public int Number { get; init; }
+    /// <summary>Null for a standing slot.</summary>
+    public int? Number { get; init; }
+
+    /// <summary>Order for "best available" within the section: 1 is best.</summary>
+    public int Rank { get; init; }
 
     public Guid PriceCategoryId { get; init; }
 
@@ -40,11 +49,23 @@ internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> op
 {
     public const string SchemaName = "inventory";
 
+    /// <summary>At most one Active or InCheckout hold per fan per event (ADR-0011, ADR-0024).</summary>
+    public const string OneCurrentHoldPerFan = "ux_holds_one_current_per_fan";
+
+    private static readonly IReadOnlyDictionary<string, Error> Constraints = new Dictionary<string, Error>
+    {
+        [OneCurrentHoldPerFan] = Error.Conflict("hold.active_hold_exists", "You already hold seats for this event. Release them or check out first."),
+    };
+
     public DbSet<Hold> Holds => Set<Hold>();
 
     public DbSet<SeatUnit> Seats => Set<SeatUnit>();
 
+    public DbSet<SalesWindow> SalesWindows => Set<SalesWindow>();
+
     protected override string Schema => SchemaName;
+
+    protected override IReadOnlyDictionary<string, Error> ConstraintErrors => Constraints;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,6 +79,7 @@ internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> op
             entity.Property(s => s.Row).HasMaxLength(20);
             entity.Property(s => s.Status).HasMaxLength(20);
             entity.HasIndex(s => s.HoldId);
+            entity.HasIndex(s => new { s.EventId, s.Section, s.Rank });
         });
 
         modelBuilder.Entity<Hold>(entity =>
@@ -66,7 +88,16 @@ internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> op
             entity.HasKey(h => h.Id);
             entity.Property(h => h.CustomerId).HasMaxLength(200);
             entity.Property(h => h.Status).HasConversion<string>().HasMaxLength(20);
-            entity.HasIndex(h => new { h.EventId, h.CustomerId });
+            entity.HasIndex(h => new { h.EventId, h.CustomerId })
+                .IsUnique()
+                .HasFilter("status IN ('Active', 'InCheckout')")
+                .HasDatabaseName(OneCurrentHoldPerFan);
+        });
+
+        modelBuilder.Entity<SalesWindow>(entity =>
+        {
+            entity.ToTable("sales_windows");
+            entity.HasKey(w => w.EventId);
         });
     }
 }

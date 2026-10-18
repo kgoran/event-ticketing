@@ -8,12 +8,25 @@ public enum HoldStatus
     InCheckout,
     Confirmed,
     SeatsLost,
+
+    /// <summary>Its time ran out before checkout. Set lazily, when the fan places their next hold.</summary>
+    Expired,
+
+    /// <summary>The fan let go of it.</summary>
+    Released,
 }
 
 /// <summary>
-/// A fan's temporary claim on some seats of one event. The seat rows themselves record which hold
+/// A fan's temporary claim on some places of one event. The seat rows themselves record which hold
 /// owns them and until when; they are the source of truth (ADR-0010). The hold tracks the
-/// lifecycle: Active → InCheckout → Confirmed, or SeatsLost if it expired and the seats were taken.
+/// lifecycle:
+/// <code>
+///   Active ──BeginCheckout──► InCheckout ──Confirm──► Confirmed
+///     │ │                                  └─────────► SeatsLost (expired, and the seats were taken)
+///     │ └─Release──► Released
+///     └──(time runs out)──► Expired
+/// </code>
+/// A fan has at most one Active or InCheckout hold per event (ADR-0024).
 /// </summary>
 public sealed class Hold
 {
@@ -31,20 +44,21 @@ public sealed class Hold
 
     public HoldStatus Status { get; private set; }
 
+    /// <summary>The seats' own expiry, taken from the database clock when they were claimed.</summary>
     public DateTimeOffset ExpiresAt { get; private set; }
 
     public Guid? OrderId { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
-    public static Hold Place(Guid eventId, string customerId, IReadOnlyCollection<Guid> seatIds, DateTimeOffset now, TimeSpan lifetime) => new()
+    public static Hold Place(Guid id, Guid eventId, string customerId, IReadOnlyCollection<Guid> seatIds, DateTimeOffset now, DateTimeOffset expiresAt) => new()
     {
-        Id = Guid.CreateVersion7(),
+        Id = id,
         EventId = eventId,
         CustomerId = customerId,
         SeatIds = [.. seatIds],
         Status = HoldStatus.Active,
-        ExpiresAt = (now + lifetime).ToUniversalTime(),
+        ExpiresAt = expiresAt.ToUniversalTime(),
         CreatedAt = now.ToUniversalTime(),
     };
 
@@ -81,4 +95,21 @@ public sealed class Hold
     }
 
     public void MarkSeatsLost() => Status = HoldStatus.SeatsLost;
+
+    /// <summary>The fan lets go before checkout. Once an order has the hold, only the order can let it go.</summary>
+    public Result Release()
+    {
+        if (Status == HoldStatus.InCheckout)
+        {
+            return Result.Failure(Error.Conflict("hold.in_checkout", "This hold belongs to an order in checkout."));
+        }
+
+        if (Status is not (HoldStatus.Active or HoldStatus.Expired))
+        {
+            return Result.Failure(Error.Conflict("hold.not_active", "This hold is no longer active."));
+        }
+
+        Status = HoldStatus.Released;
+        return Result.Success();
+    }
 }

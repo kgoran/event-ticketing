@@ -58,12 +58,12 @@ public sealed class FirstVerticalSliceTests(RunningApp running)
 
         // EventPublished travels through the outbox to Inventory, which creates the seats.
         using var anonymous = running.Client("publicapi");
-        var seats = await RunningApp.EventuallyAsync(
-            async () => await anonymous.GetFromJsonAsync<JsonElement[]>(new Uri($"/events/{eventId}/seats", UriKind.Relative), cancellationToken) ?? [],
-            current => current.Length == 10,
+        var availability = await RunningApp.EventuallyAsync(
+            () => anonymous.GetFromJsonAsync<JsonElement>(new Uri($"/events/{eventId}/availability", UriKind.Relative), cancellationToken),
+            current => current.GetProperty("availableSeatIds").GetArrayLength() == 10,
             AsyncStepTimeout,
             cancellationToken);
-        Guid[] seatIds = [.. seats.Take(2).Select(seat => seat.GetProperty("seatId").GetGuid())];
+        Guid[] seatIds = [.. availability.GetProperty("availableSeatIds").EnumerateArray().Take(2).Select(id => id.GetGuid())];
 
         // Ana holds two seats; Ben can't get the same ones.
         using var ana = running.Client("publicapi", token: await running.TokenAsync("ana", cancellationToken));
@@ -98,8 +98,8 @@ public sealed class FirstVerticalSliceTests(RunningApp running)
         order.GetProperty("totalMinorUnits").GetInt64().Should().Be(5000);
         order.GetProperty("currency").GetString().Should().Be("EUR");
 
-        var after = await anonymous.GetFromJsonAsync<JsonElement[]>(new Uri($"/events/{eventId}/seats", UriKind.Relative), cancellationToken);
-        after!.Where(seat => seatIds.Contains(seat.GetProperty("seatId").GetGuid()))
-            .Should().OnlyContain(seat => !seat.GetProperty("available").GetBoolean(), "the two seats are sold");
+        var after = await anonymous.GetFromJsonAsync<JsonElement>(new Uri($"/events/{eventId}/availability", UriKind.Relative), cancellationToken);
+        after.GetProperty("availableSeatIds").EnumerateArray().Select(id => id.GetGuid())
+            .Should().NotContain(seatIds, "the two seats are sold");
     }
 }

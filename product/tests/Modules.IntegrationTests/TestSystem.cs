@@ -34,6 +34,8 @@ public sealed class TestSystem : IAsyncLifetime
 {
     private const string ConnectionSetting = "ConnectionStrings:" + ModuleDatabaseRegistration.ConnectionName;
 
+    private static readonly TimeSpan DeliveryTimeout = TimeSpan.FromSeconds(30);
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine")
         .WithCommand("-c", "max_connections=500")
         .Build();
@@ -87,12 +89,12 @@ public sealed class TestSystem : IAsyncLifetime
     {
         var workers = _workers ?? throw new InvalidOperationException("The system has not started.");
         var modules = workers.Services.GetRequiredService<ModuleRegistry>().Modules;
+        var deadline = DateTime.UtcNow + DeliveryTimeout;
 
         var total = 0;
-        int moved;
-        do
+        while (true)
         {
-            moved = 0;
+            var moved = 0;
             foreach (var module in modules)
             {
                 await using var scope = workers.Services.CreateAsyncScope();
@@ -101,10 +103,25 @@ public sealed class TestSystem : IAsyncLifetime
             }
 
             total += moved;
-        }
-        while (moved > 0);
+            if (moved > 0)
+            {
+                continue;
+            }
 
-        return total;
+            // Tests run in parallel on one database: another test's pass may have leased a message
+            // this test is waiting for and still be delivering it. Done only when nothing due is left.
+            if (await PendingMessagesAsync(modules) == 0)
+            {
+                return total;
+            }
+
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException($"Messages were still pending after {DeliveryTimeout.TotalSeconds:0} s.");
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(50), CancellationToken);
+        }
     }
 
     /// <summary>Runs a query whose parameters are named @p0, @p1, ... and returns the first column of each row.</summary>
@@ -130,6 +147,22 @@ public sealed class TestSystem : IAsyncLifetime
 
     public async Task<T> ScalarAsync<T>(string sql, params object[] parameters) =>
         (await QueryAsync<T>(sql, parameters)).Single();
+
+    /// <summary>Outbox and scheduled messages that are due and not yet done, in every module.</summary>
+    private async Task<long> PendingMessagesAsync(IReadOnlyList<ModuleDatabase> modules)
+    {
+        long pending = 0;
+        foreach (var module in modules)
+        {
+            // Schema names come from AddModuleDatabase, which accepts only identifiers.
+            pending += await ScalarAsync<long>(
+                $"SELECT (SELECT count(*) FROM {module.Schema}.outbox_messages " +
+                "WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND next_attempt_at <= now()) " +
+                $"+ (SELECT count(*) FROM {module.Schema}.scheduled_messages WHERE dead_lettered_at IS NULL AND due_at <= now())");
+        }
+
+        return pending;
+    }
 
     private static T Started<T>(T? value)
         where T : class =>

@@ -18,9 +18,9 @@ GET {{publicApi}}/events/{{list.response.body.$.items[0].eventId}}
 ### Its seat map, at the versioned URL from the event page (cached for good)
 GET {{publicApi}}{{page.response.body.$.seatMapUrl}}
 
-### Which seats are free (Inventory; the client joins this with the seat map on seatId)
-# @name seats
-GET {{publicApi}}/events/{{page.response.body.$.eventId}}/seats
+### What's free: places per section, and the free seats (Inventory; the client joins them with the seat map on seatId)
+# @name availability
+GET {{publicApi}}/events/{{page.response.body.$.eventId}}/availability
 
 ### Sign in as ana, a fan (password grant, development client only)
 # @name ana
@@ -29,13 +29,17 @@ Content-Type: application/x-www-form-urlencoded
 
 grant_type=password&client_id=eventticketing-dev&username=ana&password=ana
 
-### Hold the first two seats
+### Hold two free seats (all or none). For the best free places instead: { "section": "A", "quantity": 2 }
 # @name hold
 POST {{publicApi}}/events/{{page.response.body.$.eventId}}/holds
 Authorization: Bearer {{ana.response.body.$.access_token}}
 Content-Type: application/json
 
-{ "seatIds": [ "{{seats.response.body.$[0].seatId}}", "{{seats.response.body.$[1].seatId}}" ] }
+{ "seatIds": [ "{{availability.response.body.$.availableSeatIds[0]}}", "{{availability.response.body.$.availableSeatIds[1]}}" ] }
+
+### Changed your mind? Release the hold (then hold again; one hold per fan per event)
+# DELETE {{publicApi}}/holds/{{hold.response.body.$.holdId}}
+# Authorization: Bearer {{ana.response.body.$.access_token}}
 
 ### Check out: returns the order and the LocalPay page to pay on (open redirectUrl in a browser)
 # @name order

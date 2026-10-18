@@ -8,18 +8,45 @@ public interface IHoldRepository
     void Add(Hold hold);
 
     Task<Hold?> FindAsync(Guid holdId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The fan's Active or InCheckout hold on the event, if any. An Active hold whose time has run
+    /// out (database clock) is marked Expired first, so it no longer counts.
+    /// </summary>
+    Task<Hold?> FindCurrentAsync(Guid eventId, string customerId, CancellationToken cancellationToken);
+}
+
+/// <summary>Each event's sales window, Inventory's copy of Catalog's schedule.</summary>
+public interface ISalesWindows
+{
+    void Add(SalesWindow window);
+
+    Task<SalesWindow?> FindAsync(Guid eventId, CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// The seat rows of each event, changed only by short conditional SQL statements (ADR-0011): a
-/// claim either takes every requested seat or none, and nobody waits on a lock.
+/// The sellable places of each event (seats and standing slots), changed only by short conditional
+/// SQL statements (ADR-0011): a claim either takes every place it asks for or none, and nobody
+/// waits on a lock.
 /// </summary>
 public interface ISeatInventory
 {
-    Task AddSeatsAsync(Guid eventId, IReadOnlyList<NewSeat> seats, CancellationToken cancellationToken);
+    Task AddPlacesAsync(Guid eventId, IReadOnlyList<NewPlace> places, CancellationToken cancellationToken);
 
-    /// <summary>Claims every seat for the hold, or none. An expired hold's seats count as free.</summary>
-    Task<bool> TryClaimAsync(Guid eventId, IReadOnlyCollection<Guid> seatIds, Guid holdId, TimeSpan lifetime, CancellationToken cancellationToken);
+    /// <summary>
+    /// Claims every listed seat for the hold, or returns null. Seats of an expired hold count as
+    /// free; nothing can be claimed outside the event's sales window.
+    /// </summary>
+    Task<PlaceClaim?> TryClaimAsync(Guid eventId, IReadOnlyCollection<Guid> seatIds, Guid holdId, TimeSpan lifetime, CancellationToken cancellationToken);
+
+    /// <summary>Claims the best-ranked free places of a section (seats or standing slots), or returns null.</summary>
+    Task<PlaceClaim?> TryClaimBestAsync(Guid eventId, string section, int quantity, Guid holdId, TimeSpan lifetime, CancellationToken cancellationToken);
+
+    /// <summary>Whether the event is inside its sales window now (database clock).</summary>
+    Task<bool> IsOnSaleAsync(Guid eventId, CancellationToken cancellationToken);
+
+    /// <summary>Frees the seats the hold still owns.</summary>
+    Task ReleaseAsync(Guid holdId, CancellationToken cancellationToken);
 
     /// <summary>Extends the hold, but only if it still owns all its seats and hasn't expired.</summary>
     Task<bool> TryExtendAsync(Guid holdId, int seatCount, TimeSpan lifetime, CancellationToken cancellationToken);
@@ -30,11 +57,17 @@ public interface ISeatInventory
     Task<IReadOnlyList<SeatOfHold>> SeatsOfHoldAsync(Guid holdId, CancellationToken cancellationToken);
 }
 
-public sealed record NewSeat(Guid SeatId, string Section, string Row, int Number, Guid PriceCategoryId);
+/// <param name="Row">Null for a standing slot.</param>
+/// <param name="Number">Null for a standing slot.</param>
+/// <param name="Rank">Order for "best available" within the section: 1 is best.</param>
+public sealed record NewPlace(Guid SeatId, string Section, string? Row, int? Number, int Rank, Guid PriceCategoryId);
+
+/// <param name="HeldUntil">When the claim expires, by the database clock.</param>
+public sealed record PlaceClaim(IReadOnlyList<Guid> SeatIds, DateTimeOffset HeldUntil);
 
 public sealed record SeatOfHold(Guid SeatId, Guid PriceCategoryId);
 
-/// <summary>Hold timings (ADR-0010). Policies, configurable (configuration section "Inventory").</summary>
+/// <summary>Hold timings and limits (ADR-0010, ADR-0024). Policies, configurable (configuration section "Inventory").</summary>
 public sealed record InventoryPolicy
 {
     public TimeSpan HoldLifetime { get; init; } = TimeSpan.FromMinutes(8);

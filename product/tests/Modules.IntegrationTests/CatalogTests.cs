@@ -68,7 +68,7 @@ public sealed class CatalogTests(TestSystem system)
 
         // Inventory and Orders build their own copies from it.
         await system.DeliverMessagesAsync();
-        (await system.ScalarAsync<long>("SELECT count(*) FROM inventory.seats WHERE event_id = @p0", eventId)).Should().Be(2_000);
+        (await system.ScalarAsync<long>("SELECT count(*) FROM inventory.seats WHERE event_id = @p0", eventId)).Should().Be(2_000 + 1_000, "one row per seat and per standing place");
         (await system.ScalarAsync<long>("SELECT count(*) FROM orders.price_list WHERE event_id = @p0", eventId)).Should().Be(3);
     }
 
