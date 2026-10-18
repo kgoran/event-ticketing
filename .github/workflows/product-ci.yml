@@ -1,0 +1,68 @@
+name: product-ci
+
+# Runs on every pull request and on main. There are deliberately no path filters: a required
+# check that never starts (because no matching file changed) blocks the pull request forever.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    name: "product: build and test"
+    # Pinned: ubuntu-latest moves to Ubuntu 26 from 2026-10-19. Upgrade deliberately, in its own PR.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore product/EventTicketing.slnx
+
+      - name: Build
+        run: dotnet build product/EventTicketing.slnx --no-restore -c Release
+
+      - name: OpenAPI documents are committed and current
+        run: |
+          changes="$(git status --porcelain -- ':(glob)product/**/openapi/*.json')"
+          if [ -n "$changes" ]; then
+            echo "$changes"
+            git --no-pager diff -- ':(glob)product/**/openapi/*.json'
+            echo "::error::The build changed or created OpenAPI documents. Build locally and commit product/**/openapi/*.json."
+            exit 1
+          fi
+
+      - name: Test (unit and architecture)
+        run: dotnet test --solution product/EventTicketing.slnx --no-build -c Release
+
+  apphost-smoke:
+    name: "product: apphost smoke test"
+    # Pinned: ubuntu-latest moves to Ubuntu 26 from 2026-10-19. Upgrade deliberately, in its own PR.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      # Starts PostgreSQL, Keycloak, LocalPay, the Migrator and every host in Docker, and waits
+      # until each one reports healthy: the walking skeleton's definition of done.
+      - name: Start the whole AppHost and check it is healthy
+        run: dotnet test --project dev/AppHost.Tests -c Release

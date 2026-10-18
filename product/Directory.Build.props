@@ -1,0 +1,9 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- Product assemblies and namespaces start with "EventTicketing.", e.g. EventTicketing.Shared.Domain. -->
+  <PropertyGroup>
+    <AssemblyName>EventTicketing.$(MSBuildProjectName)</AssemblyName>
+    <RootNamespace>EventTicketing.$(MSBuildProjectName)</RootNamespace>
+  </PropertyGroup>
+</Project>

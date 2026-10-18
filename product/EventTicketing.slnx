@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Hosts/">
+    <Project Path="src/Hosts/BackOfficeApi/BackOfficeApi.csproj" />
+    <Project Path="src/Hosts/Migrator/Migrator.csproj" />
+    <Project Path="src/Hosts/PublicApi/PublicApi.csproj" />
+    <Project Path="src/Hosts/ServiceDefaults/ServiceDefaults.csproj" />
+    <Project Path="src/Hosts/WebhookIngress/WebhookIngress.csproj" />
+    <Project Path="src/Hosts/Workers/Workers.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/Shared.Application/Shared.Application.csproj" />
+    <Project Path="src/Shared/Shared.Contracts/Shared.Contracts.csproj" />
+    <Project Path="src/Shared/Shared.Domain/Shared.Domain.csproj" />
+    <Project Path="src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ArchitectureTests/ArchitectureTests.csproj" />
+    <Project Path="tests/Shared.UnitTests/Shared.UnitTests.csproj" />
+  </Folder>
+</Solution>
