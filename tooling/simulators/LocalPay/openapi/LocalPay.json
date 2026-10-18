@@ -1,0 +1,372 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "LocalPay",
+    "description": "A payment provider simulator for development and tests. No real money moves.\n\n**Flow.** Create a payment and send the fan to its `checkoutUrl`. The fan approves or declines;\nLocalPay redirects to `returnUrl` and sends a webhook. Only the webhook (or the status API) says\nwhat happened: the redirect proves nothing.\n\n**Webhooks** are POSTed to the configured URL as `{ id, type, created, data }`, with types\n`payment.succeeded`, `payment.failed` and `refund.succeeded`. Header\n`LocalPay-Signature: t={unix seconds},v1={hex HMAC-SHA256 of \"t.body\" with the shared secret}`.\nA webhook is retried with backoff until the shop answers 2xx; a duplicate repeats the event `id`.\n\n**Expiry.** A payment can't be paid after `expiresAt`, and can be expired early while still open.\n\n**Scenarios** are chosen by the last two digits of the amount in minor units: .01 approving\ndeclines; .02 the webhook is late; .03 the webhook is sent twice; .04 no webhook; .05 expiring\nthe payment races with the fan's payment, which wins.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/v1/payments": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Start a payment; send the fan to its checkoutUrl. A repeated Idempotency-Key returns the same payment.",
+        "operationId": "CreatePayment",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePayment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments/{paymentId}": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "A payment's current status",
+        "operationId": "GetPayment",
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/v1/payments/{paymentId}/expire": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Stop an open payment from being paid. 409 with the payment if it already succeeded or failed; repeating it is fine.",
+        "operationId": "ExpirePayment",
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/v1/refunds": {
+      "post": {
+        "tags": [
+          "Refunds"
+        ],
+        "summary": "Refund a succeeded payment, fully or partly. Refunds succeed at once and send refund.succeeded.",
+        "operationId": "CreateRefund",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRefund"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/refunds/{refundId}": {
+      "get": {
+        "tags": [
+          "Refunds"
+        ],
+        "summary": "A refund",
+        "operationId": "GetRefund",
+        "parameters": [
+          {
+            "name": "refundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreatePayment": {
+        "required": [
+          "reference",
+          "amountMinorUnits",
+          "currency",
+          "returnUrl",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "amountMinorUnits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "returnUrl": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateRefund": {
+        "required": [
+          "paymentId"
+        ],
+        "type": "object",
+        "properties": {
+          "paymentId": {
+            "type": "string"
+          },
+          "amountMinorUnits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PaymentResponse": {
+        "required": [
+          "id",
+          "reference",
+          "amountMinorUnits",
+          "currency",
+          "status",
+          "checkoutUrl",
+          "expiresAt",
+          "refundedMinorUnits",
+          "scenario"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "amountMinorUnits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "checkoutUrl": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refundedMinorUnits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "scenario": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RefundResponse": {
+        "required": [
+          "id",
+          "paymentId",
+          "amountMinorUnits",
+          "currency",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "paymentId": {
+            "type": "string"
+          },
+          "amountMinorUnits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Payments"
+    },
+    {
+      "name": "Refunds"
+    }
+  ]
+}

@@ -36,4 +36,16 @@ jobs:
       - name: Build
         run: dotnet build tooling/Tooling.slnx --no-restore -c Release
 
-      # A test step joins here with the first tooling test project (LocalPay, backlog item L1).
+      # LocalPay's API document is the contract the product's adapter is written against.
+      - name: OpenAPI documents are committed and current
+        run: |
+          changes="$(git status --porcelain -- ':(glob)tooling/**/openapi/*.json')"
+          if [ -n "$changes" ]; then
+            echo "$changes"
+            git --no-pager diff -- ':(glob)tooling/**/openapi/*.json'
+            echo "::error::The build changed or created OpenAPI documents. Build locally and commit tooling/**/openapi/*.json."
+            exit 1
+          fi
+
+      - name: Test
+        run: dotnet test --solution tooling/Tooling.slnx --no-build -c Release

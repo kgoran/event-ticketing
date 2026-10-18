@@ -1,7 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <!-- Our payment provider simulator (ADR-0004). Tooling, not product: it never references product
-       code (ADR-0021). Failure scenarios and headless mode arrive with backlog item L1. -->
+       code (ADR-0021). The product's adapter is written against its published API document. -->
+  <PropertyGroup>
+    <!-- Generated at build time and committed, like the product's (ADR-0030). -->
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/openapi</OpenApiDocumentsDirectory>
+  </PropertyGroup>
+
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
