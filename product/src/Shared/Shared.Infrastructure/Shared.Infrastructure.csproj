@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The outer ring: module registration per host, HTTP context, and (from F4) the outbox,
-       inbox and scheduler implementations. -->
+  <!-- The outer ring: module registration per host, module databases, the transaction runner,
+       outbox, inbox, scheduler, idempotency store and audit log (ADR-0014, ADR-0031, ADR-0033). -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
@@ -8,5 +8,15 @@
   <ItemGroup>
     <ProjectReference Include="..\Shared.Application\Shared.Application.csproj" />
     <ProjectReference Include="..\Shared.Contracts\Shared.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="EventTicketing.Shared.IntegrationTests" />
   </ItemGroup>
 </Project>

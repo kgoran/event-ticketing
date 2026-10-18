@@ -44,3 +44,12 @@ and a mediator between modules hides dependencies (design-decisions §6).
 
 - One place for cross-cutting concerns; adding a concern means adding one decorator.
 - The decorator order is covered by a test.
+
+## Updates
+
+- **2026-10-18 (built in F4):** a command that runs another command of the **same** module joins
+  its transaction; a command of a **different** module gets its own transaction and commits
+  independently ([0009](0009-checkout-without-shared-transaction.md)); re-entering a module that is
+  already open further out is refused. A coordinating command that calls other modules or an
+  external service (e.g. `StartCheckout`) must not hold a transaction open while doing so; a way to
+  mark such commands as non-transactional arrives with backlog item O1.

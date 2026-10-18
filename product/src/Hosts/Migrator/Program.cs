@@ -26,7 +26,8 @@ try
         logger.LogInformation("Connected to PostgreSQL {Version}", connection.PostgreSqlVersion);
     }
 
-    var migrations = host.Services.GetServices<IModuleMigration>().ToList();
+    await using var scope = host.Services.CreateAsyncScope();
+    var migrations = scope.ServiceProvider.GetServices<IModuleMigration>().ToList();
     foreach (var migration in migrations)
     {
         logger.LogInformation("Migrating module {Module}", migration.Module);

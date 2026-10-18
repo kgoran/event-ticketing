@@ -47,3 +47,10 @@ publication, and it is built in milestone 1.
 
 - **2026-10-18:** Built in-house. It is small, the team sees how it works, and it fits our own
   command pipeline ([0033](0033-command-pipeline.md)). Wolverine is not used.
+- **2026-10-18 (built in F4):** every module schema has `outbox_messages`, `inbox_messages`,
+  `scheduled_messages`, `idempotency_records` and `audit_records`, added by the shared
+  `ModuleDbContext` base class. The relay and the scheduler claim rows with `FOR UPDATE SKIP LOCKED`
+  plus a lease, retry with exponential backoff (capped at 5 minutes) and dead-letter after 10
+  attempts. The inbox holds one row per message and consumer. A scheduled message's row is deleted
+  in its handler's transaction. **Delivery order is not guaranteed in M1–M3**: consumers must
+  tolerate events arriving out of order until Kafka keys give per-entity ordering in M4.
