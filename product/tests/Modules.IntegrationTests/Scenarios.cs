@@ -24,13 +24,22 @@ internal static class Scenarios
 {
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
-    /// <summary>A new organizer's 10-seat event (rows 1–2 of 5 seats), published and on sale, with Inventory's rows created.</summary>
-    public static async Task<Sale> OnSaleAsync(this TestSystem system, DateTimeOffset? onSaleAt = null, bool withFloor = false, long priceMinorUnits = 2500)
+    /// <summary>
+    /// A new organizer's event, published and on sale, with Inventory's rows created: 10 seats
+    /// (rows 1–2 of 5) unless told otherwise.
+    /// </summary>
+    public static async Task<Sale> OnSaleAsync(
+        this TestSystem system,
+        DateTimeOffset? onSaleAt = null,
+        bool withFloor = false,
+        long priceMinorUnits = 2500,
+        int rows = 2,
+        int seatsPerRow = 5)
     {
         var organizerId = Guid.NewGuid();
         using var backOffice = system.BackOfficeApi(Callers.Organizer(organizerId));
 
-        var venue = Venues.Small(organizerId, rows: 2, seatsPerRow: 5);
+        var venue = Venues.Small(organizerId, rows, seatsPerRow);
         if (withFloor)
         {
             venue = venue with { Sections = [.. venue.Sections, new VenueSectionInput("FLOOR", "Floor", SectionKind.Standing, Capacity: 20)] };
