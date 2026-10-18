@@ -117,4 +117,36 @@ internal static class DemoData
             new PriceAssignmentInput { Section = "FLOOR", PriceCategory = "Floor" },
         ],
     };
+
+    /// <summary>
+    /// The same venue, priced so that one seat's amount picks a LocalPay scenario (its last two
+    /// digits, tooling/simulators/LocalPay): A 1–10 webhook twice, A 11–20 no webhook, B completes
+    /// during expiry, C declined, D webhook late, floor normal. Hold exactly one seat or place.
+    /// </summary>
+    public static CreateEvent FailureScenarios(Guid venueId) => new()
+    {
+        OrganizerId = OrganizerId,
+        VenueId = venueId,
+        Name = "Failure Scenarios",
+        StartsAt = DateTimeOffset.UtcNow.AddDays(31),
+        Currency = "EUR",
+        PriceCategories =
+        [
+            new PriceCategoryInput { Name = "Normal", PriceMinorUnits = 2_500 },
+            new PriceCategoryInput { Name = "Declined", PriceMinorUnits = 2_501 },
+            new PriceCategoryInput { Name = "Late webhook", PriceMinorUnits = 2_502 },
+            new PriceCategoryInput { Name = "Webhook twice", PriceMinorUnits = 2_503 },
+            new PriceCategoryInput { Name = "No webhook", PriceMinorUnits = 2_504 },
+            new PriceCategoryInput { Name = "Completes during expiry", PriceMinorUnits = 2_505 },
+        ],
+        Seating =
+        [
+            new PriceAssignmentInput { Section = "A", PriceCategory = "Webhook twice", Rows = [.. Enumerable.Range(1, 10).Select(row => row.ToString(CultureInfo.InvariantCulture))] },
+            new PriceAssignmentInput { Section = "A", PriceCategory = "No webhook" },
+            new PriceAssignmentInput { Section = "B", PriceCategory = "Completes during expiry" },
+            new PriceAssignmentInput { Section = "C", PriceCategory = "Declined" },
+            new PriceAssignmentInput { Section = "D", PriceCategory = "Late webhook" },
+            new PriceAssignmentInput { Section = "FLOOR", PriceCategory = "Normal" },
+        ],
+    };
 }

@@ -1,4 +1,5 @@
-# Organizer flows in the back office. Start the AppHost first: dotnet run --project dev/AppHost
+# Organizer flows in the back office, by hand: the demo seeder (tooling/seed) does the same.
+# Start the AppHost first: dotnet run --project dev/AppHost (add -- --Demo=true for the demo's timings).
 # Run the requests top to bottom: each one uses values from the responses before it.
 
 @backOffice = http://localhost:5102

@@ -1,7 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Aspire.Hosting;
-using Aspire.Hosting.ApplicationModel;
 
 namespace EventTicketing.Dev.AppHost.Tests;
 
@@ -13,12 +11,7 @@ public sealed class DemoSeederTests(RunningApp running)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        var started = await running.App.ResourceCommands.ExecuteCommandAsync("seed", KnownResourceCommands.StartCommand, cancellationToken);
-        started.Success.Should().BeTrue(started.Message);
-
-        var seed = await running.App.ResourceNotifications.WaitForResourceAsync(
-            "seed", e => e.Snapshot.State?.Text == KnownResourceStates.Finished, cancellationToken);
-        seed.Snapshot.ExitCode.Should().Be(0);
+        (await running.SeedAsync(cancellationToken)).Should().Be(0, "the seeder exits successfully");
 
         using var anonymous = running.Client("publicapi");
         var page = await anonymous.GetFromJsonAsync<JsonElement>(new Uri("/events?q=demo%20concert", UriKind.Relative), cancellationToken);

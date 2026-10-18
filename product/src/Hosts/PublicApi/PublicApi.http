@@ -1,35 +1,37 @@
-# What fans do. Start the AppHost first (dotnet run --project dev/AppHost) and publish an event
-# with BackOfficeApi.http. Run the requests top to bottom: each one uses values from the ones before.
+# The M1a demo, as fans do it (docs/demos/m1a.md). Start the AppHost in demo mode
+# (dotnet run --project dev/AppHost -- --Demo=true) and start the "seed" resource first.
+# Run the requests top to bottom: each one uses values from the ones before.
+# Fans: ana, ben, cid, dan, eva, fil; passwords equal the names. Tokens last 5 minutes.
 
 @publicApi = http://localhost:5101
 @keycloak = http://localhost:8180
 
-### Browse: published events that haven't started, soonest first (no sign-in needed)
-# @name list
+### Step 3. Browse: published events that haven't started, soonest first (no sign-in needed)
 GET {{publicApi}}/events
 
 ### Search event and venue names (web search syntax: "quoted phrase", -excluded)
-GET {{publicApi}}/events?q=demo arena&pageSize=10
+# @name list
+GET {{publicApi}}/events?q=demo concert&pageSize=1
 
-### The first event's page: venue, prices, sales phase, seat-map URL
+### Event page: venue, prices, sales phase, seat-map URL
 # @name page
 GET {{publicApi}}/events/{{list.response.body.$.items[0].eventId}}
 
-### Its seat map, at the versioned URL from the event page (cached for good)
+### Seat map, at the versioned URL from the event page (cached for good)
 GET {{publicApi}}{{page.response.body.$.seatMapUrl}}
 
-### What's free: places per section, and the free seats (Inventory; the client joins them with the seat map on seatId)
+### What's free: places per section, and the free seats (the client joins them with the seat map on seatId)
 # @name availability
 GET {{publicApi}}/events/{{page.response.body.$.eventId}}/availability
 
-### Sign in as ana, a fan (password grant, development client only)
+### Step 4. Sign in as ana (password grant, development client only)
 # @name ana
 POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=password&client_id=eventticketing-dev&username=ana&password=ana
 
-### Hold two free seats (all or none). For the best free places instead: { "section": "A", "quantity": 2 }
+### Ana holds two seats: 201, all or none. For the best free places instead: { "section": "A", "quantity": 2 }
 # @name hold
 POST {{publicApi}}/events/{{page.response.body.$.eventId}}/holds
 Authorization: Bearer {{ana.response.body.$.access_token}}
@@ -37,11 +39,21 @@ Content-Type: application/json
 
 { "seatIds": [ "{{availability.response.body.$.availableSeatIds[0]}}", "{{availability.response.body.$.availableSeatIds[1]}}" ] }
 
-### Changed your mind? Release the hold (then hold again; one hold per fan per event)
-# DELETE {{publicApi}}/holds/{{hold.response.body.$.holdId}}
-# Authorization: Bearer {{ana.response.body.$.access_token}}
+### Sign in as ben
+# @name ben
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
 
-### Check out: returns the order and the LocalPay page to pay on (open redirectUrl in a browser)
+grant_type=password&client_id=eventticketing-dev&username=ben&password=ben
+
+### Ben tries the same seats: 409, at once
+POST {{publicApi}}/events/{{page.response.body.$.eventId}}/holds
+Authorization: Bearer {{ben.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "seatIds": [ "{{availability.response.body.$.availableSeatIds[0]}}", "{{availability.response.body.$.availableSeatIds[1]}}" ] }
+
+### Step 5. Ana checks out: open redirectUrl in a browser and click Approve
 # @name order
 POST {{publicApi}}/orders
 Authorization: Bearer {{ana.response.body.$.access_token}}
@@ -49,6 +61,98 @@ Content-Type: application/json
 
 { "holdId": "{{hold.response.body.$.holdId}}" }
 
-### After paying: the order's status (Pending until LocalPay's webhook confirms it)
+### Ana's order: Pending until LocalPay's webhook confirms it (what the return page polls)
 GET {{publicApi}}/orders/{{order.response.body.$.orderId}}
 Authorization: Bearer {{ana.response.body.$.access_token}}
+
+### (Changed your mind before checkout? Release a hold; one hold per fan per event)
+DELETE {{publicApi}}/holds/{{hold.response.body.$.holdId}}
+Authorization: Bearer {{ana.response.body.$.access_token}}
+
+### Step 7a. Sign in as cid
+# @name cid
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=cid&password=cid
+
+### Cid holds a seat (note expiresAt: a minute in demo mode), then walks away
+# @name cidHold
+POST {{publicApi}}/events/{{page.response.body.$.eventId}}/holds
+Authorization: Bearer {{cid.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "seatIds": [ "{{availability.response.body.$.availableSeatIds[2]}}" ] }
+
+### Sign in as dan
+# @name dan
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=dan&password=dan
+
+### Dan holds the same seat: 409 until Cid's hold expires, 201 the moment it does
+POST {{publicApi}}/events/{{page.response.body.$.eventId}}/holds
+Authorization: Bearer {{dan.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "seatIds": [ "{{availability.response.body.$.availableSeatIds[2]}}" ] }
+
+### Step 7b. Sign in as eva
+# @name eva
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=eva&password=eva
+
+### Eva holds a seat
+# @name evaHold
+POST {{publicApi}}/events/{{page.response.body.$.eventId}}/holds
+Authorization: Bearer {{eva.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "seatIds": [ "{{availability.response.body.$.availableSeatIds[3]}}" ] }
+
+### Eva checks out and walks away (don't open the payment page)
+# @name evaOrder
+POST {{publicApi}}/orders
+Authorization: Bearer {{eva.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "holdId": "{{evaHold.response.body.$.holdId}}" }
+
+### Two minutes later: Expired. Open her redirectUrl: LocalPay says expired. The seat is free again.
+GET {{publicApi}}/orders/{{evaOrder.response.body.$.orderId}}
+Authorization: Bearer {{eva.response.body.$.access_token}}
+
+### Step 8. The Failure Scenarios event: hold ONE seat; its price picks LocalPay's scenario
+# @name scenarios
+GET {{publicApi}}/events?q=failure scenarios&pageSize=1
+
+### Sign in as fil
+# @name fil
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=fil&password=fil
+
+### Fil holds the best seat in section A (rows 1-10 cost 25.03: the webhook comes twice).
+### Other sections: B completes during expiry, C is declined, D's webhook is late.
+# @name filHold
+POST {{publicApi}}/events/{{scenarios.response.body.$.items[0].eventId}}/holds
+Authorization: Bearer {{fil.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "section": "A", "quantity": 1 }
+
+### Fil checks out: approve on LocalPay's page; the order is confirmed once despite two webhooks
+# @name filOrder
+POST {{publicApi}}/orders
+Authorization: Bearer {{fil.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "holdId": "{{filHold.response.body.$.holdId}}" }
+
+### Fil's order
+GET {{publicApi}}/orders/{{filOrder.response.body.$.orderId}}
+Authorization: Bearer {{fil.response.body.$.access_token}}
