@@ -137,7 +137,11 @@ internal sealed class CloseUnsoldOrderHandler(IOrderRepository orders, TimeProvi
             return Error.NotFound("orders.not_found", "The order does not exist.");
         }
 
-        order.CloseUnsold(command.Reason, time.GetUtcNow());
+        if (order.CloseUnsold(command.Reason, time.GetUtcNow()))
+        {
+            OrdersTelemetry.Moved(order.Status);
+        }
+
         return Unit.Value;
     }
 }

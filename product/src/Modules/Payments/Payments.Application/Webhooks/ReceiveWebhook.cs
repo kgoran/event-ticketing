@@ -45,6 +45,7 @@ internal sealed class ReceiveWebhookHandler(
         var webhook = provider.VerifyWebhook(command.Payload, command.Headers);
         if (webhook is null)
         {
+            Record(provider.Name, "invalid_signature");
             return Error.Forbidden("webhook.invalid_signature", "The webhook signature is missing or invalid.");
         }
 
@@ -52,6 +53,7 @@ internal sealed class ReceiveWebhookHandler(
         // at the same moment: then the unique index catches the second (PaymentsDbContext).
         if (await webhooks.ExistsAsync(provider.Name, webhook.EventId, cancellationToken))
         {
+            Record(provider.Name, "duplicate");
             return WebhookErrors.Duplicate;
         }
 
@@ -70,8 +72,15 @@ internal sealed class ReceiveWebhookHandler(
         webhooks.Add(received);
         scheduler.Schedule(new ProcessPaymentWebhook(received.Id), now);
 
+        Record(provider.Name, "stored");
         return Unit.Value;
     }
+
+    private static void Record(string provider, string result) =>
+        PaymentsTelemetry.Webhooks.Add(
+            1,
+            new KeyValuePair<string, object?>("eventticketing.payment.provider", provider),
+            new KeyValuePair<string, object?>("eventticketing.webhook.result", result));
 }
 
 /// <summary>Processes a stored webhook in Workers.</summary>

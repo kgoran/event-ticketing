@@ -14,7 +14,10 @@ internal sealed class SweepExpiredHoldsHandler(ISeatInventory seats, IHoldReposi
 {
     public async Task HandleAsync(SweepExpiredHolds message, CancellationToken cancellationToken)
     {
-        await seats.MarkExpiredAvailableAsync(policy.SweepBatchSize, cancellationToken);
-        await holds.ExpireLapsedAsync(policy.SweepBatchSize, cancellationToken);
+        var seatRows = await seats.MarkExpiredAvailableAsync(policy.SweepBatchSize, cancellationToken);
+        var holdRows = await holds.ExpireLapsedAsync(policy.SweepBatchSize, cancellationToken);
+
+        InventoryTelemetry.Swept.Add(seatRows, new KeyValuePair<string, object?>("eventticketing.swept.kind", "seats"));
+        InventoryTelemetry.Swept.Add(holdRows, new KeyValuePair<string, object?>("eventticketing.swept.kind", "holds"));
     }
 }

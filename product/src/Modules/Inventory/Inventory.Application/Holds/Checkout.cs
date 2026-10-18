@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using EventTicketing.Inventory.Domain;
 using EventTicketing.Shared.Application.Authorization;
 using EventTicketing.Shared.Application.Commands;
@@ -27,6 +28,12 @@ internal sealed class BeginCheckoutHandler(IHoldRepository holds, ISeatInventory
         if (begun.IsFailure)
         {
             return begun.Error;
+        }
+
+        // The hold was placed in an earlier request: link its trace, so the purchase reads end to end.
+        if (hold.TraceParent is { } placed && ActivityContext.TryParse(placed, null, out var placedContext))
+        {
+            Activity.Current?.AddLink(new ActivityLink(placedContext));
         }
 
         // The seat rows decide (database clock): the hold must still own every seat and not have

@@ -12,18 +12,35 @@ public sealed class PaymentOutcomes(IIntegrationEventPublisher events, TimeProvi
 {
     public void Apply(PaymentAttempt attempt, ProviderPaymentStatus status)
     {
+        ArgumentNullException.ThrowIfNull(attempt);
+
         var now = time.GetUtcNow();
         switch (status)
         {
             case ProviderPaymentStatus.Succeeded when attempt.Succeed(now):
-                events.Publish(new PaymentSucceeded(Guid.CreateVersion7(), now, attempt.OrderId, attempt.Id, attempt.AmountMinorUnits, attempt.Currency));
+                // The event joins the checkout's trace, so Orders' confirmation shows up in the same trace.
+                using (PaymentsTelemetry.ContinueCheckout(attempt.CheckoutTraceParent, "payment succeeded"))
+                {
+                    events.Publish(new PaymentSucceeded(Guid.CreateVersion7(), now, attempt.OrderId, attempt.Id, attempt.AmountMinorUnits, attempt.Currency));
+                }
+
+                Record("succeeded");
                 break;
             case ProviderPaymentStatus.Failed when attempt.Fail(now):
-                events.Publish(new PaymentFailed(Guid.CreateVersion7(), now, attempt.OrderId, attempt.Id));
+                using (PaymentsTelemetry.ContinueCheckout(attempt.CheckoutTraceParent, "payment failed"))
+                {
+                    events.Publish(new PaymentFailed(Guid.CreateVersion7(), now, attempt.OrderId, attempt.Id));
+                }
+
+                Record("failed");
                 break;
-            case ProviderPaymentStatus.Expired:
+            case ProviderPaymentStatus.Expired when attempt.Status is not (PaymentStatus.Cancelled or PaymentStatus.Succeeded or PaymentStatus.Failed):
                 attempt.Cancel(now);
+                Record("cancelled");
                 break;
         }
     }
+
+    private static void Record(string status) =>
+        PaymentsTelemetry.Outcomes.Add(1, new KeyValuePair<string, object?>("eventticketing.payment.status", status));
 }

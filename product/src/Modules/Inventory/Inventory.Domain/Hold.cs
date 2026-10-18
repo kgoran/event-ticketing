@@ -65,8 +65,19 @@ public sealed class Hold
 
     public DateTimeOffset CreatedAt { get; private set; }
 
-    public static Hold Place(Guid id, Guid eventId, string customerId, IReadOnlyCollection<Guid> seatIds, DateTimeOffset now, DateTimeOffset expiresAt) => new()
+    /// <summary>The W3C trace context of the request that placed the hold; checkout links to it.</summary>
+    public string? TraceParent { get; private set; }
+
+    public static Hold Place(
+        Guid id,
+        Guid eventId,
+        string customerId,
+        IReadOnlyCollection<Guid> seatIds,
+        DateTimeOffset now,
+        DateTimeOffset expiresAt,
+        string? traceParent = null) => new()
     {
+        TraceParent = traceParent,
         Id = id,
         EventId = eventId,
         CustomerId = customerId,

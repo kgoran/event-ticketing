@@ -78,6 +78,7 @@ internal sealed class CompleteRefundOnRefundSucceeded(IOrderRepository orders, I
 
         if (order.CompleteRefund())
         {
+            OrdersTelemetry.Moved(OrderStatus.Refunded);
             events.Publish(new OrderRefunded(
                 Guid.CreateVersion7(),
                 time.GetUtcNow(),
@@ -99,6 +100,9 @@ internal sealed class FailRefundOnRefundFailed(IOrderRepository orders) : IInteg
         var order = await orders.FindAsync(integrationEvent.OrderId, cancellationToken)
             ?? throw new InvalidOperationException($"Refund failed for unknown order {integrationEvent.OrderId}.");
 
-        order.FailRefund();
+        if (order.FailRefund())
+        {
+            OrdersTelemetry.Moved(OrderStatus.RefundFailed);
+        }
     }
 }

@@ -45,8 +45,12 @@ public sealed class PaymentAttempt
 
     public DateTimeOffset? CompletedAt { get; private set; }
 
-    public static PaymentAttempt Create(Guid orderId, long amountMinorUnits, string currency, string provider, DateTimeOffset now) => new()
+    /// <summary>The W3C trace context of the checkout, so news from the provider continues the purchase's trace.</summary>
+    public string? CheckoutTraceParent { get; private set; }
+
+    public static PaymentAttempt Create(Guid orderId, long amountMinorUnits, string currency, string provider, DateTimeOffset now, string? checkoutTraceParent = null) => new()
     {
+        CheckoutTraceParent = checkoutTraceParent,
         Id = Guid.CreateVersion7(),
         OrderId = orderId,
         AmountMinorUnits = amountMinorUnits,

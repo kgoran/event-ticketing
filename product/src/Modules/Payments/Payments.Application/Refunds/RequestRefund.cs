@@ -122,9 +122,11 @@ public sealed class RefundOutcomes(IIntegrationEventPublisher events, TimeProvid
         {
             case ProviderRefundStatus.Succeeded when refund.Succeed(result.ProviderRefundId, now):
                 events.Publish(new RefundSucceeded(Guid.CreateVersion7(), now, refund.OrderId, refund.Id, refund.AmountMinorUnits, refund.Currency));
+                PaymentsTelemetry.Refunds.Add(1, new KeyValuePair<string, object?>("eventticketing.refund.status", "succeeded"));
                 break;
             case ProviderRefundStatus.Failed when refund.Fail(result.FailureReason ?? "The provider refused the refund.", now):
                 events.Publish(new RefundFailed(Guid.CreateVersion7(), now, refund.OrderId, refund.Id, refund.FailureReason!));
+                PaymentsTelemetry.Refunds.Add(1, new KeyValuePair<string, object?>("eventticketing.refund.status", "failed"));
                 break;
         }
     }

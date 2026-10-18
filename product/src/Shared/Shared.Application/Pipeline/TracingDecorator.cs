@@ -21,6 +21,7 @@ internal sealed class TracingDecorator<TCommand, TResult>(ICommandHandler<TComma
 
         var started = Stopwatch.GetTimestamp();
         var outcome = "exception";
+        string? errorCode = null;
 
         try
         {
@@ -29,7 +30,8 @@ internal sealed class TracingDecorator<TCommand, TResult>(ICommandHandler<TComma
             outcome = result.IsSuccess ? "success" : "failure";
             if (result.IsFailure)
             {
-                activity?.SetTag("eventticketing.error.code", result.Error.Code);
+                errorCode = result.Error.Code;
+                activity?.SetTag("eventticketing.error.code", errorCode);
             }
 
             return result;
@@ -47,6 +49,12 @@ internal sealed class TracingDecorator<TCommand, TResult>(ICommandHandler<TComma
                 { "eventticketing.command", CommandName },
                 { "eventticketing.outcome", outcome },
             };
+
+            // Error codes are a small, fixed set per command, e.g. hold.seats_unavailable: safe as a tag.
+            if (errorCode is not null)
+            {
+                tags.Add("eventticketing.error.code", errorCode);
+            }
 
             CommandTelemetry.Handled.Add(1, tags);
             CommandTelemetry.Duration.Record(Stopwatch.GetElapsedTime(started).TotalSeconds, tags);

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using EventTicketing.Inventory.Domain;
 using EventTicketing.Shared.Application.Authorization;
 using EventTicketing.Shared.Application.Commands;
@@ -82,8 +83,9 @@ internal sealed class PlaceHoldHandler(
                 : Error.Conflict("hold.not_on_sale", "This event isn't on sale.");
         }
 
-        var hold = Hold.Place(holdId, command.EventId, customerId, claim.SeatIds, time.GetUtcNow(), claim.HeldUntil);
+        var hold = Hold.Place(holdId, command.EventId, customerId, claim.SeatIds, time.GetUtcNow(), claim.HeldUntil, Activity.Current?.Id);
         holds.Add(hold);
+        InventoryTelemetry.PlacesHeld.Add(hold.SeatIds.Count);
         return new HoldPlaced(hold.Id, hold.ExpiresAt, hold.SeatIds);
     }
 }
