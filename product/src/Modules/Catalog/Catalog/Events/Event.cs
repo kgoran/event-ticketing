@@ -47,6 +47,12 @@ internal sealed class Event
 
     public Guid VenueId { get; private set; }
 
+    /// <summary>Copied from the venue, which never changes, so browsing and search need no join.</summary>
+    public string VenueName { get; private set; } = string.Empty;
+
+    /// <summary>The venue's IANA time zone, copied like <see cref="VenueName"/>.</summary>
+    public string TimeZone { get; private set; } = string.Empty;
+
     public string Name { get; private set; } = string.Empty;
 
     public DateTimeOffset StartsAt { get; private set; }
@@ -58,6 +64,9 @@ internal sealed class Event
     public DateTimeOffset? OnSaleAt { get; private set; }
 
     public DateTimeOffset? PublishedAt { get; private set; }
+
+    /// <summary>Content hash of the published seat map; part of its URL, so the map can be cached for good.</summary>
+    public string? SeatMapVersion { get; private set; }
 
     public IReadOnlyList<PriceCategory> PriceCategories => _priceCategories;
 
@@ -80,6 +89,8 @@ internal sealed class Event
             Id = Guid.CreateVersion7(),
             OrganizerId = venue.OrganizerId,
             VenueId = venue.Id,
+            VenueName = venue.Name,
+            TimeZone = venue.TimeZone,
             Name = name,
             StartsAt = startsAt.ToUniversalTime(),
             Currency = currency.Value,
@@ -148,15 +159,16 @@ internal sealed class Event
         _priceAssignments.SingleOrDefault(a => a.Section == section && row is not null && a.Row == row)?.PriceCategoryId
         ?? _priceAssignments.SingleOrDefault(a => a.Section == section && a.Row is null)?.PriceCategoryId;
 
-    public SalesPhase SalesPhaseAt(DateTimeOffset now) => this switch
-    {
-        { Status: not EventStatus.Published } or { OnSaleAt: null } => SalesPhase.NotScheduled,
-        _ when now >= StartsAt => SalesPhase.Ended,
-        _ when now >= OnSaleAt => SalesPhase.OnSale,
-        _ => SalesPhase.Scheduled,
-    };
+    public SalesPhase SalesPhaseAt(DateTimeOffset now) => SalesPhaseOf(Status, OnSaleAt, StartsAt, now);
 
-    public Result Publish(DateTimeOffset now)
+    /// <summary>The same rule for queries that project columns instead of loading the event.</summary>
+    public static SalesPhase SalesPhaseOf(EventStatus status, DateTimeOffset? onSaleAt, DateTimeOffset startsAt, DateTimeOffset now) =>
+        status != EventStatus.Published || onSaleAt is null ? SalesPhase.NotScheduled
+        : now >= startsAt ? SalesPhase.Ended
+        : now >= onSaleAt ? SalesPhase.OnSale
+        : SalesPhase.Scheduled;
+
+    public Result Publish(DateTimeOffset now, string seatMapVersion)
     {
         if (Status != EventStatus.Draft)
         {
@@ -170,6 +182,7 @@ internal sealed class Event
 
         Status = EventStatus.Published;
         PublishedAt = now.ToUniversalTime();
+        SeatMapVersion = seatMapVersion;
         return Result.Success();
     }
 

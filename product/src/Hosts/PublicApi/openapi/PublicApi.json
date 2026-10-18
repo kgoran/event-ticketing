@@ -26,6 +26,148 @@
         }
       }
     },
+    "/events": {
+      "get": {
+        "tags": [
+          "Browse"
+        ],
+        "summary": "Published events that haven't started, soonest first; with q, the best matches first",
+        "operationId": "ListEvents",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventListPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/{eventId}": {
+      "get": {
+        "tags": [
+          "Browse"
+        ],
+        "summary": "A published event: venue, prices, sales phase and where its seat map is",
+        "operationId": "GetEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/events/{eventId}/seat-map/{version}": {
+      "get": {
+        "tags": [
+          "Browse"
+        ],
+        "summary": "The seat-map geometry of a published event, at the version the event page links to",
+        "operationId": "GetSeatMap",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatMap"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/events/{eventId}/seats": {
       "get": {
         "tags": [
@@ -244,6 +386,157 @@
           }
         }
       },
+      "EventListPage": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "hasMore"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EventPage": {
+        "required": [
+          "eventId",
+          "name",
+          "startsAt",
+          "timeZone",
+          "venueId",
+          "venueName",
+          "currency",
+          "onSaleAt",
+          "salesPhase",
+          "priceCategories",
+          "seatMapUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "onSaleAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "salesPhase": {
+            "type": "string"
+          },
+          "priceCategories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicPriceCategory"
+            }
+          },
+          "seatMapUrl": {
+            "type": "string"
+          }
+        }
+      },
+      "EventSummary": {
+        "required": [
+          "eventId",
+          "name",
+          "startsAt",
+          "timeZone",
+          "venueName",
+          "currency",
+          "priceFromMinorUnits",
+          "onSaleAt",
+          "salesPhase"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "priceFromMinorUnits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "onSaleAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "salesPhase": {
+            "type": "string"
+          }
+        }
+      },
       "HoldPlaced": {
         "required": [
           "holdId",
@@ -398,6 +691,31 @@
           }
         }
       },
+      "PublicPriceCategory": {
+        "required": [
+          "priceCategoryId",
+          "name",
+          "priceMinorUnits"
+        ],
+        "type": "object",
+        "properties": {
+          "priceCategoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "priceMinorUnits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "SeatAvailability": {
         "required": [
           "seatId",
@@ -436,6 +754,162 @@
           }
         }
       },
+      "SeatMap": {
+        "required": [
+          "eventId",
+          "version",
+          "priceCategories",
+          "sections"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "string"
+          },
+          "priceCategories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatMapCategory"
+            }
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatMapSection"
+            }
+          }
+        }
+      },
+      "SeatMapCategory": {
+        "required": [
+          "priceCategoryId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "priceCategoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "SeatMapSeat": {
+        "required": [
+          "seatId",
+          "row",
+          "number",
+          "x",
+          "y",
+          "priceCategoryId"
+        ],
+        "type": "object",
+        "properties": {
+          "seatId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "row": {
+            "type": "string"
+          },
+          "number": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "x": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "y": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "priceCategoryId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SeatMapSection": {
+        "required": [
+          "code",
+          "name",
+          "kind",
+          "x",
+          "y",
+          "capacity",
+          "priceCategoryId",
+          "seats"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "x": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "y": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "capacity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "priceCategoryId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "seats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatMapSeat"
+            }
+          }
+        }
+      },
       "StartCheckoutRequest": {
         "required": [
           "holdId"
@@ -453,6 +927,9 @@
   "tags": [
     {
       "name": "EventTicketing.PublicApi"
+    },
+    {
+      "name": "Browse"
     },
     {
       "name": "Seats"
