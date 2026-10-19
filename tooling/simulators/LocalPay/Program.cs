@@ -1,6 +1,7 @@
 using EventTicketing.Tooling.LocalPay;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -33,6 +34,7 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOIN
 builder.Services.Configure<WebhookOptions>(builder.Configuration.GetSection("Webhooks"));
 builder.Services.Configure<ScenarioOptions>(builder.Configuration.GetSection("Scenarios"));
 builder.Services.Configure<HeadlessOptions>(builder.Configuration.GetSection("Headless"));
+builder.Services.Configure<CheckoutOptions>(builder.Configuration.GetSection("Checkout"));
 builder.Services.AddSingleton<PaymentStore>();
 builder.Services.AddSingleton<WebhookQueue>();
 builder.Services.AddSingleton<Webhooks>();
@@ -114,9 +116,9 @@ refunds.MapGet("/{refundId}", Results<Ok<RefundResponse>, NotFound> (string refu
 // The hosted payment page: for the fan's browser, not part of the API.
 var checkout = app.MapGroup("/checkout/{paymentId}").ExcludeFromDescription();
 
-checkout.MapGet("/", (string paymentId, PaymentStore store) =>
+checkout.MapGet("/", (string paymentId, PaymentStore store, IOptions<CheckoutOptions> options) =>
     store.Find(paymentId) is { } payment
-        ? Results.Content(CheckoutPage.Render(payment), "text/html")
+        ? Results.Content(CheckoutPage.Render(payment, options.Value.ShopName), "text/html")
         : Results.NotFound());
 
 checkout.MapPost("/approve", (string paymentId, PaymentStore store, Webhooks webhooks) => Complete(paymentId, approved: true, store, webhooks));

@@ -57,6 +57,7 @@ var webhookIngress = WithTimings(builder.AddProject<Projects.WebhookIngress>("we
 var localPay = builder.AddProject<Projects.LocalPay>("localpay")
     .WithEnvironment("Webhooks__Url", ReferenceExpression.Create($"{webhookIngress.GetEndpoint("http")}/webhooks/localpay"))
     .WithEnvironment("Webhooks__Secret", webhookSecret)
+    .WithEnvironment("Checkout__ShopName", "FanSite")
     .WithHttpHealthCheck("/health");
 
 var publicApi = WithTimings(builder.AddProject<Projects.PublicApi>("publicapi"))
