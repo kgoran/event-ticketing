@@ -58,6 +58,7 @@ entry under **Updates** that settles something the ADR explicitly left open.
 | [0046](0046-localpay-scenarios-and-contract-checks.md) | LocalPay: misbehaviour by amount, and its contract checked in CI |
 | [0047](0047-one-trace-per-purchase-and-metric-tags.md) | One trace per purchase; metrics from commands and business events |
 | [0048](0048-test-layers-and-demo-dry-run.md) | Test layers: modules in their real hosts, and the demo as a system test |
+| [0049](0049-fan-site-blazor-server-tokens-on-the-server.md) | The fan site: Blazor Interactive Server, with the fans' tokens on the server |
 
 ## Template
 

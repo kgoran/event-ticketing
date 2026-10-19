@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Enforces the module rules (ADR-0002, ADR-0006, ADR-0026) and the product/tooling separation
-       (ADR-0021). References every product project except the hosts, so all product assemblies
-       are in the test output; a test fails if a project is missing here. -->
+       (ADR-0021). References every product project except the hosts and frontends, so all product
+       assemblies are in the test output; a test fails if a project is missing here. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
   </PropertyGroup>

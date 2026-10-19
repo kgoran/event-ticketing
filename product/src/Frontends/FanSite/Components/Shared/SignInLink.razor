@@ -1,0 +1,29 @@
+@inject NavigationManager Navigation
+
+@* Sign-in is a server endpoint, not a page, so it needs a full page load (forceLoad). *@
+<a class="@Class" href="@Href" @onclick="SignIn" @onclick:preventDefault>
+    @if (ChildContent is null)
+    {
+        <text>Sign in</text>
+    }
+    else
+    {
+        @ChildContent
+    }
+</a>
+
+@code {
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private string Href => SignInUrl(Navigation);
+
+    /// <summary>The sign-in endpoint, coming back to the page the fan is on.</summary>
+    public static string SignInUrl(NavigationManager navigation) =>
+        "account/login?returnUrl=" + Uri.EscapeDataString("/" + navigation.ToBaseRelativePath(navigation.Uri));
+
+    private void SignIn() => Navigation.NavigateTo(Href, forceLoad: true);
+}

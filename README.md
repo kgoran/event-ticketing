@@ -27,6 +27,9 @@ dotnet test --solution product/EventTicketing.slnx   # unit and architecture tes
 dotnet test --project dev/AppHost.Tests              # starts the whole system and checks it is healthy
 ```
 
+The fan site is at http://localhost:5100: start the `seed` resource in the dashboard for demo
+events, then sign in as a fan. The [demo runbook](docs/demos/m1a.md) walks through it.
+
 `dev/EventTicketing.Dev.slnx` opens product, tooling and the AppHost together in an IDE.
 
 ### Signing in locally
@@ -36,7 +39,7 @@ password is the user name:
 
 | User | Role | Notes |
 |---|---|---|
-| `ana`, `ben` | fan | |
+| `ana`, `ben`, `cid`, `dan`, `eva`, `fil` | fan | sign in to the fan site, or use the `.http` files |
 | `olga` | organizer | member of organizer `0199f2a0-0000-7000-8000-000000000001` |
 | `adam` | admin | |
 

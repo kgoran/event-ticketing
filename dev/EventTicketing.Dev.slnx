@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="../product/src/Frontends/FanSite/FanSite.csproj" />
   <Project Path="../product/src/Hosts/BackOfficeApi/BackOfficeApi.csproj" />
   <Project Path="../product/src/Hosts/Migrator/Migrator.csproj" />
   <Project Path="../product/src/Hosts/PublicApi/PublicApi.csproj" />
@@ -24,6 +25,7 @@
   <Project Path="../product/src/Shared/Shared.Domain/Shared.Domain.csproj" />
   <Project Path="../product/src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
   <Project Path="../product/tests/ArchitectureTests/ArchitectureTests.csproj" />
+  <Project Path="../product/tests/FanSite.Tests/FanSite.Tests.csproj" />
   <Project Path="../product/tests/Hosts.Tests/Hosts.Tests.csproj" />
   <Project Path="../product/tests/Shared.IntegrationTests/Shared.IntegrationTests.csproj" />
   <Project Path="../product/tests/Shared.UnitTests/Shared.UnitTests.csproj" />

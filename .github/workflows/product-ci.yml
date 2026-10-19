@@ -47,6 +47,18 @@ jobs:
             exit 1
           fi
 
+      # The fan site's PublicApi client must match the committed OpenAPI document (ADR-0037, ADR-0049).
+      - name: Fan site's API client is committed and current
+        run: |
+          bash product/src/Frontends/FanSite/generate-client.sh
+          changes="$(git status --porcelain -- product/src/Frontends/FanSite/PublicApi)"
+          if [ -n "$changes" ]; then
+            echo "$changes"
+            git --no-pager diff --stat -- product/src/Frontends/FanSite/PublicApi
+            echo "::error::The fan site's API client is out of date. Run 'bash product/src/Frontends/FanSite/generate-client.sh' and commit it."
+            exit 1
+          fi
+
       - name: Test (unit and architecture)
         run: dotnet test --solution product/EventTicketing.slnx --no-build -c Release
 

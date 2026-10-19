@@ -1,0 +1,483 @@
+@page "/events/{EventId:guid}"
+@implements IDisposable
+@inject PublicApiClient Api
+@inject MyHolds Holds
+@inject NavigationManager Navigation
+@inject TimeProvider Time
+@inject IConfiguration Configuration
+
+<PageTitle>@(Event?.Name ?? "Event") · EventTicketing</PageTitle>
+
+<a class="back" href="">← All events</a>
+
+@if (Event is null)
+{
+    <h1>Event</h1>
+    <p class="muted">@(_notFound ? "This event doesn't exist or isn't published." : "Loading…")</p>
+}
+else
+{
+    <header class="event-header">
+        <h1>@Event.Name</h1>
+        <p class="meta">@Event.VenueName · @Formats.AtVenue(Event.StartsAt, Event.TimeZone)</p>
+        <span class="badge @(OnSale ? "on-sale" : "off-sale")">@Formats.SalesPhase(Event.SalesPhase, Event.OnSaleAt, Event.TimeZone)</span>
+    </header>
+
+    @if (_message is not null)
+    {
+        <div class="alert @(_messageIsError ? "error" : "info")" role="status">@_message</div>
+    }
+
+    <div class="event-layout">
+        <section class="map-panel card">
+            @if (_map is null)
+            {
+                <p class="muted">Loading the seat map…</p>
+            }
+            else
+            {
+                <ul class="legend">
+                    @foreach (var category in _map.Categories)
+                    {
+                        <li><span class="swatch cat-@category.Index"></span>@category.Name · @Formats.Money(category.PriceMinorUnits, Event.Currency)</li>
+                    }
+                    <li><span class="swatch selected"></span>Picked</li>
+                    <li><span class="swatch mine"></span>Yours</li>
+                    <li><span class="swatch taken"></span>Taken</li>
+                </ul>
+                <SeatMapView Model="_map" StateOf="StateOf" FreeIn="FreeIn" Version="_mapVersion"
+                             OnSeatClicked="ToggleSeat" OnStandingClicked="PickStanding" />
+            }
+        </section>
+
+        <aside class="side-panel">
+            @if (_hold is not null)
+            {
+                <HoldPanel Hold="_hold" Currency="@Event.Currency" Busy="_busy"
+                           OnCheckout="CheckoutAsync" OnRelease="ReleaseAsync" OnLapsed="HoldLapsedAsync" />
+            }
+            else if (!OnSale)
+            {
+                <section class="card">
+                    <h2>Not on sale</h2>
+                    <p class="muted">@Formats.SalesPhase(Event.SalesPhase, Event.OnSaleAt, Event.TimeZone).</p>
+                </section>
+            }
+            else
+            {
+                <section class="card">
+                    <h2>Pick your seats</h2>
+                    @if (_selection.Seats.Count == 0)
+                    {
+                        <p class="muted">Click free seats on the map, up to @_selection.Maximum. Nothing is reserved until you hold them.</p>
+                    }
+                    else
+                    {
+                        <ul class="places">
+                            @foreach (var seat in _selection.Seats.Select(id => _map?.Seat(id)).OfType<SeatView>())
+                            {
+                                <li><span>@seat.Label</span><span>@Formats.Money(seat.Category.PriceMinorUnits, Event.Currency)</span></li>
+                            }
+                        </ul>
+                        <p class="total"><span>Total</span><strong>@Formats.Money(SelectionTotal, Event.Currency)</strong></p>
+                        <div class="actions">
+                            @if (_fanId is null)
+                            {
+                                <SignInLink Class="button primary">Sign in to hold them</SignInLink>
+                            }
+                            else
+                            {
+                                <button class="button primary" disabled="@_busy" @onclick="HoldPickedAsync">Hold @Plural(_selection.Seats.Count, "seat")</button>
+                            }
+                            <button class="button link" @onclick="ClearSelection">Clear</button>
+                        </div>
+                    }
+                </section>
+
+                <section class="card">
+                    <h2>Best available</h2>
+                    <p class="muted">We pick the best free places in a section: front rows first, then the middle.</p>
+                    <div class="best">
+                        <select @bind="_bestSection" aria-label="Section">
+                            @foreach (var section in _sections)
+                            {
+                                <option value="@section.Section">@SectionName(section.Section) · @section.Available free</option>
+                            }
+                        </select>
+                        <input type="number" min="1" max="@_selection.Maximum" @bind="_bestQuantity" aria-label="How many" />
+                        @if (_fanId is null)
+                        {
+                            <SignInLink Class="button">Sign in</SignInLink>
+                        }
+                        else
+                        {
+                            <button class="button" disabled="@(_busy || _bestSection is null)" @onclick="HoldBestAsync">Hold</button>
+                        }
+                    </div>
+                </section>
+            }
+        </aside>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource _closing = new();
+    private Guid? _interactiveFor;
+    private bool _following;
+    private SeatSelection _selection = new(8);
+    private SeatMapModel? _map;
+    private HashSet<Guid> _free = [];
+    private List<SectionAvailability> _sections = [];
+    private MyHold? _hold;
+    private string? _fanId;
+    private string? _bestSection;
+    private int _bestQuantity = 2;
+    private int _mapVersion;
+    private bool _busy;
+    private bool _notFound;
+    private string? _message;
+    private bool _messageIsError;
+
+    [Parameter]
+    public Guid EventId { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState> Authentication { get; set; } = default!;
+
+    /// <summary>Loaded while prerendering and handed to the interactive render (.NET 10 persistent state).</summary>
+    [PersistentState]
+    public EventPage? Event { get; set; }
+
+    private bool OnSale => Event?.SalesPhase == "OnSale";
+
+    private long SelectionTotal => _selection.Seats.Sum(id => _map?.Seat(id)?.Category.PriceMinorUnits ?? 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _selection = new SeatSelection(Configuration.GetValue("Holds:MaxSeats", 8));
+        _fanId = (await Authentication).User.FindFirstValue("sub");
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Event?.EventId == EventId)
+        {
+            return;
+        }
+
+        // Another event in the same page instance (Blazor reuses it): start over.
+        Event = null;
+        _map = null;
+        _hold = null;
+        _selection.Clear();
+        _bestSection = null;
+        _notFound = false;
+        _message = null;
+        try
+        {
+            Event = await Api.Events[EventId].GetAsync();
+        }
+        catch (Exception exception) when (ApiProblems.IsExpected(exception))
+        {
+            _notFound = exception is Microsoft.Kiota.Abstractions.ApiException { ResponseStatusCode: 404 };
+            Show(exception);
+        }
+    }
+
+    // The seat map, availability and the fan's hold need the interactive circuit (browser storage
+    // needs JavaScript), so they load after an interactive render, never while prerendering; once per
+    // event, as soon as the event itself has loaded (which may be after the first render).
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Event?.EventId != EventId || _interactiveFor == EventId)
+        {
+            return;
+        }
+
+        _interactiveFor = EventId;
+        try
+        {
+            var seatMap = await Api.Events[EventId].SeatMap[SeatMapVersion(Event)].GetAsync(cancellationToken: _closing.Token);
+            _map = SeatMapModel.From(seatMap!, Event);
+            await RefreshAvailabilityAsync();
+            await LoadHoldAsync();
+        }
+        catch (Exception exception) when (ApiProblems.IsExpected(exception))
+        {
+            Show(exception);
+        }
+
+        _mapVersion++;
+        StateHasChanged();
+        if (!_following)
+        {
+            _following = true;
+            _ = KeepAvailabilityCurrentAsync();
+        }
+    }
+
+    /// <summary>Other fans hold and release seats all the time; the map catches up every few seconds.</summary>
+    private async Task KeepAvailabilityCurrentAsync()
+    {
+        var closing = _closing.Token;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5), Time);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(closing))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await RefreshAvailabilityAsync();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The fan left the page.
+        }
+    }
+
+    /// <param name="announceTaken">Say so when picked seats were taken; not when PublicApi has just said it.</param>
+    private async Task RefreshAvailabilityAsync(bool announceTaken = true)
+    {
+        try
+        {
+            var availability = await Api.Events[EventId].Availability.GetAsync(cancellationToken: _closing.Token);
+            _free = [.. availability?.AvailableSeatIds?.OfType<Guid>() ?? []];
+            _sections = availability?.Sections ?? [];
+            _bestSection ??= _sections.FirstOrDefault(section => section.Available > 0)?.Section;
+
+            var taken = _selection.KeepOnly(_free);
+            if (taken > 0 && announceTaken)
+            {
+                Say($"{Plural(taken, "seat")} you picked {(taken == 1 ? "was" : "were")} just taken by someone else.", isError: true);
+            }
+
+            _mapVersion++;
+        }
+        catch (Exception exception) when (ApiProblems.IsExpected(exception))
+        {
+            // Keep showing the last known availability; the next refresh tries again.
+        }
+    }
+
+    /// <summary>The fan's hold from this browser, unless it has lapsed or its order has finished.</summary>
+    private async Task LoadHoldAsync()
+    {
+        if (_fanId is null || await Holds.GetAsync(_fanId, EventId) is not { } hold)
+        {
+            return;
+        }
+
+        if (hold.HasLapsedAt(Time.GetUtcNow()))
+        {
+            await Holds.ForgetAsync(_fanId, EventId);
+            return;
+        }
+
+        if (hold.OrderId is { } orderId)
+        {
+            try
+            {
+                var order = await Api.Orders[orderId].GetAsync(cancellationToken: _closing.Token);
+                if (order?.Status != "Pending")
+                {
+                    await Holds.ForgetAsync(_fanId, EventId);
+                    return;
+                }
+            }
+            catch (Exception exception) when (ApiProblems.IsExpected(exception))
+            {
+                await Holds.ForgetAsync(_fanId, EventId);
+                return;
+            }
+        }
+
+        _hold = hold;
+    }
+
+    private PlaceState StateOf(Guid seatId) =>
+        _hold?.Holds(seatId) == true ? PlaceState.Mine
+        : _selection.Contains(seatId) ? PlaceState.Selected
+        : _free.Contains(seatId) ? PlaceState.Free
+        : PlaceState.Taken;
+
+    private int FreeIn(string section) => _sections.FirstOrDefault(s => s.Section == section)?.Available ?? 0;
+
+    private void ToggleSeat(Guid seatId)
+    {
+        if (!OnSale)
+        {
+            return;
+        }
+
+        if (_hold is not null)
+        {
+            Say("You already hold seats for this event: check out or release them first.", isError: true);
+            return;
+        }
+
+        if (StateOf(seatId) is PlaceState.Taken)
+        {
+            return;
+        }
+
+        if (_selection.Toggle(seatId) == SelectionChange.Full)
+        {
+            Say($"One hold can have at most {_selection.Maximum} seats.", isError: true);
+        }
+        else
+        {
+            _message = null;
+        }
+
+        _mapVersion++;
+    }
+
+    private void PickStanding(string section)
+    {
+        _bestSection = section;
+        Say($"{SectionName(section)} is standing: choose how many places under \"Best available\".", isError: false);
+    }
+
+    private void ClearSelection()
+    {
+        _selection.Clear();
+        _mapVersion++;
+    }
+
+    private Task HoldPickedAsync() =>
+        HoldAsync(new PlaceHoldRequest { SeatIds = [.. _selection.Seats.Select(id => (Guid?)id)] }, standingSection: null);
+
+    private Task HoldBestAsync() =>
+        HoldAsync(new PlaceHoldRequest { Section = _bestSection, Quantity = _bestQuantity }, standingSection: _bestSection);
+
+    private async Task HoldAsync(PlaceHoldRequest request, string? standingSection)
+    {
+        if (_fanId is null || _map is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var refused = false;
+        try
+        {
+            var placed = await Api.Events[EventId].Holds.PostAsync(request, cancellationToken: _closing.Token);
+            _hold = new MyHold(
+                placed!.HoldId!.Value,
+                EventId,
+                MyHold.PlacesFrom(placed.SeatIds?.OfType<Guid>() ?? [], _map, standingSection),
+                placed.ExpiresAt!.Value);
+            await Holds.SaveAsync(_fanId, _hold);
+            _selection.Clear();
+            _message = null;
+        }
+        catch (Exception exception) when (ApiProblems.IsExpected(exception))
+        {
+            refused = true;
+            Show(exception);
+        }
+        finally
+        {
+            _busy = false;
+            await RefreshAvailabilityAsync(announceTaken: !refused);
+        }
+    }
+
+    private async Task ReleaseAsync()
+    {
+        if (_hold is null || _fanId is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Api.Holds[_hold.HoldId].DeleteAsync(cancellationToken: _closing.Token);
+            Say("Released: the seats are free again.", isError: false);
+        }
+        catch (Exception exception) when (ApiProblems.IsExpected(exception))
+        {
+            // Gone already (expired, or released elsewhere): nothing left to release.
+            Show(exception);
+        }
+        finally
+        {
+            await ForgetHoldAsync();
+            _busy = false;
+            await RefreshAvailabilityAsync();
+        }
+    }
+
+    /// <summary>Starts the payment and sends the fan to the payment provider's page; they come back to the order page.</summary>
+    private async Task CheckoutAsync()
+    {
+        if (_hold is null || _fanId is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var started = await Api.Orders.PostAsync(new StartCheckoutRequest { HoldId = _hold.HoldId }, cancellationToken: _closing.Token);
+            _hold = _hold with { OrderId = started!.OrderId, PaymentUrl = started.RedirectUrl };
+            await Holds.SaveAsync(_fanId, _hold);
+            Navigation.NavigateTo(started.RedirectUrl!, forceLoad: true);
+        }
+        catch (Exception exception) when (ApiProblems.IsExpected(exception))
+        {
+            Show(exception);
+            if (exception is EventTicketing.FanSite.PublicApi.Models.ProblemDetails)
+            {
+                // The hold has expired or its order is closed: it can't be checked out any more.
+                await ForgetHoldAsync();
+                await RefreshAvailabilityAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task HoldLapsedAsync()
+    {
+        await ForgetHoldAsync();
+        Say("Your hold expired, so the seats are free again.", isError: true);
+        await RefreshAvailabilityAsync();
+    }
+
+    private async Task ForgetHoldAsync()
+    {
+        _hold = null;
+        if (_fanId is not null)
+        {
+            await Holds.ForgetAsync(_fanId, EventId);
+        }
+
+        _mapVersion++;
+    }
+
+    private string SectionName(string? code) => _map?.Section(code)?.Name ?? code ?? string.Empty;
+
+    /// <summary>The event page links the seat map at a versioned URL, /events/{id}/seat-map/{version}.</summary>
+    private static string SeatMapVersion(EventPage page) => page.SeatMapUrl!.TrimEnd('/').Split('/')[^1];
+
+    private static string Plural(int count, string noun) => $"{count} {noun}{(count == 1 ? "" : "s")}";
+
+    private void Show(Exception exception) => Say(ApiProblems.MessageFor(exception), isError: true);
+
+    private void Say(string message, bool isError)
+    {
+        _message = message;
+        _messageIsError = isError;
+    }
+
+    // Cancel only: calls still finishing after the fan left may read the token, which a
+    // disposed source would refuse. The source holds no timer, so it needs no disposing.
+    public void Dispose() => _closing.Cancel();
+}

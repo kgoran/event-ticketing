@@ -1,0 +1,96 @@
+@implements IDisposable
+@inject TimeProvider Time
+
+<section class="card hold">
+    <h2>Your seats</h2>
+    <ul class="places">
+        @foreach (var place in Hold.Places)
+        {
+            <li><span>@place.Label</span><span>@Formats.Money(place.PriceMinorUnits, Currency)</span></li>
+        }
+    </ul>
+    <p class="total"><span>Total</span><strong>@Formats.Money(Hold.TotalMinorUnits, Currency)</strong></p>
+
+    @if (Hold.InCheckout)
+    {
+        <p>Your order is waiting for the payment.</p>
+        <div class="actions">
+            @if (Hold.PaymentUrl is not null)
+            {
+                <a class="button primary" href="@Hold.PaymentUrl">Continue to payment</a>
+            }
+            <a class="button" href="orders/@Hold.OrderId">View the order</a>
+        </div>
+    }
+    else
+    {
+        <p class="countdown">Held for you for <strong>@Formats.Countdown(Hold.RemainingAt(Time.GetUtcNow()))</strong></p>
+        <div class="actions">
+            <button class="button primary" disabled="@Busy" @onclick="OnCheckout">Check out</button>
+            <button class="button" disabled="@Busy" @onclick="OnRelease">Release</button>
+        </div>
+    }
+</section>
+
+@code {
+    // The countdown ticks here, so only this panel re-renders every second, not the seat map.
+    private readonly CancellationTokenSource _closing = new();
+    private Guid? _lapseReportedFor;
+
+    [Parameter, EditorRequired]
+    public MyHold Hold { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Currency { get; set; } = default!;
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public EventCallback OnCheckout { get; set; }
+
+    [Parameter]
+    public EventCallback OnRelease { get; set; }
+
+    /// <summary>The hold expired without a checkout: its places are free again.</summary>
+    [Parameter]
+    public EventCallback OnLapsed { get; set; }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ = TickAsync();
+        }
+    }
+
+    private async Task TickAsync()
+    {
+        var closing = _closing.Token;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1), Time);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(closing))
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (Hold.HasLapsedAt(Time.GetUtcNow()) && _lapseReportedFor != Hold.HoldId)
+                    {
+                        _lapseReportedFor = Hold.HoldId;
+                        await OnLapsed.InvokeAsync();
+                    }
+
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The panel was removed.
+        }
+    }
+
+    // Cancel only: calls still finishing after the fan left may read the token, which a
+    // disposed source would refuse. The source holds no timer, so it needs no disposing.
+    public void Dispose() => _closing.Cancel();
+}

@@ -23,8 +23,8 @@ public interface IPriceList
 /// <summary>Checkout timings (ADR-0010). Policies, configurable (configuration section "Checkout").</summary>
 public sealed record CheckoutPolicy
 {
-    /// <summary>Where the provider sends the fan back after paying; "{orderId}" is replaced.</summary>
-    public string ReturnUrlTemplate { get; init; } = "http://localhost:5101/orders/{orderId}";
+    /// <summary>Where the provider sends the fan back after paying, the fan site's order page; "{orderId}" is replaced.</summary>
+    public string ReturnUrlTemplate { get; init; } = "http://localhost:5100/orders/{orderId}";
 
     /// <summary>How long the fan has to pay before the checkout closes.</summary>
     public TimeSpan PaymentDeadline { get; init; } = TimeSpan.FromMinutes(10);

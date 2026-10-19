@@ -42,3 +42,8 @@ the contract without anyone noticing.
   BackOfficeApi and PublicApi live in `tooling/clients`; `tooling/clients/generate.sh` regenerates
   them from anywhere, recording paths relative to the repository, so local and CI output match.
   `.gitignore` excepts `tooling/clients/**/Publish/` from its rule for publish folders.
+- **2026-10-19 (M1a U1):** The product's own frontends use Kiota too: the fan site has its own
+  PublicApi client in `product/src/Frontends/FanSite/PublicApi`, because nothing in `product/` may
+  use `tooling/` ([0021](0021-product-tooling-platform-separation.md)). `generate-client.sh` next to
+  it regenerates it, and `product-ci` fails if it is out of date. So `Microsoft.Kiota.Bundle` is no
+  longer tooling-only ([0049](0049-fan-site-blazor-server-tokens-on-the-server.md)).

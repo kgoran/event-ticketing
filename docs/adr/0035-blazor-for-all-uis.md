@@ -31,3 +31,9 @@ is now minimal ([0024](0024-domain-scope-m1-m6.md)), and the project is for a .N
 - One language end to end.
 - Front-end performance and SEO are not teaching goals.
 - Camera access in the scanner needs JavaScript interop.
+
+## Updates
+
+- **2026-10-19:** The fan UI was brought forward from M1b once the API flows existed (M1a U1).
+  It is a Blazor Web App with Interactive Server, in `product/src/Frontends/FanSite`; how it
+  signs fans in and keeps their tokens is in [0049](0049-fan-site-blazor-server-tokens-on-the-server.md).

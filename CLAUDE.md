@@ -27,7 +27,9 @@ observability (Q3: one trace per purchase, metrics catalogue in `docs/observabil
 concurrency test (Q1), crash-point and retry tests (Q2; a repeated checkout resumes its order), the
 demo (Q4: `dotnet run --project dev/AppHost -- --Demo=true`, runbook `docs/demos/m1a.md`, dry run in
 `dev/AppHost.Tests`). The M1a backlog is built and its implementation decisions are agreed
-(ADRs 0038–0048). Next: M1b. The M1a time-box is still to be agreed.
+(ADRs 0038–0048). The fan site was brought forward from M1b (U1, ADR-0049): Blazor Interactive
+Server in `product/src/Frontends/FanSite`, http://localhost:5100, fans' tokens kept on the server;
+the demo runs in it. Next: M1b. The M1a time-box is still to be agreed.
 
 ## Commands
 
@@ -41,7 +43,8 @@ dotnet run --project dev/AppHost                    # local development
 Package versions live in `Directory.Packages.props`; warnings are errors. EF Core migrations:
 `dotnet ef migrations add <Name> --project <module project> --startup-project <module project>
 --context <ModuleDbContext> --output-dir Persistence/Migrations` (`dotnet tool restore` first). A build regenerates
-`product/src/Hosts/*/openapi/*.json`; commit them (CI fails if they are stale).
+`product/src/Hosts/*/openapi/*.json`; commit them (CI fails if they are stale). After a PublicApi contract change, also
+run `bash product/src/Frontends/FanSite/generate-client.sh` and `bash tooling/clients/generate.sh` (CI checks both).
 
 ## Working agreements
 
