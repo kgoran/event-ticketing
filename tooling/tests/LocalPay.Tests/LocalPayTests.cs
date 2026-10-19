@@ -45,6 +45,33 @@ public sealed class LocalPayTests
     }
 
     [Fact]
+    public async Task The_fan_can_go_back_to_the_shop_without_paying_and_the_payment_stays_open()
+    {
+        await using var localPay = new LocalPayUnderTest();
+        var payment = await localPay.CreateAsync(2500);
+
+        var page = await localPay.Browser.GetStringAsync(new Uri(payment.CheckoutUrl), Ct);
+
+        page.Should().Contain("""<a class="button" href="http://shop.test/orders/1">Back to Test Shop</a>""");
+        page.Should().Contain("the payment stays open until it expires");
+        (await localPay.StatusAsync(payment.Id)).Status.Should().Be("requires_payment");
+        localPay.Shop.Received.Should().BeEmpty("going back is only a link: nothing is decided");
+    }
+
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("/orders/1")]
+    public async Task Only_a_web_address_becomes_the_link_back(string returnUrl)
+    {
+        await using var localPay = new LocalPayUnderTest();
+        var payment = await localPay.CreateAsync(2500, returnUrl: returnUrl);
+
+        var page = await localPay.Browser.GetStringAsync(new Uri(payment.CheckoutUrl), Ct);
+
+        page.Should().NotContain("Back to").And.Contain("Approve");
+    }
+
+    [Fact]
     public async Task A_repeated_idempotency_key_returns_the_same_payment()
     {
         await using var localPay = new LocalPayUnderTest();

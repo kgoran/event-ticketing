@@ -28,6 +28,7 @@ internal sealed class LocalPayUnderTest : IAsyncDisposable
             host.UseSetting("Headless:Enabled", headless ? "true" : "false");
             host.UseSetting("Headless:MinDelay", "00:00:00.050");
             host.UseSetting("Headless:MaxDelay", "00:00:00.100");
+            host.UseSetting("Checkout:ShopName", "Test Shop");
             host.ConfigureTestServices(services =>
                 services.AddHttpClient(WebhookDispatcher.ClientName).ConfigurePrimaryHttpMessageHandler(() => Shop));
         });
@@ -45,7 +46,7 @@ internal sealed class LocalPayUnderTest : IAsyncDisposable
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public async Task<PaymentResponse> CreateAsync(long amountMinorUnits, DateTimeOffset? expiresAt = null, string? idempotencyKey = null)
+    public async Task<PaymentResponse> CreateAsync(long amountMinorUnits, DateTimeOffset? expiresAt = null, string? idempotencyKey = null, string returnUrl = "http://shop.test/orders/1")
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/payments")
         {
@@ -53,7 +54,7 @@ internal sealed class LocalPayUnderTest : IAsyncDisposable
                 "order-" + Guid.NewGuid().ToString("N")[..8],
                 amountMinorUnits,
                 "EUR",
-                "http://shop.test/orders/1",
+                returnUrl,
                 expiresAt ?? DateTimeOffset.UtcNow.AddMinutes(30))),
         };
         if (idempotencyKey is not null)

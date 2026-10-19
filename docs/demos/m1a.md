@@ -33,7 +33,7 @@ is at **http://localhost:5100**. Fans: ana, ben, cid, dan, eva, fil; each passwo
 | 5 | Ana: **Check out**, then **Approve** on LocalPay's page | Back on the fan site's order page: *Waiting for your payment*, then *confirmed*. The webhook confirms it, not the redirect: the page asks PublicApi until the order settles |
 | 6 | Dashboard → **Traces**, search `command StartCheckout` | One trace: StartCheckout → BeginCheckout → CreateOrder → CreateCheckout (and LocalPay) → `payment succeeded` → `consume payments.payment-succeeded` → ConfirmHold. The hold's and the webhook's own traces are linked (docs/observability.md) |
 | 7a | Cid holds a seat and walks away; wait for his countdown; Dan holds the same seat | Dan gets it the moment Cid's hold expires: nothing has to sweep it first. Cid's page says the hold expired |
-| 7b | Eva holds a seat and checks out, and leaves LocalPay's page open without paying. In a new tab, the event page → **View the order**; wait two minutes on it | The order page turns to *The time to pay ran out*; reloading LocalPay's page shows **expired**; the seat is free again. Payment cancelled first, seats released second (ADR-0010) |
+| 7b | Eva holds a seat and checks out, then presses **Back to FanSite** on LocalPay's page without paying; wait two minutes on her order page | The order page turns to *The time to pay ran out*; its *Continue to payment* link, opened before that, now shows LocalPay's page **expired**; the seat is free again. Payment cancelled first, seats released second (ADR-0010) |
 | 8 | **Failure Scenarios**: see the table below | Each ends consistent |
 | 9 | Open a pull request on GitHub | The required checks; the dry run of this demo is one of them |
 
