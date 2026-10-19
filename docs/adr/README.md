@@ -47,6 +47,17 @@ entry under **Updates** that settles something the ADR explicitly left open.
 | [0035](0035-blazor-for-all-uis.md) | Blazor for the user interfaces |
 | [0036](0036-trunk-based-development.md) | Trunk-based development with pull-request checks |
 | [0037](0037-kiota-api-clients.md) | Kiota for the tooling's API clients |
+| [0038](0038-catalog-venues-seat-maps-and-event-lifecycle.md) | Catalog: venues, seat maps and the event lifecycle |
+| [0039](0039-browsing-search-paging-and-caching.md) | Browsing: full-text search, paging and a versioned seat map |
+| [0040](0040-organizers-in-m1a-and-others-data.md) | Organizers in M1a, and what callers learn about other people's data |
+| [0041](0041-holds-sales-window-release-and-sweeper.md) | Holds: the sales window, one hold per fan, release, and the sweeper |
+| [0042](0042-payment-provider-contract-and-webhooks.md) | The payment provider contract and webhook handling |
+| [0043](0043-how-a-checkout-ends.md) | How a checkout ends: order states, the deadline, refunds and retries |
+| [0044](0044-persistence-constraints-concurrency-unit-of-work.md) | Persistence rules: named constraints, optimistic concurrency, one unit of work per command |
+| [0045](0045-recurring-messages-and-coordinating-handlers.md) | Scheduler: recurring messages and coordinating handlers |
+| [0046](0046-localpay-scenarios-and-contract-checks.md) | LocalPay: misbehaviour by amount, and its contract checked in CI |
+| [0047](0047-one-trace-per-purchase-and-metric-tags.md) | One trace per purchase; metrics from commands and business events |
+| [0048](0048-test-layers-and-demo-dry-run.md) | Test layers: modules in their real hosts, and the demo as a system test |
 
 ## Template
 

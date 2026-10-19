@@ -26,8 +26,8 @@ refunded when the seats were lost; return-page status), the demo seeder (T1: Kio
 observability (Q3: one trace per purchase, metrics catalogue in `docs/observability.md`), the T2
 concurrency test (Q1), crash-point and retry tests (Q2; a repeated checkout resumes its order), the
 demo (Q4: `dotnet run --project dev/AppHost -- --Demo=true`, runbook `docs/demos/m1a.md`, dry run in
-`dev/AppHost.Tests`). The M1a backlog is built; next is reviewing design-decisions.md §14 and M1b. Implementation decisions awaiting review: design-decisions.md §14.
-The M1a time-box is still to be agreed.
+`dev/AppHost.Tests`). The M1a backlog is built and its implementation decisions are agreed
+(ADRs 0038–0048). Next: M1b. The M1a time-box is still to be agreed.
 
 ## Commands
 
