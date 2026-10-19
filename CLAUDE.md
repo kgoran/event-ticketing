@@ -29,7 +29,9 @@ demo (Q4: `dotnet run --project dev/AppHost -- --Demo=true`, runbook `docs/demos
 `dev/AppHost.Tests`). The M1a backlog is built and its implementation decisions are agreed
 (ADRs 0038–0048). The fan site was brought forward from M1b (U1, ADR-0049): Blazor Interactive
 Server in `product/src/Frontends/FanSite`, http://localhost:5100, fans' tokens kept on the server;
-the demo runs in it. Next: M1b. The M1a time-box is still to be agreed.
+the demo runs in it. Next: M1b. **Paused on 2026-10-19 while planning M1b:** the draft plan with open
+decisions D7–D18 is in `docs/milestones/m1b.md` (not agreed; D7 Stripe account and D18 team/time-box need
+the owner). The M1a time-box is still to be agreed.
 
 ## Commands
 
@@ -68,7 +70,7 @@ run `bash product/src/Frontends/FanSite/generate-client.sh` and `bash tooling/cl
 | `docs/payments.md` | Payment design: Stripe + LocalPay simulator, consistency flow, failure handling |
 | `docs/architecture/overview.md` | Agreed architecture: modules, hosts, key flows, targets, milestones, repository, Scaling Lab |
 | `docs/adr/` | Architecture decision records, one per agreed decision (index in `README.md`) |
-| `docs/milestones/` | Milestone plans: scope, backlog, definition of done, demo script |
+| `docs/milestones/` | Milestone plans: scope, backlog, definition of done, demo script (`m1b.md` is a draft) |
 
 ## Background
 
