@@ -34,3 +34,11 @@ the contract without anyone noticing.
   the same pull request ([0021](0021-product-tooling-platform-separation.md)).
 - Generated code is verbose; it is never edited by hand.
 - Kiota's runtime packages (MIT) are used only in tooling.
+
+## Updates
+
+- **2026-10-19 (M1a T1):** Kiota CLI 1.35.0 is pinned in the tool manifest, with the runtime
+  `Microsoft.Kiota.Bundle` 2.1.2 (the newest releases at least two weeks old). The clients for
+  BackOfficeApi and PublicApi live in `tooling/clients`; `tooling/clients/generate.sh` regenerates
+  them from anywhere, recording paths relative to the repository, so local and CI output match.
+  `.gitignore` excepts `tooling/clients/**/Publish/` from its rule for publish folders.

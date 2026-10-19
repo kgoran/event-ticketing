@@ -244,11 +244,28 @@ Closed:
 | 16 | KEDA scaling CloudNativePG replicas | Approach agreed in [ADR-0019](adr/0019-autoscaling-signals.md); verified by the M5 spike above |
 | 17 | Where the repository lives; public or private | Public: [github.com/kgoran/event-ticketing](https://github.com/kgoran/event-ticketing). Required checks can be enforced on the free plan — [ADR-0036](adr/0036-trunk-based-development.md) (update) |
 
-## 14. Decided during M1a implementation — Proposed (please review)
+## 14. Decided during M1a implementation — Agreed 2026-10-19
 
 Implementation-level choices made while building M1a, where neither an ADR nor the plan
-said. Each stays Proposed until reviewed; agreed items with lasting weight become ADRs (or
-updates to existing ones), and the rest stay here as the record.
+said. All were agreed on 2026-10-19. Those with lasting weight are recorded as ADRs; the rest
+stay here as the record.
+
+| ADR | Rows |
+|---|---|
+| [0038](adr/0038-catalog-venues-seat-maps-and-event-lifecycle.md) Catalog: venues, seat maps, lifecycle | C1-a…e, C1-g, C1-h, C2-b |
+| [0039](adr/0039-browsing-search-paging-and-caching.md) Browsing | C2-a, C2-c…f |
+| [0040](adr/0040-organizers-in-m1a-and-others-data.md) Organizers; other people's data | G1-a…c, C1-i |
+| [0041](adr/0041-holds-sales-window-release-and-sweeper.md) Holds and the sweeper | I1-a…g, I2-b…e |
+| [0042](adr/0042-payment-provider-contract-and-webhooks.md) Payment provider contract and webhooks | P1-a…e, P2-b…d, S2-d |
+| [0043](adr/0043-how-a-checkout-ends.md) How a checkout ends | O1-a, O1-c…e, O2-a…d, Q2-a |
+| [0044](adr/0044-persistence-constraints-concurrency-unit-of-work.md) Persistence rules | I1-d (mechanism), I1-h, P1-f, O1-f |
+| [0045](adr/0045-recurring-messages-and-coordinating-handlers.md) Recurring messages, coordinating handlers | I2-a, O1-b, O2-b |
+| [0046](adr/0046-localpay-scenarios-and-contract-checks.md) LocalPay | L1-a…f |
+| [0047](adr/0047-one-trace-per-purchase-and-metric-tags.md) Observability | Q3-a…c |
+| [0048](adr/0048-test-layers-and-demo-dry-run.md) Test layers and the demo dry run | C1-j, P1-g, Q1-a, Q2-b, Q2-c, Q4-a, Q4-b, T1-c |
+| Updates to [0007](adr/0007-module-communication.md), [0033](adr/0033-command-pipeline.md), [0037](adr/0037-kiota-api-clients.md) | S2-a, S2-b, T1-a |
+
+Kept here as the record: S2-c, S2-e, S2-f (superseded by O2-a), C1-f, P2-a, Q4-c, Q4-d, T1-b.
 
 | # | Item | Decision | Why / alternative |
 |---|---|---|---|
