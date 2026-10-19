@@ -1,0 +1,156 @@
+@page "/orders/{OrderId:guid}"
+@attribute [Authorize]
+@implements IDisposable
+@inject PublicApiClient Api
+@inject MyHolds Holds
+@inject TimeProvider Time
+
+@* The return page: the payment provider sends the fan here. The redirect proves nothing; the
+   page asks PublicApi until the webhook has settled the order (ADR-0043). *@
+
+<PageTitle>Your order · EventTicketing</PageTitle>
+
+@if (Order is null)
+{
+    <h1>Your order</h1>
+    <p class="muted">@(_error ?? "Loading…")</p>
+}
+else
+{
+    var (headline, explanation) = OrderStatuses.Describe(Order.Status, Order.RefundReason);
+    <section class="card order @StatusClass">
+        <p class="eyebrow">Order @Order.OrderId?.ToString()[..8]…</p>
+        <h1>@headline</h1>
+        <p>@explanation</p>
+
+        @if (Order.Status == "Pending")
+        {
+            <p class="countdown">Time left to pay: <strong>@Formats.Countdown((Order.PaymentDeadline ?? Time.GetUtcNow()) - Time.GetUtcNow())</strong></p>
+            @if (_paymentUrl is not null)
+            {
+                <a class="button primary" href="@_paymentUrl">Continue to payment</a>
+            }
+        }
+    </section>
+
+    <section class="card">
+        @if (_event is not null)
+        {
+            <h2><a href="events/@_event.EventId">@_event.Name</a></h2>
+            <p class="meta">@_event.VenueName · @Formats.AtVenue(_event.StartsAt, _event.TimeZone)</p>
+        }
+        <ul class="places">
+            @foreach (var seat in Order.Seats ?? [])
+            {
+                <li><span>@Label(seat.SeatId)</span><span>@Formats.Money(seat.PriceMinorUnits ?? 0, Order.Currency)</span></li>
+            }
+        </ul>
+        <p class="total"><span>Total</span><strong>@Formats.Money(Order.TotalMinorUnits ?? 0, Order.Currency)</strong></p>
+    </section>
+}
+
+@code {
+    private readonly CancellationTokenSource _closing = new();
+    private bool _following;
+    private EventPage? _event;
+    private SeatMapModel? _map;
+    private string? _paymentUrl;
+    private string? _error;
+
+    [Parameter]
+    public Guid OrderId { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState> Authentication { get; set; } = default!;
+
+    [PersistentState]
+    public OrderStatusResponse? Order { get; set; }
+
+    private string StatusClass => OrderStatuses.IsConfirmed(Order?.Status) ? "good" : OrderStatuses.IsMoving(Order?.Status) ? "waiting" : "bad";
+
+    protected override async Task OnInitializedAsync() => Order ??= await LoadOrderAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Once, as soon as the order has loaded (after the first render when the fan came from another page).
+        if (Order is null || _following)
+        {
+            return;
+        }
+
+        _following = true;
+        await LoadEventAsync();
+        var fanId = (await Authentication).User.FindFirstValue("sub");
+        if (fanId is not null && Order.EventId is { } eventId && await Holds.GetAsync(fanId, eventId) is { } hold && hold.OrderId == OrderId)
+        {
+            _paymentUrl = hold.PaymentUrl;
+        }
+
+        StateHasChanged();
+        _ = FollowAsync(fanId);
+    }
+
+    /// <summary>Asks every second while the order is still moving (waiting for the payment or a refund).</summary>
+    private async Task FollowAsync(string? fanId)
+    {
+        var closing = _closing.Token;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1), Time);
+        try
+        {
+            while (OrderStatuses.IsMoving(Order?.Status) && await timer.WaitForNextTickAsync(closing))
+            {
+                await InvokeAsync(async () =>
+                {
+                    Order = await LoadOrderAsync() ?? Order;
+                    StateHasChanged();
+                });
+            }
+
+            // Settled: the hold this browser remembered is used up (confirmed) or released (failed, expired).
+            await InvokeAsync(async () =>
+            {
+                if (fanId is not null && Order?.EventId is { } eventId && await Holds.GetAsync(fanId, eventId) is { } hold && hold.OrderId == OrderId)
+                {
+                    await Holds.ForgetAsync(fanId, eventId);
+                }
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // The fan left the page.
+        }
+    }
+
+    private async Task<OrderStatusResponse?> LoadOrderAsync()
+    {
+        try
+        {
+            return await Api.Orders[OrderId].GetAsync(cancellationToken: _closing.Token);
+        }
+        catch (Exception exception) when (ApiProblems.IsExpected(exception))
+        {
+            _error = ApiProblems.MessageFor(exception);
+            return null;
+        }
+    }
+
+    /// <summary>The event and its seat map, to say which seats these are.</summary>
+    private async Task LoadEventAsync()
+    {
+        try
+        {
+            _event = await Api.Events[Order!.EventId!.Value].GetAsync(cancellationToken: _closing.Token);
+            var version = _event!.SeatMapUrl!.TrimEnd('/').Split('/')[^1];
+            var seatMap = await Api.Events[_event.EventId!.Value].SeatMap[version].GetAsync(cancellationToken: _closing.Token);
+            _map = SeatMapModel.From(seatMap!, _event);
+        }
+        catch (Exception exception) when (ApiProblems.IsExpected(exception))
+        {
+            // The order still shows, without seat names.
+        }
+    }
+
+    private string Label(Guid? seatId) => seatId is { } id && _map?.Seat(id) is { } seat ? seat.Label : "Standing place";
+
+    public void Dispose() => _closing.Cancel();
+}

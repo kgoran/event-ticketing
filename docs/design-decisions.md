@@ -167,7 +167,7 @@ agreed exception to optimistic concurrency ([ADR-0011](adr/0011-seat-inventory-c
 | Object storage | S3 API; SeaweedFS locally | Agreed — [ADR-0025](adr/0025-object-storage-and-secrets.md) |
 | Secrets | .NET user-secrets (dev), Kubernetes Secrets (lab), GitHub Actions secrets (CI) | Agreed — [ADR-0025](adr/0025-object-storage-and-secrets.md) |
 | Way of working | Trunk-based development, pull-request checks | Agreed — [ADR-0036](adr/0036-trunk-based-development.md) |
-| API clients (tooling) | Kiota, generated from the committed OpenAPI documents | Agreed — [ADR-0037](adr/0037-kiota-api-clients.md) |
+| API clients (tooling, and the product's frontends) | Kiota, generated from the committed OpenAPI documents | Agreed — [ADR-0037](adr/0037-kiota-api-clients.md); the fan site's client: [ADR-0049](adr/0049-fan-site-blazor-server-tokens-on-the-server.md) |
 | IaC / CI/CD | GitHub Actions (within free minutes), Argo CD; Terraform only if a cloud environment is ever added | Proposed |
 | Analytics | Debezium (CDC) → ClickHouse | Proposed (later milestone) |
 | Cloud | None | Agreed — [ADR-0005](adr/0005-no-paid-services-local-first.md) |
@@ -263,6 +263,7 @@ stay here as the record.
 | [0046](adr/0046-localpay-scenarios-and-contract-checks.md) LocalPay | L1-a…f |
 | [0047](adr/0047-one-trace-per-purchase-and-metric-tags.md) Observability | Q3-a…c |
 | [0048](adr/0048-test-layers-and-demo-dry-run.md) Test layers and the demo dry run | C1-j, P1-g, Q1-a, Q2-b, Q2-c, Q4-a, Q4-b, T1-c |
+| [0049](adr/0049-fan-site-blazor-server-tokens-on-the-server.md) The fan site (U1, brought forward from M1b) | D1–D5, agreed with the owner on 2026-10-19; implementation choices in the ADR |
 | Updates to [0007](adr/0007-module-communication.md), [0033](adr/0033-command-pipeline.md), [0037](adr/0037-kiota-api-clients.md) | S2-a, S2-b, T1-a |
 
 Kept here as the record: S2-c, S2-e, S2-f (superseded by O2-a), C1-f, P2-a, Q4-c, Q4-d, T1-b.

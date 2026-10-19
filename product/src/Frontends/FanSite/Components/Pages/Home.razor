@@ -1,0 +1,107 @@
+@page "/"
+@inject PublicApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Events · EventTicketing</PageTitle>
+
+<h1>Events</h1>
+
+<form class="search" @onsubmit="Search">
+    <input type="search" @bind="_query" placeholder="Search events and venues" aria-label="Search events and venues" />
+    <button type="submit" class="button">Search</button>
+</form>
+
+@if (_error is not null)
+{
+    <div class="alert error" role="alert">@_error</div>
+}
+
+@if (Loaded is null)
+{
+    <p class="muted">Loading events…</p>
+}
+else if (Loaded.Items.Count == 0)
+{
+    <p class="muted">No events found@(string.IsNullOrWhiteSpace(Q) ? "." : $" for \"{Q}\".")</p>
+}
+else
+{
+    <div class="event-grid">
+        @foreach (var item in Loaded.Items)
+        {
+            <a class="event-card" href="events/@item.EventId">
+                <span class="badge @PhaseClass(item.SalesPhase)">@Formats.SalesPhase(item.SalesPhase, item.OnSaleAt, item.TimeZone)</span>
+                <h2>@item.Name</h2>
+                <p>@item.VenueName</p>
+                <p>@Formats.AtVenue(item.StartsAt, item.TimeZone)</p>
+                <p class="price">From @Formats.Money(item.PriceFromMinorUnits ?? 0, item.Currency)</p>
+            </a>
+        }
+    </div>
+
+    @if (Loaded.HasMore)
+    {
+        <button class="button more" disabled="@_loading" @onclick="MoreAsync">Show more</button>
+    }
+}
+
+@code {
+    private const int PageSize = 12;
+    private string? _query;
+    private string? _error;
+    private bool _loading;
+
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? Q { get; set; }
+
+    /// <summary>
+    /// The events loaded while prerendering, handed to the interactive render so it doesn't load
+    /// them a second time (.NET 10's persistent component state).
+    /// </summary>
+    [PersistentState]
+    public EventList? Loaded { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _query = Q;
+        if (Loaded is null || Loaded.Query != Q)
+        {
+            Loaded = await LoadAsync(page: 1, previous: null);
+        }
+    }
+
+    private void Search() =>
+        Navigation.NavigateTo(string.IsNullOrWhiteSpace(_query) ? "" : "?q=" + Uri.EscapeDataString(_query.Trim()));
+
+    private async Task MoreAsync() => Loaded = await LoadAsync(Loaded!.Page + 1, Loaded) ?? Loaded;
+
+    private async Task<EventList?> LoadAsync(int page, EventList? previous)
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Api.Events.GetAsync(request =>
+            {
+                request.QueryParameters.Q = string.IsNullOrWhiteSpace(Q) ? null : Q;
+                request.QueryParameters.Page = page;
+                request.QueryParameters.PageSize = PageSize;
+            });
+
+            return new EventList(Q, page, [.. previous?.Items ?? [], .. result?.Items ?? []], result?.HasMore ?? false);
+        }
+        catch (Exception exception) when (ApiProblems.IsExpected(exception))
+        {
+            _error = ApiProblems.MessageFor(exception);
+            return previous ?? new EventList(Q, 1, [], false);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string PhaseClass(string? phase) => phase == "OnSale" ? "on-sale" : "off-sale";
+
+    public sealed record EventList(string? Query, int Page, List<EventSummary> Items, bool HasMore);
+}

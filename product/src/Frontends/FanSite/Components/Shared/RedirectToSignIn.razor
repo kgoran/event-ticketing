@@ -1,0 +1,6 @@
+@inject NavigationManager Navigation
+
+@code {
+    // Pages with [Authorize] send fans who aren't signed in to the identity provider and back.
+    protected override void OnInitialized() => Navigation.NavigateTo(SignInLink.SignInUrl(Navigation), forceLoad: true);
+}

@@ -7,7 +7,8 @@
 
 One working purchase flow, run locally by Aspire, with correctness proven by tests in CI:
 **browse → hold → checkout → pay with LocalPay → order confirmed, and hold expiry.**
-No tickets, email, Stripe or UI yet; those come in M1b.
+No tickets, email or Stripe yet; those come in M1b. A first fan site was brought forward from
+M1b on 2026-10-19 (U1).
 
 ## Scope
 
@@ -20,7 +21,7 @@ No tickets, email, Stripe or UI yet; those come in M1b.
 | LocalPay simulator with the core scenarios | Timeouts and 500s, rate limits, sampled latencies, payment listing (M1b/M4) |
 | Single refund for the "seats lost" case | Mass refunds, reconciliation job (M4) |
 | Availability read directly from the database | Valkey caching and availability snapshots (M3) |
-| Demos through the API: `.http` files and Scalar | Fan UI (after M1b) |
+| Demos in the fan site (U1, brought forward on 2026-10-19), and through the API with `.http` files and Scalar | My tickets, my orders, the queue page; the back-office UI |
 
 ## Order of work
 
@@ -67,6 +68,7 @@ Sizes are for one developer: **S** ≤ 2 days, **M** ≤ 1 week, **L** > 1 week.
 | Q2 | Crash-point and idempotency tests: the rows of ADR-0009's crash table that apply in M1a; repeated `POST /holds` and `POST /orders`; duplicate webhooks | All pass in CI | O2, P1, L1 | M |
 | Q3 | Observability: one trace from the HTTP request through the outbox, Workers and the consumer; first metrics (hold results, checkout outcomes) and a metrics catalogue in `docs/` | The trace shows in the Aspire dashboard | F4 | S |
 | Q4 | Demo script, `.http` files, Scalar | A dry run of the demo passes | all | S |
+| U1 | Fan site, brought forward from M1b on 2026-10-19 ([ADR-0049](../adr/0049-fan-site-blazor-server-tokens-on-the-server.md)): Blazor Interactive Server; sign-in at Keycloak with tokens kept on the server; event list and search; seat map with picking and best available; hold with countdown, release, checkout; the return page following the order | The demo runs in the browser; system tests load the pages and sign in through Keycloak | C2, I1, O2, K1 | M |
 
 **Splitting the work:** one or two people build F1–F3 and S1 first. After S1, five streams run
 in parallel:
@@ -97,9 +99,10 @@ F4 is on the critical path, so give it to the strongest developer early.
 1. Start the AppHost and show the dashboard: PostgreSQL, Keycloak, LocalPay, the Migrator having
    finished, four hosts running.
 2. Run the seeder: a 2,000-seat venue and an event that's on sale.
-3. Browse: event list, detail, availability.
-4. Fan A holds 2 seats and gets 201. Fan B tries the same seats and gets 409.
-5. Fan A checks out, approves on the LocalPay page, and the order status goes
+3. Browse in the fan site: event list, search, event page with the seat map.
+4. Fan A holds 2 seats. Fan B, in another browser, tries the same seats and is refused at once
+   (409).
+5. Fan A checks out, approves on the LocalPay page, and comes back to the order page, which goes
    Pending → Confirmed.
 6. Show the single trace: hold → order → webhook → outbox → Workers → `ConfirmHold`.
 7. Expiry, with demo settings of a 1-minute hold and a 2-minute checkout: an abandoned hold is
@@ -115,5 +118,6 @@ F4 is on the critical path, so give it to the strongest developer early.
   S2 forces them early, on purpose.
 - **Keycloak configuration can eat days.** The realm export is committed, and test tokens keep
   tests independent of Keycloak.
-- **M1b work creeping in** (tickets, Stripe, UI): the scope table is the referee.
+- **M1b work creeping in** (tickets, Stripe): the scope table is the referee. The fan site was
+  brought forward on purpose (U1).
 - **Team size is unknown.** Set the time-box at kickoff, and cut breadth before the slice.

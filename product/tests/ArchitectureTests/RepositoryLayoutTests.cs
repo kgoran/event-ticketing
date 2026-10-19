@@ -22,18 +22,39 @@ public sealed class RepositoryLayoutTests
     }
 
     [Fact]
-    public void Every_product_project_except_the_hosts_is_checked_by_these_tests()
+    public void Every_product_project_except_the_hosts_and_frontends_is_checked_by_these_tests()
     {
-        var hosts = Path.Combine(ProductAssemblies.ProductSource.FullName, "Hosts") + Path.DirectorySeparatorChar;
+        var compositionRoots = new[] { "Hosts", "Frontends" }
+            .Select(folder => Path.Combine(ProductAssemblies.ProductSource.FullName, folder) + Path.DirectorySeparatorChar)
+            .ToArray();
         var loaded = ProductAssemblies.All.Select(assembly => assembly.GetName().Name).ToHashSet();
 
         var missing = Directory.GetFiles(ProductAssemblies.ProductSource.FullName, "*.csproj", SearchOption.AllDirectories)
-            .Where(project => !project.StartsWith(hosts, StringComparison.OrdinalIgnoreCase))
+            .Where(project => !compositionRoots.Any(root => project.StartsWith(root, StringComparison.OrdinalIgnoreCase)))
             .Select(project => ProductAssemblies.Prefix + Path.GetFileNameWithoutExtension(project))
             .Where(assemblyName => !loaded.Contains(assemblyName))
             .ToList();
 
         missing.Should().BeEmpty("add a ProjectReference to ArchitectureTests.csproj for each of these");
+    }
+
+    /// <summary>
+    /// ADR-0049: a frontend uses the product only through its HTTP APIs, like any other client, so it
+    /// may reference ServiceDefaults (telemetry, health checks) but no module and no Shared project.
+    /// </summary>
+    [Fact]
+    public void Frontends_use_the_product_only_through_its_apis()
+    {
+        var frontends = new DirectoryInfo(Path.Combine(ProductAssemblies.ProductSource.FullName, "Frontends"));
+        var allowed = Path.Combine(ProductAssemblies.ProductSource.FullName, "Hosts", "ServiceDefaults", "ServiceDefaults.csproj");
+
+        var violations =
+            from project in frontends.Exists ? Directory.GetFiles(frontends.FullName, "*.csproj", SearchOption.AllDirectories) : []
+            from reference in ProjectReferences(project)
+            where !string.Equals(reference, allowed, StringComparison.OrdinalIgnoreCase)
+            select $"{Relative(project)} → {Relative(reference)}";
+
+        violations.Should().BeEmpty();
     }
 
     [Fact]

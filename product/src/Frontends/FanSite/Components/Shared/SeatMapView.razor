@@ -1,0 +1,81 @@
+@using System.Globalization
+
+@* 2,000 seats are a lot of elements to compare, so this re-renders only when the page bumps Version. *@
+<svg class="seat-map" viewBox="@ViewBoxText" role="group" aria-label="Seat map">
+    @foreach (var section in Model.Sections)
+    {
+        <g class="section-name">
+            <text x="@N(section.Area.X)" y="@N(section.Area.Y - 0.8)">@section.Name</text>
+        </g>
+        @if (section.IsStanding)
+        {
+            var free = FreeIn(section.Code);
+            <g class="standing @(free > 0 ? "" : "sold-out")" @onclick="() => OnStandingClicked.InvokeAsync(section.Code)">
+                <rect class="cat-@(section.Category?.Index ?? 0)" x="@N(section.Area.X)" y="@N(section.Area.Y)"
+                      width="@N(section.Area.Width)" height="@N(section.Area.Height)" rx="0.8" />
+                <text x="@N(section.Area.X + (section.Area.Width / 2))" y="@N(section.Area.Y + (section.Area.Height / 2) + 0.5)" text-anchor="middle">
+                    @section.Name · standing · @free free
+                </text>
+                <title>@section.Name, standing: @free places free. Click to hold places here.</title>
+            </g>
+        }
+        else
+        {
+            @foreach (var seat in section.Seats)
+            {
+                var state = StateOf(seat.SeatId);
+                <circle class="seat cat-@seat.Category.Index @Css(state)" cx="@N(seat.X + 0.5)" cy="@N(seat.Y + 0.5)" r="0.4"
+                        @onclick="() => OnSeatClicked.InvokeAsync(seat.SeatId)">
+                    <title>@seat.Label · @seat.Category.Name · @Describe(state)</title>
+                </circle>
+            }
+        }
+    }
+</svg>
+
+@code {
+    private int _renderedVersion = -1;
+
+    [Parameter, EditorRequired]
+    public SeatMapModel Model { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public Func<Guid, PlaceState> StateOf { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public Func<string, int> FreeIn { get; set; } = default!;
+
+    /// <summary>Bumped by the page whenever availability, the selection or the hold changes.</summary>
+    [Parameter]
+    public int Version { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> OnSeatClicked { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnStandingClicked { get; set; }
+
+    private string ViewBoxText => $"{N(Model.ViewBox.X)} {N(Model.ViewBox.Y)} {N(Model.ViewBox.Width)} {N(Model.ViewBox.Height)}";
+
+    protected override bool ShouldRender() => _renderedVersion != Version;
+
+    protected override void OnAfterRender(bool firstRender) => _renderedVersion = Version;
+
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static string Css(PlaceState state) => state switch
+    {
+        PlaceState.Free => "free",
+        PlaceState.Selected => "selected",
+        PlaceState.Mine => "mine",
+        _ => "taken",
+    };
+
+    private static string Describe(PlaceState state) => state switch
+    {
+        PlaceState.Free => "free",
+        PlaceState.Selected => "picked",
+        PlaceState.Mine => "held by you",
+        _ => "taken",
+    };
+}

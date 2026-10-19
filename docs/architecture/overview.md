@@ -374,6 +374,8 @@ docs/       brief, decision log, ADRs, this overview
   configuration differs ([0018](../adr/0018-capacity-from-configuration-not-code.md)).
 - Inside `product/src/Modules/`: four projects for each module with a full domain model, two
   for each thin module ([0026](../adr/0026-module-project-layout.md)).
+- `product/src/Frontends/` holds the UIs, starting with the fan site. They use the product only
+  through its HTTP APIs, like any client ([0049](../adr/0049-fan-site-blazor-server-tokens-on-the-server.md)).
 - One container image per host, built by the .NET SDK
   ([0029](../adr/0029-container-image-per-host.md)).
 - Trunk-based development: short-lived branches, every pull request runs build, tests and
@@ -381,7 +383,7 @@ docs/       brief, decision log, ADRs, this overview
 
 | Way to run | What | Used for |
 |---|---|---|
-| Aspire (F5) | product hosts + LocalPay + Mailpit, no Kubernetes | day-to-day development |
+| Aspire (F5) | product hosts + the fan site + LocalPay + Mailpit, no Kubernetes | day-to-day development |
 | Lab | Kubernetes in Docker Desktop (kind mode, 3 nodes), rebuilt from source on every `lab up` | demos, drills, Scaling Lab ([0020](../adr/0020-local-kubernetes-on-docker-desktop.md), [0022](../adr/0022-disposable-lab-environment.md)) |
 | CI | kind in GitHub Actions | builds and tests on every push; full system tests nightly |
 

@@ -1,0 +1,45 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" href="">EventTicketing</a>
+        <nav class="nav">
+            <NavLink href="" Match="NavLinkMatch.All">Events</NavLink>
+        </nav>
+        <div class="account">
+            <AuthorizeView>
+                <Authorized>
+                    <span class="who">Signed in as <strong>@context.User.Identity?.Name</strong></span>
+                    @* A plain form POST, outside the circuit: signing out changes cookies and goes to the identity provider. *@
+                    <form method="post" action="account/logout">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="returnUrl" value="@CurrentPath" />
+                        <button type="submit" class="link">Sign out</button>
+                    </form>
+                </Authorized>
+                <NotAuthorized>
+                    <SignInLink Class="button small" />
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
+</header>
+
+<main class="page">
+    @Body
+</main>
+
+<footer class="footer">
+    A teaching project: demo events, and LocalPay instead of a real payment provider.
+</footer>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">×</span>
+</div>
+
+@code {
+    private string CurrentPath => "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+}

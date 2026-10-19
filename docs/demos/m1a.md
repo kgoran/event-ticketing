@@ -8,35 +8,45 @@ demo works.
 ## Before you start
 
 - .NET SDK (the version in `global.json`) and Docker Desktop, running.
-- Port 8180 free (Keycloak) and 5101–5104 (the hosts).
-- Visual Studio, Rider, or VS Code with the REST Client extension, for the `.http` files.
+- Port 8180 free (Keycloak), 5100 (the fan site) and 5101–5104 (the hosts).
+- Two browser windows that don't share cookies, one per fan: a normal and a private window, or
+  two browsers.
+- Optional, for showing the API itself: Visual Studio, Rider, or VS Code with the REST Client
+  extension, for [`PublicApi.http`](../../product/src/Hosts/PublicApi/PublicApi.http).
 
 ```
 dotnet run --project dev/AppHost -- --Demo=true
 ```
 
 **Demo mode** shortens the timings so expiry can be shown live: holds last **1 minute**, checkouts
-**2 minutes** (normally 8 and 10). The console prints the dashboard's URL; open it.
+**2 minutes** (normally 8 and 10). The console prints the dashboard's URL; open it. The fan site
+is at **http://localhost:5100**. Fans: ana, ben, cid, dan, eva, fil; each password is the name.
 
 ## The steps
 
 | # | Do | Show |
 |---|---|---|
-| 1 | Open the dashboard | Resources: PostgreSQL, Keycloak, LocalPay, the Migrator **Finished**, PublicApi, BackOfficeApi, WebhookIngress and Workers running, `seed` waiting to be started |
+| 1 | Open the dashboard | Resources: PostgreSQL, Keycloak, LocalPay, the Migrator **Finished**, PublicApi, BackOfficeApi, WebhookIngress, Workers and the fan site running, `seed` waiting to be started |
 | 2 | Press **Start** on `seed` (or run `dotnet run --project tooling/seed`) | Its console log: a 2,000-seat "Demo Arena" with a standing floor, and two events on sale, "Demo Concert" and "Failure Scenarios" |
-| 3 | `PublicApi.http`: *Browse*, *Search*, *Event page*, *Seat map*, *What's free* | Full-text search; the seat map under a versioned, cache-forever URL; availability per section |
-| 4 | *Sign in as ana*, *Ana holds two seats* → 201; *Sign in as ben*, *Ben tries the same seats* → 409 | All or nothing, no waiting: the claim is one SQL statement (ADR-0011) |
-| 5 | *Ana checks out*, open `redirectUrl` in a browser, click **Approve**; then *Ana's order* until Confirmed | Pending → Confirmed: the webhook, not the redirect, confirms it (the browser lands on the API's order URL, which needs a token: the return page is M1b's UI) |
+| 3 | Fan site: the event list, a search ("concert"), then **Demo Concert** | Full-text search; the seat map (geometry cached for good under a versioned URL) coloured by price category, with what's free now |
+| 4 | Window 1: **Sign in** as ana and click two free seats. Window 2: sign in as ben and click the **same** two. Ana presses **Hold 2 seats**, then Ben does | Ana gets them with a 1-minute countdown; Ben is refused at once (409, all or nothing: the claim is one SQL statement, ADR-0011), and the seats turn grey on his map |
+| 5 | Ana: **Check out**, then **Approve** on LocalPay's page | Back on the fan site's order page: *Waiting for your payment*, then *confirmed*. The webhook confirms it, not the redirect: the page asks PublicApi until the order settles |
 | 6 | Dashboard → **Traces**, search `command StartCheckout` | One trace: StartCheckout → BeginCheckout → CreateOrder → CreateCheckout (and LocalPay) → `payment succeeded` → `consume payments.payment-succeeded` → ConfirmHold. The hold's and the webhook's own traces are linked (docs/observability.md) |
-| 7a | *Cid holds a seat*; wait a minute; *Dan holds the same seat* | Dan gets it the moment Cid's hold expires: nothing has to sweep it first |
-| 7b | *Eva checks out and walks away*; wait two minutes; *Eva's order*, and her LocalPay page | Order Expired; the LocalPay page says **expired**; the seat is free again. Payment cancelled first, seats released second (ADR-0010) |
-| 8 | *Failure Scenarios*: see the table below | Each ends consistent |
-| 9 | Open a pull request on GitHub | The three required checks; the dry run of this demo is one of them |
+| 7a | Cid holds a seat and walks away; wait for his countdown; Dan holds the same seat | Dan gets it the moment Cid's hold expires: nothing has to sweep it first. Cid's page says the hold expired |
+| 7b | Eva holds a seat and checks out, and leaves LocalPay's page open without paying. In a new tab, the event page → **View the order**; wait two minutes on it | The order page turns to *The time to pay ran out*; reloading LocalPay's page shows **expired**; the seat is free again. Payment cancelled first, seats released second (ADR-0010) |
+| 8 | **Failure Scenarios**: see the table below | Each ends consistent |
+| 9 | Open a pull request on GitHub | The required checks; the dry run of this demo is one of them |
+
+The same steps through the API alone are the requests in
+[`PublicApi.http`](../../product/src/Hosts/PublicApi/PublicApi.http), top to bottom: each uses
+values from the ones before, so start at *Step 3*.
 
 ### Step 8: LocalPay's scenarios
 
 "Failure Scenarios" is priced so that the amount picks LocalPay's scenario (its last two digits).
-**Hold exactly one seat**: two seats at 25.03 make 50.06, which is no scenario.
+**Hold exactly one seat**: two seats at 25.03 make 50.06, which is no scenario. The legend on the
+seat map names each price category after its scenario; "Best available" with a quantity of 1 is
+the quickest way.
 
 | Section | Price | What LocalPay does | What you see |
 |---|---|---|---|
@@ -55,7 +65,9 @@ Stop the AppHost (Ctrl+C). Nothing persists: the next run starts with a fresh da
 
 | Symptom | Fix |
 |---|---|
-| A request answers 401 | Tokens last 5 minutes: run the *Sign in* request again |
+| The dashboard doesn't start: "The specified network password is not correct" | `ASPNETCORE_Kestrel__Certificates__Default__*` environment variables point every ASP.NET Core process at a certificate. Remove them (or set them per project in `launchSettings.json`), then restart the terminal and the editor |
+| The fan site shows you signed out | It restarted: the tokens live in its memory (ADR-0049). Sign in again; Keycloak usually remembers you |
+| A `.http` request answers 401 | Tokens last 5 minutes: run the *Sign in* request again (the fan site refreshes its own) |
 | `seed` fails at once | Keycloak or an API isn't ready yet: wait until the dashboard shows them running, then start it again |
 | Keycloak doesn't start | Port 8180 is taken by something else |
-| A hold answers 409 `hold.active_hold_exists` | One hold per fan per event: release it (*Release Ana's hold*) or use another fan (ana, ben, cid, dan, eva, fil) |
+| "You already hold seats for this event" | One hold per fan per event: release it, or use another fan (ana, ben, cid, dan, eva, fil). A hold made in another browser expires within a minute in demo mode |

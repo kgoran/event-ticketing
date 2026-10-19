@@ -1,5 +1,5 @@
 <Project Sdk="Aspire.AppHost.Sdk/13.6.1">
-  <!-- Day-to-day development: runs the product hosts, LocalPay, PostgreSQL and Keycloak (ADR-0020).
+  <!-- Day-to-day development: runs the product hosts, the fan site, LocalPay, PostgreSQL and Keycloak (ADR-0020).
        It lives in dev/, so it may reference both product and tooling projects (ADR-0021). -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\product\src\Frontends\FanSite\FanSite.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\BackOfficeApi\BackOfficeApi.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\Migrator\Migrator.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\PublicApi\PublicApi.csproj" />

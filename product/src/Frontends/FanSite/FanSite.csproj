@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- The fan site (ADR-0035, ADR-0049): a Blazor Web App, Interactive Server. It uses the product
+       only through PublicApi's HTTP API, with a client Kiota generates from the committed OpenAPI
+       document (ADR-0037); it references no module and no Shared project. -->
+  <PropertyGroup>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Hosts\ServiceDefaults\ServiceDefaults.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="EventTicketing.FanSite.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+    <PackageReference Include="Microsoft.Kiota.Bundle" />
+    <PackageReference Include="NodaTime" />
+  </ItemGroup>
+</Project>
