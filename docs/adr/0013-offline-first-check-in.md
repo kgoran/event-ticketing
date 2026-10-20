@@ -50,3 +50,9 @@ rather than stop the queue.**
 - A revoked ticket can still be accepted by an offline device until it syncs; for online
   devices, target T8 bounds this to 30 s ([0015](0015-performance-targets.md)).
 - The scanner app is an offline-capable web app (PWA) ([0024](0024-domain-scope-m1-m6.md)).
+
+## Updates
+
+- **2026-10-20 (M1b):** The QR code's format and where the signing keys live are decided in
+  [0051](0051-signed-tickets-and-their-keys.md): a JWS signed with ES256, private keys under
+  envelope encryption.

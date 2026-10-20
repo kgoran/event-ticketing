@@ -11,7 +11,7 @@ It is not a product. Keep the domain simple and the engineering concerns rich.
 
 Design complete (architecture agreed 2026-10-18: `docs/architecture/overview.md`, ADRs in
 `docs/adr/`). Repository: https://github.com/kgoran/event-ticketing (public).
-M1a is in progress (`docs/milestones/m1a.md`). Done: the walking skeleton (F1–F3, F5, F6) and the
+M1a is done (`docs/milestones/m1a.md`): the walking skeleton (F1–F3, F5, F6) and the
 outbox, inbox and scheduler (F4), Keycloak (K1), the first vertical slice (S2: thin Catalog,
 Inventory, Orders, Payments and LocalPay, proven end to end by `dev/AppHost.Tests`), Catalog
 (C1: venues, seat maps, prices, on-sale schedule), browsing (C2: search, event page, versioned seat
@@ -26,12 +26,15 @@ refunded when the seats were lost; return-page status), the demo seeder (T1: Kio
 observability (Q3: one trace per purchase, metrics catalogue in `docs/observability.md`), the T2
 concurrency test (Q1), crash-point and retry tests (Q2; a repeated checkout resumes its order), the
 demo (Q4: `dotnet run --project dev/AppHost -- --Demo=true`, runbook `docs/demos/m1a.md`, dry run in
-`dev/AppHost.Tests`). The M1a backlog is built and its implementation decisions are agreed
-(ADRs 0038–0048). The fan site was brought forward from M1b (U1, ADR-0049): Blazor Interactive
-Server in `product/src/Frontends/FanSite`, http://localhost:5100, fans' tokens kept on the server;
-the demo runs in it. Next: M1b. **Paused on 2026-10-19 while planning M1b:** the draft plan with open
-decisions D7–D18 is in `docs/milestones/m1b.md` (not agreed; D7 Stripe account and D18 team/time-box need
-the owner). The M1a time-box is still to be agreed.
+`dev/AppHost.Tests`), and the fan site (U1, ADR-0049: Blazor Interactive Server in
+`product/src/Frontends/FanSite`, http://localhost:5100, fans' tokens kept on the server).
+Implementation decisions: ADRs 0038–0049.
+
+**M1b is in progress** (`docs/milestones/m1b.md`, agreed 2026-10-20, decisions D7–D19, ADRs 0050–0052):
+tickets with signed QR codes, "My tickets", email through Mailpit, the Stripe adapter tested against
+`stripe-mock` (no Stripe account; the demo uses LocalPay only), the per-fan ticket limit, Organizers
+keeping Keycloak in step. Team of five, three-week time-box; the demo runs offline on one laptop.
+The Scaling Lab stays in M2.
 
 ## Commands
 
@@ -70,7 +73,7 @@ run `bash product/src/Frontends/FanSite/generate-client.sh` and `bash tooling/cl
 | `docs/payments.md` | Payment design: Stripe + LocalPay simulator, consistency flow, failure handling |
 | `docs/architecture/overview.md` | Agreed architecture: modules, hosts, key flows, targets, milestones, repository, Scaling Lab |
 | `docs/adr/` | Architecture decision records, one per agreed decision (index in `README.md`) |
-| `docs/milestones/` | Milestone plans: scope, backlog, definition of done, demo script (`m1b.md` is a draft) |
+| `docs/milestones/` | Milestone plans: scope, backlog, definition of done, demo script |
 
 ## Background
 

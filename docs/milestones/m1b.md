@@ -1,69 +1,99 @@
-# M1b: Stripe, tickets and email (draft)
+# M1b: tickets, email and the Stripe adapter
 
-- **Status:** **Draft, not agreed.** Proposed on 2026-10-19; planning paused there. Decisions
-  D7–D18 below are open. D7 (a Stripe account) and D18 (team and time-box) need the owner's
-  input; the rest have a recommendation to accept or change.
+- **Status:** Agreed 2026-10-20 (decisions D7–D19). Time-box: **3 weeks**, team of five.
+  M1a is closed as done.
 - **Related:** [ADR-0016](../adr/0016-teaching-milestones.md) (milestones), [M1a](m1a.md),
-  [payments](../payments.md), [architecture overview](../architecture/overview.md) §4.4
+  [payments](../payments.md), [architecture overview](../architecture/overview.md) §4.4,
+  ADRs [0050](../adr/0050-stripe-adapter-without-an-account.md),
+  [0051](../adr/0051-signed-tickets-and-their-keys.md), [0052](../adr/0052-email-through-mailpit.md)
 
-## Where we stopped
+## Goal
 
-M1a is done, including the fan site (U1) and LocalPay's "Back to FanSite" button. D6 kept the
-Scaling Lab in M2, as planned. The next step is to settle D7–D18. Once they are agreed, this
-draft becomes the M1b plan: the definition of done and the demo script get written, the agreed
-decisions become ADRs, and the backlog starts.
+A paid order becomes tickets, and the fan gets them: **pay → tickets issued with signed QR codes
+→ "My tickets" in the fan site → the tickets by email.** The Stripe adapter is built and
+contract-tested without a Stripe account. The demo runs on one laptop, without internet, with one
+presenter.
 
-## Already decided elsewhere
+## Scope
 
-- M1b = the Stripe adapter, Ticketing and Notifications ([ADR-0016](../adr/0016-teaching-milestones.md)).
-- Organizers keeps Keycloak's group membership in step ([ADR-0027](../adr/0027-identity-provider-keycloak.md), update).
-- Ticket issuance: `OrderConfirmed` → Ticketing issues one ticket per seat with a signed QR code →
-  `TicketsIssued` → the email. "My tickets" reads from Ticketing directly, so fans have their
-  tickets even if the email fails (overview §4.4).
+| In M1b | Not yet |
+|---|---|
+| Ticketing: a signing key per event, one ticket per seat, signed QR codes (JWS), `TicketsIssued` | PDF tickets and object storage (M4, [ADR-0051](../adr/0051-signed-tickets-and-their-keys.md)); revoking tickets (M4: chargebacks and event cancellation) |
+| "My tickets" in PublicApi and the fan site | CheckIn and the scanner (M3) |
+| Notifications: the "your tickets" and "order refunded" emails, through Mailpit | Other channels (SMS, push) |
+| Stripe adapter, tested against `stripe-mock` ([ADR-0050](../adr/0050-stripe-adapter-without-an-account.md)) | Real Stripe in the demo or in CI; the fan choosing a provider (once Stripe is enabled) |
+| LocalPay: a timeout or HTTP 500 when creating a payment; webhooks out of order | Rate limits, sampled latencies, payment listing (M4) |
+| A per-fan ticket limit per event (default 8) | — |
+| Organizers keeps Keycloak's group membership in step (cut first if time runs short) | — |
+| — | The back-office UI; the Scaling Lab (M2) |
 
-## Proposed backlog
+## Order of work
+
+```
+O3 order events ─► TK1 tickets ─► TK2 my tickets ─┐
+                        └────────► N1 email ──────┼─► Q5 T2 with tickets ─► Q6 demo
+P3 Stripe adapter, L2 LocalPay, I3 limit, G2 Keycloak (in parallel) ─┘
+```
+
+## Backlog
 
 Sizes are for one developer: **S** ≤ 2 days, **M** ≤ 1 week, **L** > 1 week.
 
-| ID | Item | Size |
-|---|---|---|
-| O3 | Order events carry what their consumers need ([ADR-0007](../adr/0007-module-communication.md)): the buyer's email (from the token at checkout) and the event name on `OrderConfirmed` and `OrderRefunded` | S |
-| P3 | Stripe adapter: hosted Checkout, expiring the session at the deadline, status, listing, refunds, webhook signature check | L |
-| P4 | Choosing the provider per checkout; Aspire wiring for Stripe | S |
-| L2 | LocalPay: a timeout or HTTP 500 when creating a payment; webhooks out of order | S |
-| TK1 | Ticketing: a signing key per event, tickets issued from `OrderConfirmed` (safe to repeat), signed QR codes, `TicketsIssued` | M |
-| TK2 | "My tickets": a PublicApi endpoint, a fan site page with the QR codes, a link from the order page | S |
-| N1 | Notifications: Mailpit in Aspire, the "your tickets" and "order refunded" emails, a delivery log so a redelivered event doesn't send twice | M |
-| I3 | A per-fan ticket limit per event (default 8, [ADR-0024](../adr/0024-domain-scope-m1-m6.md)) | S |
-| G2 | Organizers keeps Keycloak's group membership in step through Keycloak's admin API | M |
-| Q5 | T2 extended (no orphan tickets), plus an end-to-end ticket issuance test | S |
-| Q6 | M1b demo script, runbook and automated dry run | S |
+| ID | Item | Done when | Depends on | Size |
+|---|---|---|---|---|
+| O3 | Order events carry what their consumers need ([ADR-0007](../adr/0007-module-communication.md)): the buyer's email (from the token at checkout) and the event name on `OrderConfirmed` and `OrderRefunded`, added to version 1 | Consumers need no call back to Orders | — | S |
+| TK1 | Ticketing module: a signing key pair per event, created on `EventPublished` and stored under envelope encryption; on `OrderConfirmed`, one ticket per seat with a signed QR code, safe to repeat; `TicketsIssued` | A paid order has exactly one ticket per seat; a code verifies with the event's public key and a tampered one doesn't (tests) | O3 | M |
+| TK2 | "My tickets": PublicApi endpoint; fan site page with the QR codes; a link from the order page | A fan sees their tickets seconds after paying | TK1 | S |
+| N1 | Notifications module: Mailpit in Aspire; the "your tickets" email (with QR codes) and the "order refunded" email; templates as Razor components; a delivery log | A redelivered event sends no second email (tests); the emails arrive in Mailpit | O3, TK1 | M |
+| I3 | Per-fan ticket limit per event (default 8, [ADR-0024](../adr/0024-domain-scope-m1-m6.md)), enforced by Inventory when a fan holds places | A hold that would take a fan past the limit is refused (tests) | — | S |
+| L2 | LocalPay: a timeout or HTTP 500 when creating a payment, chosen by amount; webhooks out of order | The product's retry with the same idempotency key ends with one payment (tests) | — | S |
+| P3 | Stripe adapter: Checkout Sessions, expiring them at the deadline, status, listing, refunds, webhook signature check; registered only when Stripe is configured | Contract tests against `stripe-mock` and signature tests pass in CI | — | L |
+| G2 | Organizers keeps Keycloak's group membership in step, through Keycloak's admin API, from the outbox | Adding a member grants access at their next sign-in (system test) | — | M |
+| Q5 | T2 extended: no orphan tickets, every Confirmed order has exactly one ticket per seat | Passes in CI | TK1 | S |
+| Q6 | M1b demo script, runbook (with a "day before" checklist), automated dry run | The dry run passes | all | S |
 
-## Open decisions
+**Splitting the work** (five people, after O3):
 
-| # | Proposal | Alternatives |
-|---|---|---|
-| D7 | **Stripe access.** The owner creates a free Stripe account (test mode only). Its test keys go in .NET user-secrets. Aspire runs the Stripe CLI as a container to forward webhooks to the laptop. Without keys, Stripe isn't offered and everything runs on LocalPay. CI tests the adapter against `stripe-mock` (Stripe's open-source mock server, no account needed); real Stripe is tested by hand | A public tunnel such as ngrok (needs an account, URLs change); real Stripe in CI with secrets (a public repo can't pass them to pull requests from forks) |
-| D8 | **Choosing the provider.** A setting picks the default provider. When more than one is enabled, the fan chooses at checkout | Per event, set by the organizer; per environment only, which can't compare the two in one demo |
-| D9 | **QR code format.** A JWS signed with ES256, carrying the ticket ID, event ID, ticket version and the key's ID. Standard, so any scanner library can check it, and it fits a QR code easily | Our own compact binary format: a smaller QR, but non-standard |
-| D10 | **Signing keys.** One key pair per event. The private key is stored in Ticketing's own database schema, encrypted with a master key from secrets (an Aspire-generated value locally, a Kubernetes Secret in the lab): envelope encryption, which a cloud key vault can replace later | ASP.NET Core Data Protection (its key ring would need sharing between hosts); a key vault service (paid, or one more thing to run) |
-| D11 | **PDF tickets wait until M4.** M1b tickets are QR codes, on "My tickets" and in the email. QuestPDF is free only under $1M company revenue, SeaweedFS is confirmed only in M3, and rendering cost matters at volume, which is M4's topic | PDFsharp/MigraDoc (MIT) plus SeaweedFS now: about one week more |
-| D12 | **Email.** SMTP through MailKit (MIT) to Mailpit. The templates are Razor components rendered with .NET's built-in `HtmlRenderer`, so no template engine | `SmtpClient` (Microsoft advises against it for new code); the Scriban or Fluid template engines |
-| D13 | **O3's contract change.** Add the fields to version 1 of the events: the change only adds fields, and nothing consumes them yet | A version 2, unnecessary while there are no consumers |
-| D14 | **G2 stays, but is cut first.** It has the least demo value, and Keycloak configuration is the known time sink. If time runs short, it moves to M2 | Do it first; or move it now |
-| D15 | **LocalPay in M1b: only L2.** Rate limits, latencies sampled from real Stripe calls, and payment listing go to M4, with load testing and reconciliation | All of them now |
-| D16 | **The ticket limit (I3) is enforced by Inventory** when a fan holds seats, counting the places already bought plus those held. The "one active hold per fan" rule stops concurrent holds from getting around it | Orders checks at checkout, when the seats are already held |
-| D17 | **Not in M1b:** the back-office UI (the seeder and the API are enough); revoking tickets (nothing revokes them before chargebacks and event cancellation in M4); CheckIn (M3); the Scaling Lab (M2) | A minimal back-office UI now |
-| D18 | **Team and time-box: the owner's call.** Roughly 6–7 weeks for one developer, about 3 weeks for three. M1a's time-box is still open too | — |
+1. Ticketing: O3, TK1.
+2. "My tickets" and the fan site: TK2, I3.
+3. Notifications: N1.
+4. Payments: P3, L2.
+5. Identity, tests and demo: G2, Q5, Q6.
+
+## Definition of done
+
+1. Buying in the fan site issues one ticket per seat with a signed QR code; the fan sees them in
+   "My tickets" within seconds and receives them by email (in Mailpit).
+2. Ticket codes verify with the event's public key; a tampered code fails (tests).
+3. The per-fan ticket limit holds (tests).
+4. The Stripe adapter passes its contract tests against `stripe-mock` in CI; LocalPay's new
+   scenarios are covered.
+5. A member added in Organizers can act for the organizer after signing in again (system test),
+   unless G2 was cut.
+6. T2 holds with tickets: no seat sold twice, no orphan tickets, every paid order Confirmed or
+   Refunded.
+7. The demo runs offline on one laptop; its dry run passes in CI.
+8. Every new decision has an ADR.
+
+## Demo script (about 15 minutes, one presenter)
+
+1. Start the AppHost in demo mode; the dashboard shows Mailpit next to the rest.
+2. Seed the demo.
+3. Ana (normal window) buys two seats; the order page goes Confirmed and links to her tickets.
+4. "My tickets": one QR code per seat. Show what's inside one: a signed token naming the ticket,
+   the event and the key.
+5. Mailpit: the "your tickets" email with the same codes.
+6. Dashboard → Traces: payment succeeded → order confirmed → tickets issued → email sent.
+7. Ana tries to hold seven more seats: refused, the limit is eight per event.
+8. Organizers: adam adds ben to the demo organizer; ben signs in again and can manage its events.
+9. A pull request: the Stripe adapter's contract tests against `stripe-mock` among the checks.
 
 ## Risks
 
-- **Stripe needs internet access and the owner's account;** CI uses `stripe-mock` instead.
-- **`stripe-mock` only checks request shapes.** It has no state, so LocalPay stays the place for
-  behaviour tests.
-- **Buyer emails start travelling in events,** which is personal data; ADR-0007 already plans a
-  retention limit in M4.
-
-## Still to write once agreed
-
-The scope table, definition of done, demo script and order of work, like [M1a](m1a.md).
+- **`stripe-mock` only checks request shapes.** It has no state and no hosted page, so the
+  adapter's behaviour is proven against real Stripe only when someone enables it
+  ([ADR-0050](../adr/0050-stripe-adapter-without-an-account.md)).
+- **Buyer emails now travel in events**, which is personal data; ADR-0007 plans a retention
+  limit in M4. Ticket codes travel in `TicketsIssued` for the email: they are bearer codes, so
+  the same applies.
+- **Keycloak's admin API (G2) is the known time sink.** It is cut first.
