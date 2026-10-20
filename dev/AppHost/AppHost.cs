@@ -50,6 +50,13 @@ var webhookSecret = builder.AddParameter(
     new GenerateParameterDefault { MinLength = 32, Special = false },
     secret: true);
 
+// Mailpit catches every email the system sends and shows it in a web inbox at http://localhost:8025
+// (ADR-0052): nothing leaves the laptop, so the demo works offline. Pinned to a release at least two
+// weeks old; pull it once while online before an offline demo.
+var mailpit = builder.AddContainer("mailpit", "axllent/mailpit", "v1.31.3")
+    .WithHttpEndpoint(port: 8025, targetPort: 8025, name: "http")
+    .WithEndpoint(targetPort: 1025, name: "smtp", scheme: "tcp");
+
 // Migrations run first; every other host starts only after the Migrator has exited successfully.
 var migrator = builder.AddProject<Projects.Migrator>("migrator")
     .WithReference(database)
@@ -111,7 +118,11 @@ var workers = WithTimings(builder.AddProject<Projects.Workers>("workers"))
     .WithEnvironment("Payments__LocalPay__BaseUrl", "http://localpay")
     .WithEnvironment("Payments__LocalPay__WebhookSecret", webhookSecret)
     .WithEnvironment("Ticketing__MasterKey", ticketingMasterKey)
+    .WithEnvironment("Email__SmtpHost", mailpit.GetEndpoint("smtp").Property(EndpointProperty.Host))
+    .WithEnvironment("Email__SmtpPort", mailpit.GetEndpoint("smtp").Property(EndpointProperty.Port))
+    .WithEnvironment("Email__FanSiteUrl", fanSite.GetEndpoint("http"))
     .WithHttpHealthCheck("/health")
+    .WaitFor(mailpit)
     .WaitForCompletion(migrator);
 
 // The demo seeder (T1): press Start in the dashboard when the demo begins. It prepares a venue and

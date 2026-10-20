@@ -26,6 +26,9 @@
     <Project Path="src/Modules/Organizers/Organizers.Contracts/Organizers.Contracts.csproj" />
     <Project Path="src/Modules/Organizers/Organizers/Organizers.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Notifications/">
+    <Project Path="src/Modules/Notifications/Notifications/Notifications.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Orders/">
     <Project Path="src/Modules/Orders/Orders.Application/Orders.Application.csproj" />
     <Project Path="src/Modules/Orders/Orders.Contracts/Orders.Contracts.csproj" />

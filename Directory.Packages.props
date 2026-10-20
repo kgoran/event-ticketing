@@ -11,6 +11,10 @@
     <!-- Aspire.Hosting 13.6.1 brings MessagePack 2.5.302, affected by GHSA-qhrr-8q5h-9q3h
          (fixed in 2.5.303). Remove this pin once Aspire ships a fixed version. -->
     <PackageVersion Include="MessagePack" Version="2.5.307" />
+    <!-- MailKit 4.18.1 (via MimeKit) brings System.Security.Cryptography.Pkcs 10.0.0, affected by
+         GHSA-2fmv-rv2c-59x7 and GHSA-846f-f764-76mx; 10.0.13 is the servicing release the ASP.NET
+         Core packages above use. Remove once MimeKit depends on a fixed version. -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
 
   <ItemGroup Label="Aspire">
@@ -59,6 +63,8 @@
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />
     <!-- IANA time zones from its bundled TZDB, independent of the OS and of InvariantGlobalization. -->
     <PackageVersion Include="NodaTime" Version="3.3.5" />
+    <!-- SMTP for Notifications (MIT, ADR-0052). -->
+    <PackageVersion Include="MailKit" Version="4.18.1" />
     <!-- QR codes for tickets (MIT): the fan site draws them as SVG, Notifications as PNG for email. -->
     <PackageVersion Include="QRCoder" Version="1.8.0" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />

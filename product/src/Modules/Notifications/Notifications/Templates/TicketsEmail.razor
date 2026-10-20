@@ -1,0 +1,30 @@
+<EmailFrame>
+    <h1 style="font-size: 22px; margin: 0 0 4px;">Your tickets for @Model.EventName</h1>
+    <p style="margin: 0 0 20px; color: #78716c;">@EmailFormats.AtVenue(Model.StartsAt, Model.TimeZone)</p>
+
+    @foreach (var ticket in Model.Tickets)
+    {
+        <div style="border: 1px solid #e7e5e4; border-radius: 10px; padding: 16px; margin-bottom: 12px; text-align: center;">
+            <img src="cid:@QrContentIds[ticket.TicketId]" width="200" height="200" alt="QR code for @ticket.Label" style="display: block; margin: 0 auto;" />
+            <p style="margin: 10px 0 0; font-weight: 600;">@ticket.Label</p>
+        </div>
+    }
+
+    <p style="margin: 16px 0 0;">Show the QR code at the door. Keep it to yourself: whoever shows it first gets in.</p>
+    @if (MyTicketsUrl is not null)
+    {
+        <p style="margin: 12px 0 0;"><a href="@MyTicketsUrl" style="color: #c2410c;">See your tickets online</a></p>
+    }
+</EmailFrame>
+
+@code {
+    [Parameter, EditorRequired]
+    public TicketsEmailModel Model { get; set; } = default!;
+
+    /// <summary>Each ticket's QR image, attached to the email, by content ID.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyDictionary<Guid, string> QrContentIds { get; set; } = default!;
+
+    [Parameter]
+    public string? MyTicketsUrl { get; set; }
+}

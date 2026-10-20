@@ -2,6 +2,8 @@ using System.Net.Http.Headers;
 using EventTicketing.BackOfficeApi;
 using EventTicketing.Catalog;
 using EventTicketing.Inventory.Infrastructure;
+using EventTicketing.Notifications;
+using EventTicketing.Notifications.Email;
 using EventTicketing.Orders.Infrastructure;
 using EventTicketing.Organizers;
 using EventTicketing.Payments.Infrastructure;
@@ -55,6 +57,9 @@ public sealed class TestSystem : IAsyncLifetime
 
     /// <summary>The payment provider every host talks to.</summary>
     internal FakeLocalPay LocalPay { get; } = new();
+
+    /// <summary>The SMTP server Notifications sends to (ADR-0052): records every email.</summary>
+    internal FakeMailServer Mail { get; } = new();
 
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
@@ -206,7 +211,7 @@ public sealed class TestSystem : IAsyncLifetime
         return client;
     }
 
-    private static IModule[] Modules() => [new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule()];
+    private static IModule[] Modules() => [new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule()];
 
     private WebApplicationFactory<TEntryPoint> InMemory<TEntryPoint>(WebApplicationFactory<TEntryPoint> factory)
         where TEntryPoint : class =>
@@ -233,6 +238,7 @@ public sealed class TestSystem : IAsyncLifetime
         new("Payments:LocalPay:WebhookSecret", FakeLocalPay.WebhookSecret),
         new("Checkout:ReturnUrlTemplate", "http://publicapi.test/orders/{orderId}"),
         new("Ticketing:MasterKey", MasterKey),
+        new("Email:FanSiteUrl", "http://fansite.test"),
 
         // The sweeper runs only when a test makes it due (Scenarios.SweepNowAsync): a sweep briefly
         // locks expired seats, and a claim running into that lock skips the seat (ADR-0011), which
@@ -251,6 +257,7 @@ public sealed class TestSystem : IAsyncLifetime
 
         builder.AddModules(kind, Modules());
         builder.Services.ConfigureHttpClientDefaults(client => client.ConfigurePrimaryHttpMessageHandler(LocalPay.CreateHandler));
+        builder.Services.AddSingleton<IEmailSender>(Mail);
         return builder.Build();
     }
 
