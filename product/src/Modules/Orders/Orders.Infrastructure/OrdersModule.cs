@@ -52,6 +52,7 @@ public sealed class OrdersModule : IModule
         builder.Services.AddSingleton(builder.Configuration.GetSection("Checkout").Get<CheckoutPolicy>() ?? new CheckoutPolicy());
         builder.Services.AddScoped<IOrderRepository, OrderRepository>();
         builder.Services.AddScoped<IPriceList, PriceList>();
+        builder.Services.AddScoped<IKnownEvents, KnownEvents>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints, HostKind host)

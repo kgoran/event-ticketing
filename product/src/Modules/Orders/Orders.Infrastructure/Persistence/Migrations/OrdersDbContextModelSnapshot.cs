@@ -23,6 +23,29 @@ namespace EventTicketing.Orders.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("EventTicketing.Orders.Domain.KnownEvent", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("SetAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("set_at");
+
+                    b.HasKey("EventId")
+                        .HasName("pk_known_events");
+
+                    b.ToTable("known_events", "orders");
+                });
+
             modelBuilder.Entity("EventTicketing.Orders.Domain.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -44,6 +67,11 @@ namespace EventTicketing.Orders.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(3)")
                         .HasColumnName("currency");
 
+                    b.Property<string>("CustomerEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("customer_email");
+
                     b.Property<string>("CustomerId")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -53,6 +81,11 @@ namespace EventTicketing.Orders.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EventId")
                         .HasColumnType("uuid")
                         .HasColumnName("event_id");
+
+                    b.Property<string>("EventName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("event_name");
 
                     b.Property<Guid>("HoldId")
                         .HasColumnType("uuid")

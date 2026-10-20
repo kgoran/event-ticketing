@@ -24,6 +24,10 @@ public sealed class PaidOrderTests(TestSystem system)
 
         (await ana.OrderAsync(checkout.OrderId)).Status.Should().Be("Confirmed");
         (await PublishedAsync("orders.order-confirmed", checkout.OrderId)).Should().Be(1);
+
+        // ADR-0007: the event carries what its consumers need, so none of them calls back to Orders.
+        (await PayloadFieldAsync("orders.order-confirmed", checkout.OrderId, "customerEmail")).Should().MatchRegex(@"^fan-.+@example\.test$");
+        (await PayloadFieldAsync("orders.order-confirmed", checkout.OrderId, "eventName")).Should().Be("Test concert");
         (await system.QueryAsync<Guid>("SELECT seat_id FROM inventory.seats WHERE order_id = @p0 AND status = 'Sold'", checkout.OrderId))
             .Should().BeEquivalentTo(sale.Seats.Take(2));
     }
@@ -46,6 +50,7 @@ public sealed class PaidOrderTests(TestSystem system)
         (order.Status, order.RefundReason).Should().Be(("Refunded", "SeatsLost"));
         system.LocalPay.RefundsOf(payment.Id).Should().ContainSingle().Which.AmountMinorUnits.Should().Be(5000);
         (await PublishedAsync("orders.order-refunded", checkout.OrderId)).Should().Be(1);
+        (await PayloadFieldAsync("orders.order-refunded", checkout.OrderId, "eventName")).Should().Be("Test concert");
         (await PublishedAsync("orders.order-confirmed", checkout.OrderId)).Should().Be(0);
         (await system.ScalarAsync<long>("SELECT count(*) FROM inventory.seats WHERE order_id = @p0", checkout.OrderId)).Should().Be(0);
     }
@@ -144,4 +149,7 @@ public sealed class PaidOrderTests(TestSystem system)
 
     private Task<long> PublishedAsync(string type, Guid orderId) =>
         system.ScalarAsync<long>("SELECT count(*) FROM orders.outbox_messages WHERE type = @p0 AND payload->>'orderId' = @p1", type, orderId.ToString());
+
+    private Task<string> PayloadFieldAsync(string type, Guid orderId, string field) =>
+        system.ScalarAsync<string>("SELECT payload->>@p2 FROM orders.outbox_messages WHERE type = @p0 AND payload->>'orderId' = @p1", type, orderId.ToString(), field);
 }

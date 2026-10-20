@@ -58,7 +58,9 @@ internal sealed class ConfirmOrderOnPaymentSucceeded(
                 order.EventId,
                 order.TotalMinorUnits,
                 order.Currency,
-                [.. order.Lines.Select(line => new ConfirmedSeat(line.SeatId, line.PriceCategoryId, line.PriceMinorUnits))]));
+                [.. order.Lines.Select(line => new ConfirmedSeat(line.SeatId, line.PriceCategoryId, line.PriceMinorUnits))],
+                order.CustomerEmail,
+                order.EventName));
         }
     }
 

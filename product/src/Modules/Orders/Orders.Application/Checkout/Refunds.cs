@@ -87,7 +87,9 @@ internal sealed class CompleteRefundOnRefundSucceeded(IOrderRepository orders, I
                 order.EventId,
                 integrationEvent.AmountMinorUnits,
                 integrationEvent.Currency,
-                order.RefundReason?.ToString() ?? "refund"));
+                order.RefundReason?.ToString() ?? "refund",
+                order.CustomerEmail,
+                order.EventName));
         }
     }
 }

@@ -9,7 +9,8 @@ namespace EventTicketing.Testing;
 
 /// <summary>
 /// Access tokens signed with a key that exists only for the test run, so host tests need no
-/// running Keycloak (ADR-0027). They carry the same claims the realm issues: sub, roles, organizer_id.
+/// running Keycloak (ADR-0027). They carry the same claims the realm issues: sub, email, roles,
+/// organizer_id.
 /// </summary>
 public static class TestTokens
 {
@@ -24,7 +25,8 @@ public static class TestTokens
         IEnumerable<Guid>? organizerIds = null,
         string audience = Audience,
         TimeSpan? lifetime = null,
-        SecurityKey? signingKey = null)
+        SecurityKey? signingKey = null,
+        string? email = null)
     {
         var now = DateTime.UtcNow;
         var expires = now + (lifetime ?? TimeSpan.FromMinutes(5));
@@ -40,6 +42,7 @@ public static class TestTokens
             {
                 [TokenClaims.Subject] = subject,
                 [TokenClaims.UserName] = subject,
+                [TokenClaims.Email] = email ?? EmailOf(subject),
                 [TokenClaims.Roles] = (roles ?? []).ToArray(),
                 [TokenClaims.OrganizerId] = (organizerIds ?? []).Select(id => id.ToString()).ToArray(),
             },
@@ -48,6 +51,9 @@ public static class TestTokens
 
         return new JsonWebTokenHandler().CreateToken(descriptor);
     }
+
+    /// <summary>The email a test caller's token carries unless the test gives another.</summary>
+    public static string EmailOf(string subject) => subject + "@example.test";
 
     /// <summary>Makes a host accept tokens from <see cref="Create"/> instead of discovering keys from Keycloak.</summary>
     public static IServiceCollection UseTestTokens(this IServiceCollection services) =>

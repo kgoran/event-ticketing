@@ -22,6 +22,8 @@ public static class TokenClaims
     public const string OrganizerId = "organizer_id";
 
     public const string UserName = "preferred_username";
+
+    public const string Email = "email";
 }
 
 public sealed record CallerResponse(string UserId, IReadOnlyList<string> Roles, IReadOnlyList<Guid> OrganizerIds);

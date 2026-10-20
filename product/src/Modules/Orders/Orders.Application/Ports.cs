@@ -20,6 +20,15 @@ public interface IPriceList
     Task<IReadOnlyDictionary<Guid, PriceListEntry>> ForEventAsync(Guid eventId, CancellationToken cancellationToken);
 }
 
+/// <summary>Orders' own copy of event names, built from Catalog's EventPublished like the price list.</summary>
+public interface IKnownEvents
+{
+    /// <summary>Stores the name, unless the list already has one Catalog set later.</summary>
+    Task RememberAsync(KnownEvent knownEvent, CancellationToken cancellationToken);
+
+    Task<string?> NameOfAsync(Guid eventId, CancellationToken cancellationToken);
+}
+
 /// <summary>Checkout timings (ADR-0010). Policies, configurable (configuration section "Checkout").</summary>
 public sealed record CheckoutPolicy
 {

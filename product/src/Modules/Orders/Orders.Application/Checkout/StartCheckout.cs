@@ -117,6 +117,7 @@ internal sealed class CreateOrderAuthorizer : InternalCommandAuthorizer<CreateOr
 internal sealed class CreateOrderHandler(
     IOrderRepository orders,
     IPriceList priceList,
+    IKnownEvents knownEvents,
     IMessageScheduler scheduler,
     IExecutionContext caller,
     CheckoutPolicy policy,
@@ -136,8 +137,10 @@ internal sealed class CreateOrderHandler(
         var order = Order.Place(
             command.OrderId,
             caller.UserId ?? throw new InvalidOperationException("An order needs a signed-in caller."),
+            caller.Email,
             command.HoldId,
             command.EventId,
+            await knownEvents.NameOfAsync(command.EventId, cancellationToken),
             currency,
             [.. command.Seats.Select(seat => (seat.SeatId, seat.PriceCategoryId, new Money(prices[seat.PriceCategoryId].PriceMinorUnits, currency)))],
             now,
