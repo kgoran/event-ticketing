@@ -51,10 +51,13 @@ the quickest way.
 | Section | Price | What LocalPay does | What you see |
 |---|---|---|---|
 | A, rows 1–10 | 25.03 | Sends the webhook **twice** | Order Confirmed once. Dashboard: two webhook requests, metric `eventticketing.payments.webhooks` with `result=duplicate` |
-| B | 25.05 | Completes the payment **at the moment** the deadline expires it | Don't pay; after two minutes the order is **Confirmed**, not Expired: the cancel came back "already completed", and the webhook confirmed it |
-| C | 25.01 | Declines when you click Approve | Order Failed; the seat is free at once |
-| D | 25.02 | Sends the webhook 10 s late | Order Pending for 10 s, then Confirmed |
+| B, rows 1–10 | 25.05 | Completes the payment **at the moment** the deadline expires it | Don't pay; after two minutes the order is **Confirmed**, not Expired: the cancel came back "already completed", and the webhook confirmed it |
+| C, rows 1–10 | 25.01 | Declines when you click Approve | Order Failed; the seat is free at once |
+| D, rows 1–10 | 25.02 | Sends the webhook 10 s late | Order Pending for 10 s, then Confirmed |
 | A, rows 11–20 | 25.04 | Sends **no** webhook | Order stays Pending; at the deadline Orders asks LocalPay (a status check 2 minutes after "already completed") and confirms it |
+| D, rows 11–20 | 25.06 | Fails the first create with HTTP 500 | Checkout just works: PublicApi retried with the same idempotency key. Dashboard: the trace shows two calls to LocalPay, one payment |
+| B, rows 11–20 | 25.07 | Answers the create after 15 s | Checkout takes about 10 s (PublicApi's timeout), then works: the retry got the payment that already existed |
+| C, rows 11–20 | 25.08 | Follows the success with a stale "payment failed" | Order Confirmed and stays so: a late failure never overrides a success |
 
 ## Afterwards
 

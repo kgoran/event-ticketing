@@ -120,8 +120,10 @@ internal static class DemoData
 
     /// <summary>
     /// The same venue, priced so that one seat's amount picks a LocalPay scenario (its last two
-    /// digits, tooling/simulators/LocalPay): A 1–10 webhook twice, A 11–20 no webhook, B completes
-    /// during expiry, C declined, D webhook late, floor normal. Hold exactly one seat or place.
+    /// digits, tooling/simulators/LocalPay): A 1–10 webhook twice, A 11–20 no webhook, B 1–10
+    /// completes during expiry, B 11–20 slow answer on create, C 1–10 declined, C 11–20 stale failure
+    /// after success, D 1–10 webhook late, D 11–20 error once on create, floor normal. Hold exactly
+    /// one seat or place.
     /// </summary>
     public static CreateEvent FailureScenarios(Guid venueId) => new()
     {
@@ -138,15 +140,24 @@ internal static class DemoData
             new PriceCategoryInput { Name = "Webhook twice", PriceMinorUnits = 2_503 },
             new PriceCategoryInput { Name = "No webhook", PriceMinorUnits = 2_504 },
             new PriceCategoryInput { Name = "Completes during expiry", PriceMinorUnits = 2_505 },
+            new PriceCategoryInput { Name = "Payment error once", PriceMinorUnits = 2_506 },
+            new PriceCategoryInput { Name = "Slow payment answer", PriceMinorUnits = 2_507 },
+            new PriceCategoryInput { Name = "Stale failure", PriceMinorUnits = 2_508 },
         ],
         Seating =
         [
             new PriceAssignmentInput { Section = "A", PriceCategory = "Webhook twice", Rows = [.. Enumerable.Range(1, 10).Select(row => row.ToString(CultureInfo.InvariantCulture))] },
             new PriceAssignmentInput { Section = "A", PriceCategory = "No webhook" },
+            new PriceAssignmentInput { Section = "B", PriceCategory = "Slow payment answer", Rows = [.. Rows(11, 20)] },
             new PriceAssignmentInput { Section = "B", PriceCategory = "Completes during expiry" },
+            new PriceAssignmentInput { Section = "C", PriceCategory = "Stale failure", Rows = [.. Rows(11, 20)] },
             new PriceAssignmentInput { Section = "C", PriceCategory = "Declined" },
+            new PriceAssignmentInput { Section = "D", PriceCategory = "Payment error once", Rows = [.. Rows(11, 20)] },
             new PriceAssignmentInput { Section = "D", PriceCategory = "Late webhook" },
             new PriceAssignmentInput { Section = "FLOOR", PriceCategory = "Normal" },
         ],
     };
+
+    private static IEnumerable<string> Rows(int first, int last) =>
+        Enumerable.Range(first, last - first + 1).Select(row => row.ToString(CultureInfo.InvariantCulture));
 }

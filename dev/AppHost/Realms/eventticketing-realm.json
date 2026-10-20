@@ -198,6 +198,36 @@
       "realmRoles": ["default-roles-eventticketing"]
     },
     {
+      "username": "gus",
+      "email": "gus@example.test",
+      "firstName": "Gus",
+      "lastName": "Fan",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "gus", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "hana",
+      "email": "hana@example.test",
+      "firstName": "Hana",
+      "lastName": "Fan",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "hana", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "ivo",
+      "email": "ivo@example.test",
+      "firstName": "Ivo",
+      "lastName": "Fan",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "ivo", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
       "username": "olga",
       "email": "olga@example.test",
       "firstName": "Olga",

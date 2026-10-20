@@ -66,6 +66,20 @@ public sealed class Webhooks(WebhookQueue queue, IOptions<ScenarioOptions> scena
         {
             queue.Enqueue(webhook, delay);
         }
+
+        // Scenario .08: an earlier attempt's failure, reported after the success and dated before it.
+        if (payment.Scenario == Scenario.StaleFailureAfterSuccess && payment.Status == PaymentStatus.Succeeded)
+        {
+            queue.Enqueue(
+                webhook with
+                {
+                    Id = "evt_" + Guid.NewGuid().ToString("N"),
+                    Type = "payment.failed",
+                    Created = webhook.Created.AddSeconds(-30),
+                    Data = new { paymentId = payment.Id, reference = payment.Reference, amountMinorUnits = payment.AmountMinorUnits, currency = payment.Currency, status = PaymentStatus.Failed },
+                },
+                TimeSpan.FromMilliseconds(200));
+        }
     }
 
     public void Refunded(Refund refund)
