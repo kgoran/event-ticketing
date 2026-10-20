@@ -418,3 +418,6 @@ Scaling Lab ──rate, mix──► LoadGenerator ──HTTP at set rate──�
 - What scales on which signal: [0019](../adr/0019-autoscaling-signals.md). Presets demonstrate a
   load step, an on-sale spike, scale-in, a slow database, read-replica scaling, a payment burst,
   and failures under load.
+- **Built so far (D20):** the generator, the slider, live tiles and charts and the first presets,
+  under Aspire at http://localhost:5300 ([runbook](../demos/scaling-lab.md)). The pod list,
+  Prometheus, Toxiproxy and autoscaling come with Kubernetes (M2–M5).

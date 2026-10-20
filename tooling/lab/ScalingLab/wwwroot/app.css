@@ -1,0 +1,172 @@
+/* The Scaling Lab: one plain stylesheet, no CSS framework. Chart colours are validated for colour
+   vision deficiencies against these surfaces (lines are also labelled at their ends, and a table
+   view exists), so change them as a set. */
+
+:root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --accent: #2a78d6;
+    --bar: #1c1917;
+
+    /* Series: what was offered (a reference line) and what was achieved. */
+    --offered: #52514e;
+    --achieved: #2a78d6;
+    /* Outcomes. */
+    --ok: #1baf7a;
+    --refused: #6250d6;
+    --failed: #d03b3b;
+    /* Latency percentiles: one hue, light to dark. */
+    --p50: #86b6ef;
+    --p95: #2a78d6;
+    --p99: #104281;
+    /* Status (always with an icon and words). */
+    --good: #0ca30c;
+    --good-ink: #006300;
+    --warning: #fab219;
+    --critical: #d03b3b;
+
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: var(--page);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+        color-scheme: dark;
+        --page: #0d0d0d;
+        --surface: #1a1a19;
+        --ink: #f0efec;
+        --ink-2: #c3c2b7;
+        --grid: #2c2c2a;
+        --axis: #383835;
+        --border: rgba(255, 255, 255, 0.10);
+        --accent: #3987e5;
+        --bar: #000000;
+        --offered: #c3c2b7;
+        --achieved: #3987e5;
+        --ok: #199e70;
+        --refused: #9085e9;
+        --p50: #184f95;
+        --p95: #3987e5;
+        --p99: #9ec5f4;
+        --good-ink: #0ca30c;
+    }
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; background: var(--page); }
+
+h1 { font-size: 1.7rem; margin: 0 0 0.3rem; outline: none; }
+code { font-size: 0.9em; }
+.muted { color: var(--ink-2); }
+.small { font-size: 0.85rem; }
+
+.topbar { background: var(--bar); color: #fff; }
+.topbar-inner { max-width: 1440px; margin: 0 auto; padding: 0.7rem 1rem; display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.brand { font-weight: 700; letter-spacing: 0.02em; }
+.topbar-note { color: #c3c2b7; font-size: 0.9rem; }
+
+.page { width: 100%; max-width: 1440px; margin: 0 auto; padding: 1rem; flex: 1; display: flex; flex-direction: column; gap: 1rem; }
+.intro p { margin: 0; max-width: 70rem; }
+.footer { color: var(--ink-2); font-size: 0.85rem; text-align: center; padding: 1.25rem 1rem; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1rem; }
+
+.alert { padding: 0.7rem 1rem; border-radius: 0.5rem; }
+.alert.error { background: color-mix(in srgb, var(--critical) 10%, var(--surface)); border: 1px solid var(--critical); }
+
+/* Controls */
+
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem 1.5rem; align-items: start; }
+.control { display: grid; gap: 0.35rem; }
+.control label, .presets-label { font-weight: 600; }
+.control output { font-size: 0.95rem; }
+.control input[type="range"] { width: 100%; accent-color: var(--accent); }
+select { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--axis); border-radius: 0.5rem; background: var(--surface); color: var(--ink); }
+
+.presets { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.button {
+    border: 1px solid var(--axis); background: var(--surface); color: var(--ink);
+    padding: 0.4rem 0.9rem; border-radius: 0.5rem; font: inherit; cursor: pointer;
+}
+.button:hover { border-color: var(--ink-2); }
+.button.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.button.stop { font-weight: 600; }
+.running { color: var(--ink-2); }
+
+/* Tiles */
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: 0.75rem; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 0.75rem 0.9rem; display: grid; gap: 0.2rem; }
+.tile.critical { border-color: var(--critical); box-shadow: inset 4px 0 0 var(--critical); }
+.tile.warning { border-color: var(--warning); box-shadow: inset 4px 0 0 var(--warning); }
+.tile-label { color: var(--ink-2); font-size: 0.85rem; font-weight: 600; }
+.tile-value { font-size: 1.8rem; font-weight: 650; line-height: 1.1; }
+.tile-unit { font-size: 0.85rem; font-weight: 400; color: var(--ink-2); }
+.tile-note { font-size: 0.8rem; color: var(--ink-2); }
+.status-icon { font-weight: 700; margin-right: 0.2rem; }
+.tile.good .status-icon { color: var(--good-ink); }
+.tile.warning .status-icon { color: var(--ink); }
+.tile.critical .status-icon { color: var(--critical); }
+
+/* Charts */
+
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 34rem), 1fr)); gap: 0.75rem; }
+.chart { margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 0.75rem 0.75rem 0.25rem; }
+.chart figcaption, .places figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; margin-bottom: 0.25rem; }
+.chart-title { font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.25rem 0.9rem; color: var(--ink-2); font-size: 0.85rem; }
+.legend-item { display: inline-flex; align-items: center; gap: 0.35rem; }
+.plot { display: block; width: 100%; height: auto; overflow: visible; }
+.plot .grid { stroke: var(--grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.plot .baseline { stroke: var(--axis); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.plot .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.plot .end-label { fill: var(--ink-2); font-size: 12px; font-weight: 600; }
+
+.places { margin: 0; }
+.meters { list-style: none; margin: 0.5rem 0; padding: 0; display: grid; gap: 0.5rem; }
+.meters li { display: grid; grid-template-columns: 4rem 1fr auto; gap: 0.75rem; align-items: center; }
+.meter-label { font-weight: 600; }
+.meter { display: block; height: 0.6rem; border-radius: 999px; background: var(--grid); overflow: hidden; }
+.meter-fill { display: block; height: 100%; border-radius: 999px; background: var(--achieved); }
+.meter-value { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 0.9rem; }
+
+/* Hover layer (lab.js) */
+
+.crosshair { position: fixed; width: 1px; background: var(--ink-2); pointer-events: none; z-index: 10; }
+.chart-tooltip {
+    position: fixed; z-index: 11; pointer-events: none; background: var(--surface); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.45rem 0.6rem; font-size: 0.85rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); min-width: 9rem;
+}
+.chart-tooltip .when { color: var(--ink-2); margin-bottom: 0.2rem; }
+.chart-tooltip .row { display: grid; grid-template-columns: 0.8rem 1fr auto; gap: 0.4rem; align-items: center; }
+.chart-tooltip .swatch { height: 2px; }
+.chart-tooltip .swatch.dashed { background: repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 5px) !important; }
+.chart-tooltip .value { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* Table view */
+
+.table-view summary { cursor: pointer; font-weight: 600; }
+.table-view table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+.table-view th, .table-view td { text-align: right; padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--grid); }
+.table-view th:first-child, .table-view td:first-child { text-align: left; }
+.table-view { overflow-x: auto; }
+
+#blazor-error-ui {
+    display: none; position: fixed; bottom: 0; left: 0; width: 100%; padding: 0.6rem 1.25rem;
+    background: #fef3c7; color: #0b0b0b; box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2); z-index: 1000;
+}
+#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 0.75rem; top: 0.5rem; }
+
+@media (max-width: 40rem) {
+    .tile-value { font-size: 1.5rem; }
+}

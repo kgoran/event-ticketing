@@ -26,7 +26,7 @@ presenter.
 | LocalPay: a timeout or HTTP 500 when creating a payment; webhooks out of order | Rate limits, sampled latencies, payment listing (M4) |
 | A per-fan ticket limit per event (default 8) | — |
 | Organizers keeps Keycloak's group membership in step (cut first if time runs short) | — |
-| — | The back-office UI; the Scaling Lab (M2) |
+| — | The back-office UI; the Scaling Lab (M2; its basics were built right after M1b, D20) |
 
 ## Order of work
 

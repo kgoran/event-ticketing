@@ -39,9 +39,14 @@ test mode: `docs/payments.md`), LocalPay's create-failure, slow-create and stale
 the per-fan ticket limit, Organizers keeping Keycloak's groups in step, T2 with tickets. Runbook
 `docs/demos/m1b.md` (offline, one presenter); dry run `DemoM1bDryRunTests`.
 
-**Next: the Scaling Lab, brought forward (D20, 2026-10-20):** the load generator, the
-requests-per-second slider and live counters, under Aspire; autoscaling and the pod list wait for
-Kubernetes in M2 (ADR-0016, ADR-0017).
+**The Scaling Lab's basics are built (D20, brought forward from M2; ADR-0017 update):**
+`tooling/lab/LoadGenerator` (open-model load on PublicApi: browsing and hold-and-release by lab fans
+lab01–lab20, offered versus achieved, outcomes, p99 per kind, 1 in 20 requests traced) and
+`tooling/lab/ScalingLab` (Blazor Server at http://localhost:5300: slider, tiles, charts, presets),
+both started by the AppHost. Runbook `docs/demos/scaling-lab.md`; system test `ScalingLabTests`.
+Kubernetes, the pod list, Prometheus, Toxiproxy and autoscaling wait for M2–M5.
+
+**Next: plan M2** (containers, the lab cluster, the deployment pipeline); not started.
 
 ## Commands
 

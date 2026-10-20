@@ -55,6 +55,14 @@ POST /orders                                       (ASP.NET Core)
 All tag names start with `eventticketing.` (shortened in the table). Tags only take values from
 small, fixed sets: never IDs, user names or amounts.
 
+## Under load: sampling
+
+The Scaling Lab's load generator traces 1 in 20 of its requests and passes the decision on in
+`traceparent`. The product's hosts sample parent-based (OpenTelemetry's default), so they record
+the same 1 in 20: the dashboard keeps a representative sample instead of hundreds of traces a
+second. Metrics are not sampled; they count every request. A request from a fan or a test has no
+sampled-out parent, so it is always traced.
+
 ## Seeing it
 
 Start the AppHost and open the dashboard: **Traces** shows a purchase as one trace (filter by

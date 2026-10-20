@@ -37,7 +37,7 @@ public sealed class RunningApp : IAsyncLifetime
             throw new InvalidOperationException($"The Migrator exited with code {migrator.Snapshot.ExitCode}.");
         }
 
-        foreach (var resource in new[] { "postgres", "keycloak", "localpay", "publicapi", "backofficeapi", "webhookingress", "workers", "fansite", "mailpit" })
+        foreach (var resource in new[] { "postgres", "keycloak", "localpay", "publicapi", "backofficeapi", "webhookingress", "workers", "fansite", "mailpit", "loadgenerator", "scalinglab" })
         {
             await _app.ResourceNotifications.WaitForResourceHealthyAsync(resource, cancellationToken);
         }

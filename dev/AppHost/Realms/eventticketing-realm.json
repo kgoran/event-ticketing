@@ -239,6 +239,206 @@
       "realmRoles": ["default-roles-eventticketing"]
     },
     {
+      "username": "lab01",
+      "email": "lab01@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 1",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab01", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab02",
+      "email": "lab02@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 2",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab02", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab03",
+      "email": "lab03@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 3",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab03", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab04",
+      "email": "lab04@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 4",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab04", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab05",
+      "email": "lab05@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 5",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab05", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab06",
+      "email": "lab06@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 6",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab06", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab07",
+      "email": "lab07@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 7",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab07", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab08",
+      "email": "lab08@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 8",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab08", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab09",
+      "email": "lab09@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 9",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab09", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab10",
+      "email": "lab10@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 10",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab10", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab11",
+      "email": "lab11@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 11",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab11", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab12",
+      "email": "lab12@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 12",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab12", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab13",
+      "email": "lab13@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 13",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab13", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab14",
+      "email": "lab14@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 14",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab14", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab15",
+      "email": "lab15@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 15",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab15", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab16",
+      "email": "lab16@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 16",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab16", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab17",
+      "email": "lab17@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 17",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab17", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab18",
+      "email": "lab18@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 18",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab18", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab19",
+      "email": "lab19@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 19",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab19", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "lab20",
+      "email": "lab20@example.test",
+      "firstName": "Lab",
+      "lastName": "Fan 20",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "lab20", "temporary": false }],
+      "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
       "username": "service-account-eventticketing-organizers",
       "enabled": true,
       "serviceAccountClientId": "eventticketing-organizers",

@@ -30,6 +30,8 @@
   <Project Path="../product/tests/Shared.IntegrationTests/Shared.IntegrationTests.csproj" />
   <Project Path="../product/tests/Shared.UnitTests/Shared.UnitTests.csproj" />
   <Project Path="../product/tests/Testing/Testing.csproj" />
+  <Project Path="../tooling/lab/LoadGenerator/LoadGenerator.csproj" />
+  <Project Path="../tooling/lab/ScalingLab/ScalingLab.csproj" />
   <Project Path="../tooling/simulators/LocalPay/LocalPay.csproj" />
   <Project Path="AppHost.Tests/AppHost.Tests.csproj" />
   <Project Path="AppHost/AppHost.csproj" />
