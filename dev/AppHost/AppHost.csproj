@@ -7,6 +7,8 @@
          Directory.Packages.props) instead of an installed Aspire CLI, so the AppHost runs the same
          on every laptop and in CI. -->
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+    <!-- Only for optional Stripe test keys (ADR-0050); nothing else is a user secret. -->
+    <UserSecretsId>eventticketing-dev-apphost</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

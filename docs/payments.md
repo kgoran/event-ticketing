@@ -61,6 +61,33 @@ document, not its code.
 - **Headless mode for load tests:** approves payments automatically after a random delay,
   no browser involved.
 
+## Stripe
+
+The adapter (`Payments.Infrastructure/Providers/StripeProvider.cs`) uses Stripe's own library:
+a payment is a Checkout Session, our order ID is its client reference and the idempotency key, and
+the session is expired at the checkout deadline. It is contract-tested against `stripe-mock`
+without a Stripe account ([ADR-0050](adr/0050-stripe-adapter-without-an-account.md)); the demo and
+the system tests use LocalPay only.
+
+**Turning on Stripe's test mode** (a free account, no money moves):
+
+1. In the Stripe dashboard (test mode), allow only card and wallet payment methods: they settle at
+   once ([ADR-0010](adr/0010-hold-lifetimes-and-payment-expiry.md)).
+2. Give the AppHost the keys, which stay on your machine:
+   ```
+   dotnet user-secrets --project dev/AppHost set Stripe:SecretKey sk_test_...
+   stripe listen --print-secret                      # the signing secret for forwarded webhooks
+   dotnet user-secrets --project dev/AppHost set Stripe:WebhookSecret whsec_...
+   ```
+3. Forward Stripe's webhooks to WebhookIngress while the AppHost runs:
+   ```
+   stripe listen --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,refund.updated --forward-to http://localhost:5103/webhooks/stripe
+   ```
+4. Make Stripe the provider for new checkouts: `Payments__Provider=stripe` on PublicApi (LocalPay
+   stays the default; the fan choosing a provider comes later).
+
+Events Payments doesn't act on are acknowledged and ignored, so selecting more events does no harm.
+
 ## Keeping our database and the provider consistent
 
 A database transaction and a provider call can't be one atomic operation, and no transaction

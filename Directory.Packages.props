@@ -63,6 +63,8 @@
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />
     <!-- IANA time zones from its bundled TZDB, independent of the OS and of InvariantGlobalization. -->
     <PackageVersion Include="NodaTime" Version="3.3.5" />
+    <!-- Stripe's own .NET library for the Stripe adapter (ADR-0050). -->
+    <PackageVersion Include="Stripe.net" Version="53.0.0" />
     <!-- SMTP for Notifications (MIT, ADR-0052). -->
     <PackageVersion Include="MailKit" Version="4.18.1" />
     <!-- QR codes for tickets (MIT): the fan site draws them as SVG, Notifications as PNG for email. -->

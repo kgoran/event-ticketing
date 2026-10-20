@@ -105,6 +105,12 @@ internal sealed class ProcessPaymentWebhookHandler(
             return;
         }
 
+        if (webhook.Type == ProviderWebhookTypes.Ignored)
+        {
+            webhook.MarkProcessed(time.GetUtcNow());
+            return;
+        }
+
         var attempt = await FindAttemptAsync(webhook, cancellationToken);
 
         if (webhook.Type is ProviderWebhookTypes.RefundSucceeded or ProviderWebhookTypes.RefundFailed)

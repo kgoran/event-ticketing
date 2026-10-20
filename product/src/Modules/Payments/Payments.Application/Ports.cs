@@ -87,6 +87,12 @@ public static class ProviderWebhookTypes
     public const string PaymentFailed = "payment.failed";
     public const string RefundSucceeded = "refund.succeeded";
     public const string RefundFailed = "refund.failed";
+
+    /// <summary>
+    /// A genuine event Payments doesn't act on (e.g. Stripe's checkout.session.expired): acknowledged so
+    /// the provider stops sending it, stored for the record, and otherwise left alone.
+    /// </summary>
+    public const string Ignored = "ignored";
 }
 
 public interface IPaymentAttemptRepository
