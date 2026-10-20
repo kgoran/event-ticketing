@@ -102,3 +102,27 @@ Content-Type: application/json
 ### Publish: Inventory and Orders build their copies from EventPublished
 POST {{backOffice}}/events/{{event.response.body.$.eventId}}/publish
 Authorization: Bearer {{olga.response.body.$.access_token}}
+
+### M1b: membership in Keycloak follows Organizers (ADR-0027). Sign in as ben, a fan
+# @name ben
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=ben&password=ben
+
+### Who ben is: his userId (the token's subject) and, so far, no organizers
+# @name benMe
+GET {{backOffice}}/me
+Authorization: Bearer {{ben.response.body.$.access_token}}
+
+### adam adds ben to the demo organizer; Workers puts him in its Keycloak group a moment later.
+# Then run "Sign in as ben" and "Who ben is" again: organizerIds now holds the demo organizer.
+POST {{backOffice}}/organizers/{{organizerId}}/members
+Authorization: Bearer {{adam.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "userId": "{{benMe.response.body.$.userId}}", "displayName": "Ben" }
+
+### Take ben out again; after signing in again, his token no longer carries the organizer
+DELETE {{backOffice}}/organizers/{{organizerId}}/members/{{benMe.response.body.$.userId}}
+Authorization: Bearer {{adam.response.body.$.access_token}}
