@@ -50,12 +50,30 @@ app.MapGet("/", () => "LocalPay payment simulator. The API is described at /open
 
 var payments = app.MapGroup("/v1/payments").WithTags("Payments");
 
-payments.MapPost("/", (CreatePayment request, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey, PaymentStore store, HeadlessPayer headless, HttpRequest http) =>
+payments.MapPost("/", async Task<Results<Created<PaymentResponse>, ProblemHttpResult>> (
+        CreatePayment request,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        PaymentStore store,
+        HeadlessPayer headless,
+        IOptions<ScenarioOptions> scenarios,
+        HttpRequest http) =>
     {
+        // Scenario .06: fail before creating anything; the retry with the same key succeeds.
+        if (store.FailsThisTime(request, idempotencyKey))
+        {
+            return TypedResults.Problem("LocalPay had an internal error. Try again with the same Idempotency-Key.", statusCode: StatusCodes.Status500InternalServerError);
+        }
+
         var (payment, created) = store.Create(request, idempotencyKey, $"{http.Scheme}://{http.Host}");
         if (created)
         {
             headless.PayLater(payment);
+
+            // Scenario .07: the payment exists, but this answer comes after the shop gave up waiting.
+            if (payment.Scenario == Scenario.CreateTimesOut)
+            {
+                await Task.Delay(scenarios.Value.CreateDelay, http.HttpContext.RequestAborted);
+            }
         }
 
         return TypedResults.Created($"/v1/payments/{payment.Id}", payment.ToResponse());

@@ -91,6 +91,21 @@ public sealed class PaymentStore(TimeProvider time)
     private readonly ConcurrentDictionary<string, Refund> _refunds = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _idempotencyKeys = new(StringComparer.Ordinal);
 
+    private readonly ConcurrentDictionary<string, bool> _failedOnce = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Whether this create request should fail (the .06 scenario): only the first request with its
+    /// Idempotency-Key does. Without a key a retry can't be recognised, so nothing fails.
+    /// </summary>
+    public bool FailsThisTime(CreatePayment request, string? idempotencyKey)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return Scenarios.For(request.AmountMinorUnits) == Scenario.CreateFailsOnce
+            && !string.IsNullOrEmpty(idempotencyKey)
+            && _failedOnce.TryAdd(idempotencyKey, true);
+    }
+
     /// <returns>The payment, and whether this request created it (false for a repeated key).</returns>
     public (Payment Payment, bool Created) Create(CreatePayment request, string? idempotencyKey, string baseUrl)
     {

@@ -25,6 +25,7 @@ internal sealed class LocalPayUnderTest : IAsyncDisposable
             host.UseSetting("Webhooks:Secret", Secret);
             host.UseSetting("Webhooks:RetryDelay", "00:00:00.050");
             host.UseSetting("Scenarios:WebhookDelay", "00:00:01");
+            host.UseSetting("Scenarios:CreateDelay", "00:00:02");
             host.UseSetting("Headless:Enabled", headless ? "true" : "false");
             host.UseSetting("Headless:MinDelay", "00:00:00.050");
             host.UseSetting("Headless:MaxDelay", "00:00:00.100");
@@ -65,6 +66,17 @@ internal sealed class LocalPayUnderTest : IAsyncDisposable
         var response = await Api.SendAsync(request, Ct);
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<PaymentResponse>(Ct))!;
+    }
+
+    /// <summary>POST /v1/payments without judging the answer, for the scenarios that misbehave on create.</summary>
+    public async Task<HttpResponseMessage> CreateRawAsync(long amountMinorUnits, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/payments")
+        {
+            Content = JsonContent.Create(new CreatePayment("order-raw", amountMinorUnits, "EUR", "http://shop.test/orders/1", DateTimeOffset.UtcNow.AddMinutes(30))),
+        };
+        request.Headers.Add("Idempotency-Key", idempotencyKey);
+        return await Api.SendAsync(request, cancellationToken);
     }
 
     public async Task<PaymentResponse> StatusAsync(string paymentId) =>
@@ -132,4 +144,6 @@ internal sealed record ReceivedWebhook(string Body, string Signature)
     public string Type => Json.GetProperty("type").GetString()!;
 
     public JsonElement Data => Json.GetProperty("data");
+
+    public DateTimeOffset Created => Json.GetProperty("created").GetDateTimeOffset();
 }

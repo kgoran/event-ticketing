@@ -48,3 +48,18 @@ LocalPay's published API document, not its code ([0021](0021-product-tooling-pla
   25.03 make 50.06, which is no scenario.
 - Product tests can't use LocalPay itself; they fake its published API at the HTTP level
   ([0048](0048-test-layers-and-demo-dry-run.md)).
+
+## Updates
+
+- **2026-10-20 (M1b L2):** Three more scenarios, so the product's retries and out-of-order
+  handling can be shown against LocalPay itself, not only against the tests' fake:
+
+  | Ends in | LocalPay |
+  |---|---|
+  | .06 | the first create with an Idempotency-Key fails with HTTP 500 and creates nothing; the retry succeeds |
+  | .07 | the payment is created, but the answer comes after 15 s (`Scenarios:CreateDelay`), past the caller's timeout; the retry with the same key gets it at once |
+  | .08 | after `payment.succeeded`, a stale `payment.failed` (a new event ID, dated 30 s earlier) |
+
+  Rate limits, sampled latencies and payment listing stay in M4 (D15). The seeder's "Failure
+  Scenarios" event prices rows 11–20 of B, C and D for .07, .08 and .06.
+

@@ -250,6 +250,55 @@ public sealed class LocalPayTests
     }
 
     [Fact]
+    public async Task Scenario_06_fails_the_first_create_and_a_retry_with_the_same_key_creates_one_payment()
+    {
+        await using var localPay = new LocalPayUnderTest();
+
+        (await localPay.CreateRawAsync(2506, "order-6", Ct)).StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+
+        var retried = await localPay.CreateAsync(2506, idempotencyKey: "order-6");
+        var again = await localPay.CreateAsync(2506, idempotencyKey: "order-6");
+        again.Id.Should().Be(retried.Id);
+        retried.Status.Should().Be("requires_payment");
+    }
+
+    [Fact]
+    public async Task Scenario_07_creates_the_payment_but_answers_too_late_and_a_retry_gets_it_at_once()
+    {
+        await using var localPay = new LocalPayUnderTest();
+
+        // The shop gives up waiting (the answer takes 2 s in these tests)...
+        using (var impatient = CancellationTokenSource.CreateLinkedTokenSource(Ct))
+        {
+            impatient.CancelAfter(TimeSpan.FromMilliseconds(300));
+            await FluentActions.Awaiting(() => localPay.CreateRawAsync(2507, "order-7", impatient.Token))
+                .Should().ThrowAsync<OperationCanceledException>();
+        }
+
+        // ...but the payment exists: the retry with the same key gets it without waiting.
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        var retried = await localPay.CreateAsync(2507, idempotencyKey: "order-7");
+        started.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1));
+        retried.Status.Should().Be("requires_payment");
+    }
+
+    [Fact]
+    public async Task Scenario_08_follows_the_success_with_a_stale_failure_dated_before_it()
+    {
+        await using var localPay = new LocalPayUnderTest();
+        var payment = await localPay.CreateAsync(2508);
+
+        await localPay.ApproveAsync(payment.Id);
+
+        var webhooks = await localPay.Shop.WaitForAsync(2);
+        webhooks.Select(webhook => webhook.Type).Should().Equal("payment.succeeded", "payment.failed");
+        webhooks[1].Id.Should().NotBe(webhooks[0].Id, "a different event, not a duplicate");
+        webhooks[1].Created.Should().BeBefore(webhooks[0].Created);
+        webhooks.Should().OnlyContain(webhook => IsSignedCorrectly(webhook));
+        (await localPay.StatusAsync(payment.Id)).Status.Should().Be("succeeded", "the stale event changes nothing at LocalPay");
+    }
+
+    [Fact]
     public async Task Headless_mode_pays_without_a_browser()
     {
         await using var localPay = new LocalPayUnderTest(headless: true);
