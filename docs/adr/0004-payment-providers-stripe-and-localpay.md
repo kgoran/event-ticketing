@@ -46,3 +46,9 @@ Checked against Stripe's documentation on 2026-10-18:
   To the product it is an external provider like Stripe: the product's adapter is written
   against LocalPay's published API document, not its code.
 - No real money is involved anywhere.
+
+## Updates
+
+- **2026-10-20 (M1b):** The Stripe adapter is built and contract-tested against `stripe-mock`
+  without a Stripe account; Stripe stays off unless keys are configured, and the demo uses
+  LocalPay only ([0050](0050-stripe-adapter-without-an-account.md)).

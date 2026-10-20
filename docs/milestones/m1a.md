@@ -1,6 +1,6 @@
 # M1a: modular monolith with the core purchase flow
 
-- **Status:** Agreed 2026-10-18. The time-box is set at kickoff.
+- **Status:** Done (closed 2026-10-20; the time-box was never set). Next: [M1b](m1b.md).
 - **Related:** [ADR-0016](../adr/0016-teaching-milestones.md) (milestones), [architecture overview](../architecture/overview.md)
 
 ## Goal

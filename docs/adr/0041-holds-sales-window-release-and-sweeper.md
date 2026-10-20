@@ -64,3 +64,10 @@ and a sweeper that "only tidies up". Building Inventory (M1a I1, I2) needed the 
   Module tests run the sweeper only on demand for this reason.
 - Holds that expired before checkout stay Active in the table until the fan's next hold or the
   next sweep; nothing depends on that column being current.
+
+## Updates
+
+- **2026-10-20 (M1b I3):** The per-fan ticket limit per event ([0024](0024-domain-scope-m1-m6.md),
+  default 8) is enforced when a fan holds places: the places already sold to the fan for the
+  event, plus the new hold, may not exceed it. One active hold per fan per event keeps two holds
+  from passing the check together.

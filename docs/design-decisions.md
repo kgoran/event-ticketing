@@ -349,3 +349,24 @@ Kept here as the record: S2-c, S2-e, S2-f (superseded by O2-a), C1-f, P2-a, Q4-c
 | Q4-b | Q4 | The dry run is automated: `DemoDryRunTests`, `DemoHoldExpiryTests` and `DemoCheckoutDeadlineTests` walk the demo script against the real AppHost on every PR (the timed classes run in parallel, about 3 minutes). The `.http` path was also replayed by hand on `dotnet run` | "A dry run passes" stays true, not a one-off. The dry run found two bugs the module tests couldn't (below) |
 | Q4-c | Q4 | **Fixed:** Workers had no reference to LocalPay, so deadline cancellations, status checks and refunds failed in the running app (module tests fake LocalPay for every host). Keycloak was served over HTTPS on `dotnet run` (not in tests), breaking `http://localhost:8180` in the `.http` files and the seeder; it now stays plain HTTP (`WithoutHttpsCertificate`, an experimental Aspire API, warning ASPIRECERTIFICATES001 suppressed at that call) | Found by the dry run |
 | Q4-d | Q4 | The realm gets four more fans (cid, dan, eva, fil); the seeder also creates "Failure Scenarios", priced so one seat's amount picks each LocalPay scenario. Runbook: `docs/demos/m1a.md` | One hold per fan per event needs more fans for parallel demo steps; scenarios are triggered by prices (L1-a) |
+
+## 15. M1b planning — Agreed 2026-10-20
+
+Decisions D7–D19 (D1–D6 were the fan site and keeping the Scaling Lab in M2, 2026-10-19). The plan:
+[M1b](milestones/m1b.md).
+
+| # | Decision | Recorded in |
+|---|---|---|
+| D7 | Build the Stripe adapter without an account: `stripe-mock` in CI, signature tests with our own signed payloads; Stripe off unless configured | [0050](adr/0050-stripe-adapter-without-an-account.md) |
+| D8 | A setting picks the provider; the fan chooses only when more than one is enabled | [0050](adr/0050-stripe-adapter-without-an-account.md) |
+| D9 | QR codes are JWS signed with ES256 (ticket, event, version, key ID) | [0051](adr/0051-signed-tickets-and-their-keys.md) |
+| D10 | A key pair per event; private keys stored under envelope encryption with a master key from secrets | [0051](adr/0051-signed-tickets-and-their-keys.md) |
+| D11 | No PDF tickets until M4; QR codes in "My tickets" and in the email | [0051](adr/0051-signed-tickets-and-their-keys.md) |
+| D12 | Email through MailKit to Mailpit, Razor templates, a delivery log | [0052](adr/0052-email-through-mailpit.md) |
+| D13 | Buyer email and event name added to version 1 of the order events | [0007](adr/0007-module-communication.md) (update) |
+| D14 | Organizers keeping Keycloak in step stays in M1b, cut first | [M1b](milestones/m1b.md) |
+| D15 | LocalPay in M1b: create timeouts and 500s, webhooks out of order; the rest in M4 | [M1b](milestones/m1b.md) |
+| D16 | The per-fan ticket limit is enforced by Inventory at hold time | [0041](adr/0041-holds-sales-window-release-and-sweeper.md) (update) |
+| D17 | Not in M1b: the back-office UI, ticket revocation, CheckIn, the Scaling Lab | [M1b](milestones/m1b.md) |
+| D18 | Team of five; M1b time-boxed to three weeks; M1a closed as done | [0016](adr/0016-teaching-milestones.md) (update) |
+| D19 | The demo runs on one laptop, offline, with one presenter | [0016](adr/0016-teaching-milestones.md) (update), [M1b](milestones/m1b.md) |

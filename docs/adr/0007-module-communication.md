@@ -64,3 +64,6 @@ Organizer membership travels in the login token, so checking it needs no call to
   in this codebase "event" means a ticketed event, and `EventId` always refers to one. The module
   APIs exist as `IInventoryApi` and `IPaymentsApi`, each implemented in-process by running the
   module's own commands through the pipeline.
+- **2026-10-20 (M1b O3):** `OrderConfirmed` and `OrderRefunded` gain the buyer's email and the
+  event name, as rule 2 above requires. The fields are added to version 1: the change only adds
+  fields, and nothing consumed those events yet. A field removed or changed would need a new version.

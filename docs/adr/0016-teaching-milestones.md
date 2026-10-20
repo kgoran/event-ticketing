@@ -58,3 +58,6 @@ Also part of the plan:
 - **2026-10-18:** Single refunds (the seats-lost case) are in M1a, so that T2's "every paid order
   ends Confirmed or Refunded" holds from M1; mass, rate-limited refunds stay in M4. Detailed
   plan: [M1a](../milestones/m1a.md).
+- **2026-10-20:** M1a is closed as done (its time-box was never set; the backlog is built). The team
+  is five people. M1b is time-boxed to three weeks, in five streams: [M1b](../milestones/m1b.md).
+  The demo is presented by one person on one laptop, without internet (D19).
