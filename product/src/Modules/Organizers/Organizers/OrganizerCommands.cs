@@ -1,9 +1,11 @@
 using EventTicketing.Organizers.Contracts;
+using EventTicketing.Organizers.Identity;
 using EventTicketing.Organizers.Persistence;
 using EventTicketing.Shared.Application.Authorization;
 using EventTicketing.Shared.Application.Commands;
 using EventTicketing.Shared.Application.Context;
 using EventTicketing.Shared.Application.Messaging;
+using EventTicketing.Shared.Application.Scheduling;
 using EventTicketing.Shared.Domain;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
@@ -14,8 +16,8 @@ namespace EventTicketing.Organizers;
 /// An admin registers an organizer. Also the request body of POST /organizers.
 /// </summary>
 /// <param name="OrganizerId">
-/// Optional: the ID of a group that already exists in Keycloak, so the realm's organizer and this
-/// record match. Until M1b creates Keycloak groups from here, that's how an organizer gets members.
+/// Optional: the ID of a group that already exists in Keycloak, so the realm's seeded organizer and
+/// this record match. Otherwise a new ID, and its group is created in Keycloak (M1b G2).
 /// </param>
 public sealed record CreateOrganizer(string Name, Guid? OrganizerId = null) : ICommand<Guid>;
 
@@ -33,7 +35,7 @@ internal sealed class CreateOrganizerAuthorizer : RoleAuthorizer<CreateOrganizer
     protected override string Role => Roles.Admin;
 }
 
-internal sealed class CreateOrganizerHandler(OrganizersDbContext db, IIntegrationEventPublisher events, TimeProvider time)
+internal sealed class CreateOrganizerHandler(OrganizersDbContext db, IIntegrationEventPublisher events, IMessageScheduler scheduler, TimeProvider time)
     : ICommandHandler<CreateOrganizer, Guid>
 {
     public async Task<Result<Guid>> HandleAsync(CreateOrganizer command, CancellationToken cancellationToken)
@@ -48,6 +50,7 @@ internal sealed class CreateOrganizerHandler(OrganizersDbContext db, IIntegratio
         var organizer = Organizer.Create(id, command.Name, now);
         db.Organizers.Add(organizer);
         events.Publish(new OrganizerCreated(Guid.CreateVersion7(), now, organizer.Id, organizer.Name));
+        scheduler.Schedule(new SyncOrganizerGroup(organizer.Id), now);
         return organizer.Id;
     }
 }
@@ -91,7 +94,7 @@ internal sealed class RemoveMemberAuthorizer : MemberOrAdminAuthorizer<RemoveMem
     protected override Guid OrganizerIdOf(RemoveMember command) => command.OrganizerId;
 }
 
-internal sealed class AddMemberHandler(OrganizersDbContext db, TimeProvider time) : ICommandHandler<AddMember, Unit>
+internal sealed class AddMemberHandler(OrganizersDbContext db, IMessageScheduler scheduler, TimeProvider time) : ICommandHandler<AddMember, Unit>
 {
     public async Task<Result<Unit>> HandleAsync(AddMember command, CancellationToken cancellationToken)
     {
@@ -101,12 +104,20 @@ internal sealed class AddMemberHandler(OrganizersDbContext db, TimeProvider time
             return Error.NotFound("organizer.not_found", "The organizer does not exist.");
         }
 
-        var added = organizer.AddMember(command.UserId, command.DisplayName, time.GetUtcNow());
-        return added.IsSuccess ? Unit.Value : added.Error;
+        var now = time.GetUtcNow();
+        var added = organizer.AddMember(command.UserId, command.DisplayName, now);
+        if (added.IsFailure)
+        {
+            return added.Error;
+        }
+
+        // Keycloak is kept in step afterwards, from this transaction's scheduled message (ADR-0027).
+        scheduler.Schedule(new SyncMembership(organizer.Id, command.UserId), now);
+        return Unit.Value;
     }
 }
 
-internal sealed class RemoveMemberHandler(OrganizersDbContext db) : ICommandHandler<RemoveMember, Unit>
+internal sealed class RemoveMemberHandler(OrganizersDbContext db, IMessageScheduler scheduler, TimeProvider time) : ICommandHandler<RemoveMember, Unit>
 {
     public async Task<Result<Unit>> HandleAsync(RemoveMember command, CancellationToken cancellationToken)
     {
@@ -117,6 +128,12 @@ internal sealed class RemoveMemberHandler(OrganizersDbContext db) : ICommandHand
         }
 
         var removed = organizer.RemoveMember(command.UserId);
-        return removed.IsSuccess ? Unit.Value : removed.Error;
+        if (removed.IsFailure)
+        {
+            return removed.Error;
+        }
+
+        scheduler.Schedule(new SyncMembership(organizer.Id, command.UserId), time.GetUtcNow());
+        return Unit.Value;
     }
 }

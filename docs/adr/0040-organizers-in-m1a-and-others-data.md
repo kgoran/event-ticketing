@@ -45,3 +45,8 @@ or order.
 - In M1a, an organizer's members are configured in the realm file; the member list in the
   database is a record next to it.
 - The rule above applies to every module; tests check it per endpoint.
+
+## Updates
+
+- **2026-10-20 (M1b G2):** Adding a member now grants access at their next sign-in: Organizers keeps
+  Keycloak's group membership in step ([0027](0027-identity-provider-keycloak.md), update).

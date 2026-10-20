@@ -66,3 +66,10 @@
   M1b. Access tokens carry the audience `eventticketing-api`. The development realm has a public
   client `eventticketing-dev` with the password grant, for `.http` files, the seeder and system tests
   only, and the test users ana, ben (fans), olga (organizer) and adam (admin).
+- **2026-10-20 (built in M1b G2):** Organizers keeps Keycloak in step through the
+  `IIdentityDirectory` port; the Keycloak adapter calls the admin REST API with a service account
+  (`eventticketing-organizers`, client credentials, only realm-management's manage-users, view-users,
+  query-users and query-groups; its secret generated per run). Registering an organizer creates its
+  group; adding or removing a member schedules a sync in the same transaction. The sync reconciles
+  rather than replays: it reads whether the user is a member now and makes Keycloak match, so it is
+  safe to repeat and order doesn't matter. Keycloak being down only delays it (scheduler backoff).
