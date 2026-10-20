@@ -95,6 +95,34 @@ public sealed class InventoryTests(TestSystem system)
     }
 
     [Fact]
+    public async Task A_fan_can_buy_at_most_eight_tickets_for_an_event_across_orders()
+    {
+        var sale = await system.OnSaleAsync(rows: 2, seatsPerRow: 10);
+        using var fan = system.PublicApi(Callers.Fan());
+
+        // Five seats bought and paid for...
+        var first = await (await fan.HoldAsync(sale.EventId, [.. sale.Seats.Take(5)])).PlacedAsync();
+        var checkout = await fan.CheckoutAsync(first.HoldId);
+        var payment = system.LocalPay.PaymentOf(checkout.OrderId);
+        system.LocalPay.Settle(payment, "succeeded");
+        await system.PostWebhookAsync(FakeLocalPay.Webhook("payment.succeeded", payment));
+        await system.DeliverMessagesAsync();
+        (await fan.OrderAsync(checkout.OrderId)).Status.Should().Be("Confirmed");
+
+        // ...leave room for three more, not four: picked seats or best available alike.
+        var tooMany = await fan.HoldAsync(sale.EventId, [.. sale.Seats.Skip(5).Take(4)]);
+        tooMany.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await tooMany.Content.ReadAsStringAsync(CancellationToken)).Should().Contain("hold.ticket_limit").And.Contain("you already have 5");
+        (await fan.HoldBestAsync(sale.EventId, "A", 4)).StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        await (await fan.HoldAsync(sale.EventId, [.. sale.Seats.Skip(5).Take(3)])).PlacedAsync();
+
+        // A refused hold took nothing: someone else can have those seats at once.
+        using var other = system.PublicApi(Callers.Fan());
+        await (await other.HoldAsync(sale.EventId, sale.Seats[8])).PlacedAsync();
+    }
+
+    [Fact]
     public async Task Best_available_takes_the_best_ranked_free_places_of_a_section()
     {
         var sale = await system.OnSaleAsync(withFloor: true);
