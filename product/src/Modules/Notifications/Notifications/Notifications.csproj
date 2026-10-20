@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <!-- Notifications: emails to fans, their templates and the delivery log (ADR-0006, ADR-0052).
+       A thin module with layers as folders (ADR-0026). It publishes nothing, so it has no
+       Contracts project. The Razor SDK compiles the email templates, which are components. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Orders\Orders.Contracts\Orders.Contracts.csproj" />
+    <ProjectReference Include="..\..\Ticketing\Ticketing.Contracts\Ticketing.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="NodaTime" />
+    <PackageReference Include="QRCoder" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="EventTicketing.Modules.IntegrationTests" />
+  </ItemGroup>
+</Project>

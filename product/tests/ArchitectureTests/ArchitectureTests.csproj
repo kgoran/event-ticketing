@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\src\Modules\Inventory\Inventory.Contracts\Inventory.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Inventory\Inventory.Domain\Inventory.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Notifications\Notifications\Notifications.csproj" />
     <ProjectReference Include="..\..\src\Modules\Orders\Orders.Application\Orders.Application.csproj" />
     <ProjectReference Include="..\..\src\Modules\Orders\Orders.Contracts\Orders.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Orders\Orders.Domain\Orders.Domain.csproj" />

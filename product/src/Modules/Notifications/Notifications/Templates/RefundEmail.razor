@@ -1,0 +1,13 @@
+<EmailFrame>
+    <h1 style="font-size: 22px; margin: 0 0 12px;">Your payment was refunded</h1>
+    <p style="margin: 0 0 12px;">@EmailFormats.RefundExplanation(Model.Reason)</p>
+    <p style="margin: 0;">
+        We refunded <strong>@EmailFormats.Money(Model.AmountMinorUnits, Model.Currency)</strong> for your order
+        for <strong>@Model.EventName</strong>. Depending on your bank, it shows on your statement within a few days.
+    </p>
+</EmailFrame>
+
+@code {
+    [Parameter, EditorRequired]
+    public RefundEmailModel Model { get; set; } = default!;
+}

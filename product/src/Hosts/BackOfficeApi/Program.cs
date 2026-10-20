@@ -1,5 +1,6 @@
 using EventTicketing.Catalog;
 using EventTicketing.Inventory.Infrastructure;
+using EventTicketing.Notifications;
 using EventTicketing.Orders.Infrastructure;
 using EventTicketing.Organizers;
 using EventTicketing.Payments.Infrastructure;
@@ -13,7 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddApiAuthentication();
-builder.AddModules(HostKind.BackOfficeApi, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule());
+builder.AddModules(HostKind.BackOfficeApi, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule());
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 
