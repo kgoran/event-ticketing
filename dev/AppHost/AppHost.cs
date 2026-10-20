@@ -9,6 +9,14 @@ IResourceBuilder<ProjectResource> WithTimings(IResourceBuilder<ProjectResource> 
     ? host.WithEnvironment("Inventory__HoldLifetime", "00:01:00").WithEnvironment("Checkout__PaymentDeadline", "00:02:00")
     : host;
 
+// Stripe is off unless test keys are in this AppHost's user secrets (ADR-0050, docs/payments.md):
+// then the hosts that talk to it get them. LocalPay stays the provider new checkouts use.
+var stripeKey = builder.Configuration["Stripe:SecretKey"];
+var stripeWebhookSecret = builder.Configuration["Stripe:WebhookSecret"];
+IResourceBuilder<ProjectResource> WithStripe(IResourceBuilder<ProjectResource> host) => string.IsNullOrWhiteSpace(stripeKey)
+    ? host
+    : host.WithEnvironment("Payments__Stripe__SecretKey", stripeKey).WithEnvironment("Payments__Stripe__WebhookSecret", stripeWebhookSecret ?? string.Empty);
+
 var postgres = builder.AddPostgres("postgres");
 var database = postgres.AddDatabase("eventticketing");
 
@@ -62,7 +70,7 @@ var migrator = builder.AddProject<Projects.Migrator>("migrator")
     .WithReference(database)
     .WaitFor(database);
 
-var webhookIngress = WithTimings(builder.AddProject<Projects.WebhookIngress>("webhookingress"))
+var webhookIngress = WithStripe(WithTimings(builder.AddProject<Projects.WebhookIngress>("webhookingress")))
     .WithReference(database)
     .WithEnvironment("Payments__LocalPay__WebhookSecret", webhookSecret)
     .WithHttpHealthCheck("/health")
@@ -74,7 +82,7 @@ var localPay = builder.AddProject<Projects.LocalPay>("localpay")
     .WithEnvironment("Checkout__ShopName", "FanSite")
     .WithHttpHealthCheck("/health");
 
-var publicApi = WithTimings(builder.AddProject<Projects.PublicApi>("publicapi"))
+var publicApi = WithStripe(WithTimings(builder.AddProject<Projects.PublicApi>("publicapi")))
     .WithReference(database)
     .WithReference(localPay)
     .WithEnvironment("Authentication__Authority", authority)
@@ -112,7 +120,7 @@ var backOfficeApi = WithTimings(builder.AddProject<Projects.BackOfficeApi>("back
     .WaitForCompletion(migrator);
 
 // Workers talks to LocalPay too: cancelling payments at the deadline, status checks, refunds.
-var workers = WithTimings(builder.AddProject<Projects.Workers>("workers"))
+var workers = WithStripe(WithTimings(builder.AddProject<Projects.Workers>("workers")))
     .WithReference(database)
     .WithReference(localPay)
     .WithEnvironment("Payments__LocalPay__BaseUrl", "http://localpay")

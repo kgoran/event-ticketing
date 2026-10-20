@@ -19,6 +19,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Stripe;
 
 namespace EventTicketing.Payments.Infrastructure;
 
@@ -48,6 +49,19 @@ public sealed class PaymentsModule : IModule
         builder.Services.AddHttpClient<LocalPayProvider>((services, client) =>
             client.BaseAddress = services.GetRequiredService<IOptions<LocalPayOptions>>().Value.BaseUrl);
         builder.Services.AddScoped<IPaymentProvider>(services => services.GetRequiredService<LocalPayProvider>());
+
+        // Stripe is offered only when a key is configured (ADR-0050); the demo and tests run without it.
+        var stripe = builder.Configuration.GetSection("Payments:Stripe");
+        builder.Services.Configure<StripeOptions>(stripe);
+        if (!string.IsNullOrWhiteSpace(stripe["SecretKey"]))
+        {
+            builder.Services.AddSingleton<IStripeClient>(services =>
+            {
+                var settings = services.GetRequiredService<IOptions<StripeOptions>>().Value;
+                return new StripeClient(settings.SecretKey, apiBase: settings.ApiBase);
+            });
+            builder.Services.AddScoped<IPaymentProvider, StripeProvider>();
+        }
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints, HostKind host)
