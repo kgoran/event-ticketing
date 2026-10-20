@@ -4,6 +4,7 @@ using EventTicketing.FanSite.PublicApi.Events;
 using EventTicketing.FanSite.PublicApi.Holds;
 using EventTicketing.FanSite.PublicApi.Me;
 using EventTicketing.FanSite.PublicApi.Orders;
+using EventTicketing.FanSite.PublicApi.Tickets;
 using Microsoft.Kiota.Abstractions.Extensions;
 using Microsoft.Kiota.Abstractions;
 using Microsoft.Kiota.Serialization.Form;
@@ -41,6 +42,11 @@ namespace EventTicketing.FanSite.PublicApi
         public global::EventTicketing.FanSite.PublicApi.Orders.OrdersRequestBuilder Orders
         {
             get => new global::EventTicketing.FanSite.PublicApi.Orders.OrdersRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The tickets property</summary>
+        public global::EventTicketing.FanSite.PublicApi.Tickets.TicketsRequestBuilder Tickets
+        {
+            get => new global::EventTicketing.FanSite.PublicApi.Tickets.TicketsRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>
         /// Instantiates a new <see cref="global::EventTicketing.FanSite.PublicApi.PublicApiClient"/> and sets the default values.

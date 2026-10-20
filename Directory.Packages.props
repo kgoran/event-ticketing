@@ -59,6 +59,8 @@
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />
     <!-- IANA time zones from its bundled TZDB, independent of the OS and of InvariantGlobalization. -->
     <PackageVersion Include="NodaTime" Version="3.3.5" />
+    <!-- QR codes for tickets (MIT): the fan site draws them as SVG, Notifications as PNG for email. -->
+    <PackageVersion Include="QRCoder" Version="1.8.0" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Scrutor" Version="7.0.0" />
   </ItemGroup>

@@ -4,6 +4,7 @@ using EventTicketing.Tooling.Clients.Public.Events;
 using EventTicketing.Tooling.Clients.Public.Holds;
 using EventTicketing.Tooling.Clients.Public.Me;
 using EventTicketing.Tooling.Clients.Public.Orders;
+using EventTicketing.Tooling.Clients.Public.Tickets;
 using Microsoft.Kiota.Abstractions.Extensions;
 using Microsoft.Kiota.Abstractions;
 using Microsoft.Kiota.Serialization.Form;
@@ -41,6 +42,11 @@ namespace EventTicketing.Tooling.Clients.Public
         public global::EventTicketing.Tooling.Clients.Public.Orders.OrdersRequestBuilder Orders
         {
             get => new global::EventTicketing.Tooling.Clients.Public.Orders.OrdersRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The tickets property</summary>
+        public global::EventTicketing.Tooling.Clients.Public.Tickets.TicketsRequestBuilder Tickets
+        {
+            get => new global::EventTicketing.Tooling.Clients.Public.Tickets.TicketsRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>
         /// Instantiates a new <see cref="global::EventTicketing.Tooling.Clients.Public.PublicApiClient"/> and sets the default values.
