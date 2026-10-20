@@ -134,6 +134,17 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "eventticketing-organizers",
+      "name": "Organizers keeping organizer groups and membership in step (service account; ADR-0027)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${ORGANIZERS_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
     }
   ],
   "users": [
@@ -226,6 +237,12 @@
       "emailVerified": true,
       "credentials": [{ "type": "password", "value": "ivo", "temporary": false }],
       "realmRoles": ["default-roles-eventticketing"]
+    },
+    {
+      "username": "service-account-eventticketing-organizers",
+      "enabled": true,
+      "serviceAccountClientId": "eventticketing-organizers",
+      "clientRoles": { "realm-management": ["manage-users", "view-users", "query-users", "query-groups"] }
     },
     {
       "username": "olga",

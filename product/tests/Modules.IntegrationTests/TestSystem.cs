@@ -61,6 +61,9 @@ public sealed class TestSystem : IAsyncLifetime
     /// <summary>The SMTP server Notifications sends to (ADR-0052): records every email.</summary>
     internal FakeMailServer Mail { get; } = new();
 
+    /// <summary>The identity provider's groups Organizers keeps in step (ADR-0027).</summary>
+    internal FakeIdentityDirectory Directory { get; } = new();
+
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
     public async ValueTask InitializeAsync()
@@ -258,6 +261,7 @@ public sealed class TestSystem : IAsyncLifetime
         builder.AddModules(kind, Modules());
         builder.Services.ConfigureHttpClientDefaults(client => client.ConfigurePrimaryHttpMessageHandler(LocalPay.CreateHandler));
         builder.Services.AddSingleton<IEmailSender>(Mail);
+        builder.Services.AddSingleton<EventTicketing.Organizers.Identity.IIdentityDirectory>(Directory);
         return builder.Build();
     }
 

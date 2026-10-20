@@ -28,6 +28,12 @@ var fanSiteSecret = builder.AddParameter(
     new GenerateParameterDefault { MinLength = 32, Special = false },
     secret: true);
 
+// The service account Organizers uses to keep Keycloak's organizer groups in step (ADR-0027).
+var organizersSecret = builder.AddParameter(
+    "organizers-client-secret",
+    new GenerateParameterDefault { MinLength = 32, Special = false },
+    secret: true);
+
 // The secret every event's private signing key is encrypted under (envelope encryption, ADR-0051).
 // Only Workers signs tickets, so only Workers gets it. Generated per run like the other secrets.
 var ticketingMasterKey = builder.AddParameter(
@@ -45,6 +51,7 @@ var ticketingMasterKey = builder.AddParameter(
 var keycloak = builder.AddKeycloak("keycloak", port: 8180)
     .WithRealmImport("./Realms")
     .WithEnvironment("FANSITE_CLIENT_SECRET", fanSiteSecret)
+    .WithEnvironment("ORGANIZERS_CLIENT_SECRET", organizersSecret)
     .WithoutHttpsCertificate();
 #pragma warning restore ASPIRECERTIFICATES001
 
@@ -129,6 +136,8 @@ var workers = WithStripe(WithTimings(builder.AddProject<Projects.Workers>("worke
     .WithEnvironment("Email__SmtpHost", mailpit.GetEndpoint("smtp").Property(EndpointProperty.Host))
     .WithEnvironment("Email__SmtpPort", mailpit.GetEndpoint("smtp").Property(EndpointProperty.Port))
     .WithEnvironment("Email__FanSiteUrl", fanSite.GetEndpoint("http"))
+    .WithEnvironment("Organizers__Keycloak__BaseUrl", keycloak.GetEndpoint("http"))
+    .WithEnvironment("Organizers__Keycloak__ClientSecret", organizersSecret)
     .WithHttpHealthCheck("/health")
     .WaitFor(mailpit)
     .WaitForCompletion(migrator);

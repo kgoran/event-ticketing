@@ -3,9 +3,9 @@ using EventTicketing.Shared.Domain;
 namespace EventTicketing.Organizers;
 
 /// <summary>
-/// An organizer and its members. In M1a the login token is the authority on membership: Keycloak
-/// puts the organizer IDs in it (ADR-0027), and this list is the record an admin keeps next to it.
-/// Keeping Keycloak in step with this list comes with M1b.
+/// An organizer and its members: the source of truth on membership (ADR-0027). Keycloak puts the
+/// organizer IDs in the login token, and Organizers keeps Keycloak's groups in step with this list
+/// (SyncMembership), so a change shows at the member's next sign-in.
 /// </summary>
 internal sealed class Organizer
 {

@@ -87,4 +87,54 @@ public sealed class OrganizersTests(TestSystem system)
 
     private static Task<HttpResponseMessage> AddMemberAsync(HttpClient client, Guid organizerId, string userId, string displayName) =>
         client.PostAsJsonAsync(new Uri($"/organizers/{organizerId}/members", UriKind.Relative), new AddMemberRequest(userId, displayName), CancellationToken);
+
+    [Fact]
+    public async Task Keycloak_follows_the_member_list_group_and_members_alike()
+    {
+        using var admin = system.BackOfficeApi(Admin);
+        var organizerId = await CreateOrganizerAsync(admin);
+        await system.DeliverMessagesAsync();
+        system.Directory.HasGroup(organizerId).Should().BeTrue("registering an organizer creates its group");
+
+        (await AddMemberAsync(admin, organizerId, "user-ana", "Ana")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await AddMemberAsync(admin, organizerId, "user-ben", "Ben")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        await system.DeliverMessagesAsync();
+        system.Directory.MembersOf(organizerId).Should().Equal("user-ana", "user-ben");
+
+        (await admin.DeleteAsync(new Uri($"/organizers/{organizerId}/members/user-ana", UriKind.Relative), CancellationToken))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+        await system.DeliverMessagesAsync();
+        system.Directory.MembersOf(organizerId).Should().Equal("user-ben");
+    }
+
+    [Fact]
+    public async Task While_Keycloak_is_down_the_change_waits_and_lands_where_the_member_list_is()
+    {
+        using var admin = system.BackOfficeApi(Admin);
+        var organizerId = await CreateOrganizerAsync(admin);
+        await system.DeliverMessagesAsync();
+
+        // Added and removed again while Keycloak can't be reached: both syncs fail and wait.
+        system.Directory.MakeUnreachableFor(organizerId);
+        await AddMemberAsync(admin, organizerId, "user-cid", "Cid");
+        await AddMemberAsync(admin, organizerId, "user-dan", "Dan");
+        await admin.DeleteAsync(new Uri($"/organizers/{organizerId}/members/user-cid", UriKind.Relative), CancellationToken);
+        await system.DeliverMessagesAsync();
+        system.Directory.MembersOf(organizerId).Should().BeEmpty();
+
+        // Back again: every sync reads the list as it is now, in whatever order they run.
+        system.Directory.MakeReachableFor(organizerId);
+        await system.QueryAsync<int>(
+            "UPDATE organizers.scheduled_messages SET due_at = now() - interval '1 second' WHERE payload->>'organizerId' = @p0 RETURNING 1",
+            organizerId.ToString());
+        await system.DeliverMessagesAsync();
+        system.Directory.MembersOf(organizerId).Should().Equal("user-dan");
+    }
+
+    private static async Task<Guid> CreateOrganizerAsync(HttpClient admin)
+    {
+        var created = await admin.PostAsJsonAsync(new Uri("/organizers", UriKind.Relative), new CreateOrganizer("Organizer " + Guid.NewGuid().ToString("N")[..8]), CancellationToken);
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        return (await created.Content.ReadFromJsonAsync<OrganizerCreatedResponse>(CancellationToken))!.OrganizerId;
+    }
 }
