@@ -2,13 +2,15 @@ using System.Net;
 using System.Net.Http.Json;
 using EventTicketing.Inventory.Application.Holds;
 using EventTicketing.Inventory.Infrastructure.Endpoints;
+using EventTicketing.Testing;
 
 namespace EventTicketing.Modules.IntegrationTests;
 
 /// <summary>
 /// M1a Q1, target T2 (ADR-0015): 500 overlapping hold attempts on 100 seats at once, then every
 /// hold checked out and paid, some only after their seats were lost. The invariants are checked
-/// through the APIs, the provider and Inventory's rows.
+/// through the APIs, the provider, Inventory's and Ticketing's rows, and the emails (M1b Q5: no
+/// orphan tickets).
 /// </summary>
 public sealed class ConcurrencyTests(TestSystem system)
 {
@@ -94,25 +96,32 @@ public sealed class ConcurrencyTests(TestSystem system)
         await system.DeliverMessagesAsync();
 
         // 5. T2: every paid order ends Confirmed or Refunded; a Confirmed order owns exactly its
-        //    seats; a refunded order got exactly one refund and no seats; no seat is sold twice;
-        //    seat states add up to capacity.
+        //    seats and has exactly one ticket for each, and its buyer one email with them; a refunded
+        //    order got exactly one refund, no seats, no tickets, and its buyer one refund email; no
+        //    seat is sold twice; seat states add up to capacity; no ticket without a sold seat.
         var sold = new List<Guid>();
         foreach (var (fan, hold, orderId, payment) in orders)
         {
             using var client = system.PublicApi(Callers.Fan(fan));
             var order = await client.OrderAsync(orderId);
             var owned = await system.QueryAsync<Guid>("SELECT seat_id FROM inventory.seats WHERE order_id = @p0 AND status = 'Sold'", orderId);
+            var ticketed = await system.QueryAsync<Guid>("SELECT seat_id FROM ticketing.tickets WHERE order_id = @p0", orderId);
+            var emails = system.Mail.SentTo(TestTokens.EmailOf(fan)).Select(email => email.Subject).ToList();
 
             if (losers.Contains(hold.HoldId))
             {
                 order.Status.Should().Be("Refunded", $"order {orderId} lost a seat");
                 owned.Should().BeEmpty();
+                ticketed.Should().BeEmpty($"order {orderId} was refunded");
+                emails.Should().ContainSingle().Which.Should().StartWith("Your payment for");
                 system.LocalPay.RefundsOf(payment.Id).Should().ContainSingle().Which.AmountMinorUnits.Should().Be(order.TotalMinorUnits);
             }
             else
             {
                 order.Status.Should().Be("Confirmed", $"order {orderId} kept its seats");
                 owned.Should().BeEquivalentTo(order.Seats.Select(s => s.SeatId)).And.BeEquivalentTo(hold.SeatIds);
+                ticketed.Should().BeEquivalentTo(owned, $"order {orderId} gets one ticket per seat it owns");
+                emails.Should().ContainSingle().Which.Should().StartWith("Your tickets for");
                 system.LocalPay.RefundsOf(payment.Id).Should().BeEmpty();
                 sold.AddRange(owned);
             }
@@ -123,6 +132,8 @@ public sealed class ConcurrencyTests(TestSystem system)
         states.Sum().Should().Be(Capacity);
         (await system.ScalarAsync<long>("SELECT count(*) FROM inventory.seats WHERE event_id = @p0 AND status = 'Sold'", sale.EventId))
             .Should().Be(sold.Count);
+        (await system.QueryAsync<Guid>("SELECT seat_id FROM ticketing.tickets WHERE event_id = @p0", sale.EventId))
+            .Should().BeEquivalentTo(sold, "every ticket is for a sold seat, and every sold seat has one");
     }
 
     /// <summary>2–4 adjacent seats in a random row, like a group of friends.</summary>
