@@ -125,6 +125,8 @@ internal sealed class FakeExecutionContext(Scenario scenario) : IExecutionContex
 
     public bool IsAuthenticated => true;
 
+    public string? Email => "user-1@example.test";
+
     public IReadOnlySet<string> Roles { get; } = new HashSet<string> { "fan" };
 
     public IReadOnlySet<Guid> OrganizerIds { get; } = new HashSet<Guid>();

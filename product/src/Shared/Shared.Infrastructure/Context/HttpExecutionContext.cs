@@ -16,6 +16,8 @@ internal sealed class HttpExecutionContext(IHttpContextAccessor accessor) : IExe
 
     public bool IsAuthenticated => User?.Identity?.IsAuthenticated == true;
 
+    public string? Email => User?.FindFirstValue(TokenClaims.Email);
+
     public IReadOnlySet<string> Roles =>
         User is null
             ? EmptySet<string>.Instance
@@ -45,6 +47,8 @@ internal sealed class MessageExecutionContext : IExecutionContext
     public string? UserId => null;
 
     public bool IsAuthenticated => false;
+
+    public string? Email => null;
 
     public IReadOnlySet<string> Roles => EmptySet<string>.Instance;
 

@@ -62,9 +62,19 @@ public sealed class Order
 
     public string CustomerId { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// Where to send the fan's tickets and news about the order (ADR-0007: events carry it, so
+    /// Notifications never asks). From the fan's token at checkout; null for orders placed before
+    /// M1b or for a token without one.
+    /// </summary>
+    public string? CustomerEmail { get; private set; }
+
     public Guid HoldId { get; private set; }
 
     public Guid EventId { get; private set; }
+
+    /// <summary>The event's name when the order was placed, for messages to the fan.</summary>
+    public string? EventName { get; private set; }
 
     public OrderStatus Status { get; private set; }
 
@@ -86,8 +96,10 @@ public sealed class Order
     public static Order Place(
         Guid id,
         string customerId,
+        string? customerEmail,
         Guid holdId,
         Guid eventId,
+        string? eventName,
         CurrencyCode currency,
         IReadOnlyCollection<(Guid SeatId, Guid PriceCategoryId, Money Price)> seats,
         DateTimeOffset now,
@@ -98,8 +110,10 @@ public sealed class Order
         {
             Id = id,
             CustomerId = customerId,
+            CustomerEmail = customerEmail,
             HoldId = holdId,
             EventId = eventId,
+            EventName = eventName,
             Status = OrderStatus.Pending,
             Currency = currency.Value,
             TotalMinorUnits = total.MinorUnits,
@@ -171,3 +185,6 @@ public sealed record OrderLine(Guid OrderId, Guid SeatId, Guid PriceCategoryId, 
 /// (ADR-0007). <see cref="SetAt"/> is when Catalog set the price, so a late message can't undo a newer one.
 /// </summary>
 public sealed record PriceListEntry(Guid EventId, Guid PriceCategoryId, long PriceMinorUnits, string Currency, DateTimeOffset SetAt);
+
+/// <summary>What Orders keeps about an event besides its prices: its name, for the order's messages (ADR-0007).</summary>
+public sealed record KnownEvent(Guid EventId, string Name, DateTimeOffset SetAt);

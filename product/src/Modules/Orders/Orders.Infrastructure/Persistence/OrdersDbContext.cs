@@ -14,6 +14,8 @@ internal sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options)
 
     public DbSet<PriceListEntry> PriceList => Set<PriceListEntry>();
 
+    public DbSet<KnownEvent> KnownEvents => Set<KnownEvent>();
+
     protected override string Schema => SchemaName;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -25,6 +27,8 @@ internal sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options)
             entity.ToTable("orders");
             entity.HasKey(o => o.Id);
             entity.Property(o => o.CustomerId).HasMaxLength(200);
+            entity.Property(o => o.CustomerEmail).HasMaxLength(320);
+            entity.Property(o => o.EventName).HasMaxLength(200);
             entity.Property(o => o.Currency).HasMaxLength(3);
             entity.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
             entity.HasMany(o => o.Lines).WithOne().HasForeignKey(line => line.OrderId);
@@ -47,6 +51,13 @@ internal sealed class OrdersDbContext(DbContextOptions<OrdersDbContext> options)
             entity.ToTable("price_list");
             entity.HasKey(entry => new { entry.EventId, entry.PriceCategoryId });
             entity.Property(entry => entry.Currency).HasMaxLength(3);
+        });
+
+        modelBuilder.Entity<KnownEvent>(entity =>
+        {
+            entity.ToTable("known_events");
+            entity.HasKey(known => known.EventId);
+            entity.Property(known => known.Name).HasMaxLength(200);
         });
     }
 }
@@ -91,4 +102,24 @@ internal sealed class PriceList(OrdersDbContext db) : IPriceList
         await db.PriceList.AsNoTracking()
             .Where(entry => entry.EventId == eventId)
             .ToDictionaryAsync(entry => entry.PriceCategoryId, cancellationToken);
+}
+
+internal sealed class KnownEvents(OrdersDbContext db) : IKnownEvents
+{
+    public Task RememberAsync(KnownEvent knownEvent, CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlAsync(
+            $"""
+            INSERT INTO orders.known_events (event_id, name, set_at)
+            VALUES ({knownEvent.EventId}, {knownEvent.Name}, {knownEvent.SetAt})
+            ON CONFLICT (event_id) DO UPDATE
+            SET name = excluded.name, set_at = excluded.set_at
+            WHERE orders.known_events.set_at < excluded.set_at
+            """,
+            cancellationToken);
+
+    public Task<string?> NameOfAsync(Guid eventId, CancellationToken cancellationToken) =>
+        db.KnownEvents.AsNoTracking()
+            .Where(known => known.EventId == eventId)
+            .Select(known => known.Name)
+            .SingleOrDefaultAsync(cancellationToken);
 }

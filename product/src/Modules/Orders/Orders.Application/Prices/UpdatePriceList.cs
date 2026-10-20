@@ -4,14 +4,20 @@ using EventTicketing.Shared.Application.Messaging;
 
 namespace EventTicketing.Orders.Application.Prices;
 
-/// <summary>Keeps Orders' own copy of each event's prices, so checkout never calls Catalog (ADR-0007).</summary>
-internal sealed class UpdatePriceListOnEventPublished(IPriceList priceList) : IIntegrationEventHandler<EventPublished>
+/// <summary>
+/// Keeps Orders' own copy of each event's prices and name, so checkout never calls Catalog
+/// (ADR-0007). Both in one transaction: an event Orders can price, it can also name.
+/// </summary>
+internal sealed class UpdatePriceListOnEventPublished(IPriceList priceList, IKnownEvents knownEvents) : IIntegrationEventHandler<EventPublished>
 {
-    public Task HandleAsync(EventPublished integrationEvent, CancellationToken cancellationToken) =>
-        priceList.ApplyAsync(
+    public async Task HandleAsync(EventPublished integrationEvent, CancellationToken cancellationToken)
+    {
+        await priceList.ApplyAsync(
             [.. integrationEvent.PriceCategories.Select(category => new PriceListEntry(
                 integrationEvent.EventId, category.PriceCategoryId, category.PriceMinorUnits, integrationEvent.Currency, integrationEvent.OccurredAt))],
             cancellationToken);
+        await knownEvents.RememberAsync(new KnownEvent(integrationEvent.EventId, integrationEvent.Name, integrationEvent.OccurredAt), cancellationToken);
+    }
 }
 
 /// <summary>
