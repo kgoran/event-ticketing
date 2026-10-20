@@ -50,6 +50,27 @@ public sealed class TicketingTests(TestSystem system)
     }
 
     [Fact]
+    public async Task My_tickets_shows_a_fan_their_own_tickets_and_nobody_elses()
+    {
+        var (sale, fanId, orderId) = await PaidOrderAsync();
+
+        using var fan = system.PublicApi(Callers.Fan(fanId));
+        var mine = (await fan.GetFromJsonAsync<List<MyTicketResponse>>(new Uri("/tickets", UriKind.Relative), Ct))!;
+        mine.Should().HaveCount(2).And.OnlyContain(t => t.OrderId == orderId && t.EventName == "Test concert");
+        mine.Select(t => t.Code).Should().BeEquivalentTo((await TicketsAsync(orderId)).Select(t => t.Code));
+
+        var oneOrder = (await fan.GetFromJsonAsync<List<MyTicketResponse>>(new Uri($"/tickets?orderId={orderId}", UriKind.Relative), Ct))!;
+        oneOrder.Should().HaveCount(2);
+        (await fan.GetFromJsonAsync<List<MyTicketResponse>>(new Uri($"/tickets?orderId={Guid.NewGuid()}", UriKind.Relative), Ct)).Should().BeEmpty();
+
+        using var someoneElse = system.PublicApi(Callers.Fan());
+        (await someoneElse.GetFromJsonAsync<List<MyTicketResponse>>(new Uri("/tickets", UriKind.Relative), Ct)).Should().BeEmpty();
+        (await system.PublicApi().GetAsync(new Uri("/tickets", UriKind.Relative), Ct)).StatusCode.Should().Be(System.Net.HttpStatusCode.Unauthorized);
+
+        sale.EventId.Should().Be(mine[0].EventId);
+    }
+
+    [Fact]
     public async Task A_code_with_a_changed_payload_fails_verification()
     {
         var (sale, _, orderId) = await PaidOrderAsync();
@@ -149,3 +170,5 @@ public sealed class TicketingTests(TestSystem system)
             ValidAlgorithms = [SecurityAlgorithms.EcdsaSha256],
         });
 }
+
+internal sealed record MyTicketResponse(Guid TicketId, Guid OrderId, Guid EventId, string EventName, string Label, string Code);

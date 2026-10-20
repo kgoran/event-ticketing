@@ -23,6 +23,11 @@ else
         <h1>@headline</h1>
         <p>@explanation</p>
 
+        @if (OrderStatuses.IsConfirmed(Order.Status))
+        {
+            <a class="button primary" href="tickets?order=@Order.OrderId">Your tickets</a>
+        }
+
         @if (Order.Status == "Pending")
         {
             <p class="countdown">Time left to pay: <strong>@Formats.Countdown((Order.PaymentDeadline ?? Time.GetUtcNow()) - Time.GetUtcNow())</strong></p>

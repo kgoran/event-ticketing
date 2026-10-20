@@ -1,0 +1,127 @@
+@page "/tickets"
+@attribute [Authorize]
+@implements IDisposable
+@inject PublicApiClient Api
+@inject TimeProvider Time
+
+<PageTitle>My tickets · EventTicketing</PageTitle>
+
+<h1>My tickets</h1>
+
+@if (_error is not null)
+{
+    <div class="alert error" role="alert">@_error</div>
+}
+
+@if (Tickets is null)
+{
+    <p class="muted">Loading…</p>
+}
+else if (Tickets.Count == 0)
+{
+    @if (Order is not null && _waiting)
+    {
+        <p class="muted">Your tickets are being issued. This page updates by itself.</p>
+    }
+    else
+    {
+        <p class="muted">No tickets yet. <a href="">Find an event</a>.</p>
+    }
+}
+else
+{
+    @foreach (var group in Tickets.GroupBy(ticket => ticket.EventId))
+    {
+        var first = group.First();
+        <section class="ticket-event">
+            <h2><a href="events/@first.EventId">@first.EventName</a></h2>
+            <p class="meta">@Formats.AtVenue(first.StartsAt, first.TimeZone)</p>
+            <div class="ticket-grid">
+                @foreach (var ticket in group)
+                {
+                    <article class="ticket card">
+                        <div class="qr" role="img" aria-label="QR code for @ticket.Label">@((MarkupString)TicketQr.Svg(ticket.Code ?? string.Empty))</div>
+                        <p class="ticket-place">@ticket.Label</p>
+                        <p class="muted small">Ticket @ticket.TicketId?.ToString()[..8]…</p>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+
+    <p class="muted small">Show the QR code at the door. Keep it to yourself: whoever shows it first gets in.</p>
+}
+
+@code {
+    private readonly CancellationTokenSource _closing = new();
+    private string? _error;
+    private bool _waiting;
+
+    /// <summary>Only this order's tickets: the order page links here once the order is confirmed.</summary>
+    [SupplyParameterFromQuery(Name = "order")]
+    public Guid? Order { get; set; }
+
+    [PersistentState]
+    public List<MyTicket>? Tickets { get; set; }
+
+    protected override async Task OnInitializedAsync() => Tickets ??= await LoadAsync();
+
+    // Tickets are issued seconds after the payment is confirmed (a message to Ticketing): coming
+    // straight from the order page, wait for them instead of saying there are none.
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && Order is not null && Tickets is { Count: 0 })
+        {
+            _waiting = true;
+            _ = WaitForTicketsAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task WaitForTicketsAsync()
+    {
+        var closing = _closing.Token;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1), Time);
+        try
+        {
+            for (var attempt = 0; attempt < 60 && await timer.WaitForNextTickAsync(closing); attempt++)
+            {
+                var tickets = await LoadAsync();
+                if (tickets is { Count: > 0 })
+                {
+                    await InvokeAsync(() =>
+                    {
+                        Tickets = tickets;
+                        StateHasChanged();
+                    });
+                    return;
+                }
+            }
+
+            await InvokeAsync(() =>
+            {
+                _waiting = false;
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // The fan left the page.
+        }
+    }
+
+    private async Task<List<MyTicket>> LoadAsync()
+    {
+        try
+        {
+            return await Api.Tickets.GetAsync(request => request.QueryParameters.OrderId = Order, _closing.Token) ?? [];
+        }
+        catch (Exception exception) when (ApiProblems.IsExpected(exception))
+        {
+            _error = ApiProblems.MessageFor(exception);
+            return [];
+        }
+    }
+
+    public void Dispose() => _closing.Cancel();
+}

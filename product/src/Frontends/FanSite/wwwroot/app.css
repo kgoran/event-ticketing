@@ -146,6 +146,17 @@ input, select { font: inherit; padding: 0.5rem 0.6rem; border: 1px solid var(--l
 .hold { border-color: var(--mine); }
 .countdown strong { font-variant-numeric: tabular-nums; font-size: 1.15rem; }
 
+/* My tickets */
+
+.nav { display: flex; gap: 1.2rem; }
+.small { font-size: 0.85rem; }
+.ticket-event { margin-bottom: 1.5rem; }
+.ticket-event h2 a { color: var(--ink); text-decoration: none; }
+.ticket-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+.ticket { text-align: center; }
+.ticket .qr svg { width: 100%; max-width: 220px; height: auto; display: block; margin: 0 auto; }
+.ticket-place { font-weight: 600; margin: 0.6rem 0 0.2rem; }
+
 /* Order page */
 
 .order .eyebrow { margin: 0; color: var(--muted); font-size: 0.85rem; }

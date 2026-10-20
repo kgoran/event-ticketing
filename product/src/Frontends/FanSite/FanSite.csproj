@@ -18,5 +18,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
     <PackageReference Include="Microsoft.Kiota.Bundle" />
     <PackageReference Include="NodaTime" />
+    <PackageReference Include="QRCoder" />
   </ItemGroup>
 </Project>

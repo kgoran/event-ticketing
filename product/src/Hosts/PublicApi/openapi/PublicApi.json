@@ -71,6 +71,40 @@
         }
       }
     },
+    "/tickets": {
+      "get": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Your tickets, soonest event first; with orderId, one order's (empty until they are issued, seconds after paying)",
+        "operationId": "GetMyTickets",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyTicket"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/events/{eventId}/ticket-keys": {
       "get": {
         "tags": [
@@ -714,6 +748,54 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "MyTicket": {
+        "required": [
+          "ticketId",
+          "orderId",
+          "eventId",
+          "eventName",
+          "startsAt",
+          "timeZone",
+          "label",
+          "code",
+          "issuedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "ticketId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventName": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
