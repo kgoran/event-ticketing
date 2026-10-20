@@ -61,3 +61,6 @@ Also part of the plan:
 - **2026-10-20:** M1a is closed as done (its time-box was never set; the backlog is built). The team
   is five people. M1b is time-boxed to three weeks, in five streams: [M1b](../milestones/m1b.md).
   The demo is presented by one person on one laptop, without internet (D19).
+- **2026-10-20 (D20):** The Scaling Lab's M2 column is brought forward: the load generator, the
+  slider and the request, outcome and latency charts run under Aspire now
+  ([0017](0017-scaling-lab-and-load-generator.md)). The pod list waits for Kubernetes in M2.

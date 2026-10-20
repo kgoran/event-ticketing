@@ -1,5 +1,5 @@
 <Project Sdk="Aspire.AppHost.Sdk/13.6.1">
-  <!-- Day-to-day development: runs the product hosts, the fan site, LocalPay, PostgreSQL and Keycloak (ADR-0020).
+  <!-- Day-to-day development: runs the product hosts, the fan site, LocalPay, the Scaling Lab, PostgreSQL and Keycloak (ADR-0020).
        It lives in dev/, so it may reference both product and tooling projects (ADR-0021). -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -18,6 +18,8 @@
     <ProjectReference Include="..\..\product\src\Hosts\PublicApi\PublicApi.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\WebhookIngress\WebhookIngress.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\Workers\Workers.csproj" />
+    <ProjectReference Include="..\..\tooling\lab\LoadGenerator\LoadGenerator.csproj" />
+    <ProjectReference Include="..\..\tooling\lab\ScalingLab\ScalingLab.csproj" />
     <ProjectReference Include="..\..\tooling\seed\Seed.csproj" />
     <ProjectReference Include="..\..\tooling\simulators\LocalPay\LocalPay.csproj" />
   </ItemGroup>

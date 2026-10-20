@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- The Scaling Lab's load generator (ADR-0017): sends requests to PublicApi at the rate it is
+       told, however slowly the answers come (an open model), and reports what it asked for and
+       what it achieved. Tooling: it uses the product only through its API (ADR-0021). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\clients\Clients.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="EventTicketing.Tooling.ScalingLab.Tests" />
+  </ItemGroup>
+</Project>

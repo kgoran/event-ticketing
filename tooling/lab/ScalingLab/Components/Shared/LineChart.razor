@@ -1,0 +1,116 @@
+@using System.Text.Json
+@* A live line chart in inline SVG, one point per second. Hovering shows a crosshair and that second's
+   values: lab.js reads them from data-chart, so the hover layer needs no round trip to the server. *@
+
+<figure class="chart">
+    <figcaption>
+        <span class="chart-title">@Title</span>
+        @if (Series.Count > 1)
+        {
+            <span class="legend">
+                @foreach (var series in Series)
+                {
+                    <span class="legend-item">
+                        <svg width="20" height="8" aria-hidden="true"><line x1="1" y1="4" x2="19" y2="4" stroke="@series.Color" stroke-width="2" stroke-linecap="round" stroke-dasharray="@(series.Dashed ? "4 4" : null)" /></svg>
+                        @series.Name
+                    </span>
+                }
+            </span>
+        }
+    </figcaption>
+
+    <svg class="plot" viewBox="0 0 @Width @Height" role="img" aria-label="@AriaLabel" data-chart="@HoverData">
+        @foreach (var tick in Ticks)
+        {
+            <g>
+                <line class="@(tick == 0 ? "baseline" : "grid")" x1="@Left" x2="@(Left + PlotWidth)" y1="@Charts.Number(Y(tick))" y2="@Charts.Number(Y(tick))" />
+                <text class="tick" x="@(Left - 6)" y="@Charts.Number(Y(tick) + 4)" text-anchor="end">@Charts.Format(tick)</text>
+            </g>
+        }
+        <g>
+            <text class="tick" x="@Left" y="@(Height - 6)">−@(Seconds) s</text>
+            <text class="tick" x="@Charts.Number(Left + PlotWidth / 2)" y="@(Height - 6)" text-anchor="middle">−@(Seconds / 2) s</text>
+            <text class="tick" x="@(Left + PlotWidth)" y="@(Height - 6)" text-anchor="end">now</text>
+        </g>
+        @foreach (var series in Series)
+        {
+            <path d="@Charts.Path(series.Values, X, Y)" fill="none" stroke="@series.Color" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+                  stroke-dasharray="@(series.Dashed ? "5 5" : null)" vector-effect="non-scaling-stroke" />
+        }
+        @foreach (var (label, y) in EndLabels)
+        {
+            <g>
+                <text class="end-label" x="@(Left + PlotWidth + 8)" y="@Charts.Number(y + 4)">@label</text>
+            </g>
+        }
+    </svg>
+</figure>
+
+@code {
+    private const int Width = 640;
+    private const int Height = 220;
+    private const double Left = 46;
+    private const double Right = 92;
+    private const double Top = 14;
+    private const double Bottom = 24;
+    private const double PlotWidth = Width - Left - Right;
+    private const double PlotHeight = Height - Top - Bottom;
+
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    /// <summary>For the tooltip and screen readers; the title names it too.</summary>
+    [Parameter, EditorRequired] public string Unit { get; set; } = "";
+
+    [Parameter, EditorRequired] public IReadOnlyList<ChartSeries> Series { get; set; } = [];
+
+    /// <summary>The top of the scale when every value is lower, so an idle chart isn't all noise.</summary>
+    [Parameter] public double MinimumTop { get; set; } = 10;
+
+    private int Seconds => Math.Max(1, Series.Select(series => series.Values.Count).DefaultIfEmpty(0).Max());
+
+    private (double Top, double Step) Scale { get; set; }
+
+    protected override void OnParametersSet() =>
+        Scale = Charts.Scale(Series.SelectMany(series => series.Values).Select(value => value ?? 0).DefaultIfEmpty(0).Max(), MinimumTop);
+
+    private IEnumerable<double> Ticks
+    {
+        get
+        {
+            var (top, step) = Scale;
+            for (var tick = 0d; tick <= top + step / 2; tick += step)
+            {
+                yield return tick;
+            }
+        }
+    }
+
+    private double X(int index) => Left + index * PlotWidth / Math.Max(1, Seconds - 1);
+
+    private double Y(double value) => Top + PlotHeight * (1 - Math.Min(value, Scale.Top) / Scale.Top);
+
+    /// <summary>Each line's name at its latest value, moved apart where lines end close together.</summary>
+    private IEnumerable<(string Label, double Y)> EndLabels
+    {
+        get
+        {
+            var ends = Series.Select(series => (series.Name, Last: series.Values.LastOrDefault(value => value is not null))).ToList();
+            var positions = Charts.Spread([.. ends.Select(end => Y(end.Last ?? 0))], gap: 14, top: Top + 4, bottom: Top + PlotHeight);
+            return ends.Select((end, i) => (end.Name, positions[i]));
+        }
+    }
+
+    private string AriaLabel => $"{Title}, last {Seconds} seconds. Latest: " + string.Join(", ", Series.Select(series =>
+        $"{series.Name} {(series.Values.LastOrDefault(value => value is not null) is { } last ? Charts.Format(last) : "none")}")) + $" {Unit}.";
+
+    private string HoverData => JsonSerializer.Serialize(new
+    {
+        left = Left,
+        plotWidth = PlotWidth,
+        top = Top,
+        plotHeight = PlotHeight,
+        width = Width,
+        unit = Unit,
+        series = Series.Select(series => new { name = series.Name, color = series.Color, dashed = series.Dashed, values = series.Values }),
+    });
+}

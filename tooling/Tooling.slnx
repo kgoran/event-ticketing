@@ -2,6 +2,10 @@
   <Folder Name="/clients/">
     <Project Path="clients/Clients.csproj" />
   </Folder>
+  <Folder Name="/lab/">
+    <Project Path="lab/LoadGenerator/LoadGenerator.csproj" />
+    <Project Path="lab/ScalingLab/ScalingLab.csproj" />
+  </Folder>
   <Folder Name="/seed/">
     <Project Path="seed/Seed.csproj" />
   </Folder>
@@ -10,5 +14,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/LocalPay.Tests/LocalPay.Tests.csproj" />
+    <Project Path="tests/ScalingLab.Tests/ScalingLab.Tests.csproj" />
   </Folder>
 </Solution>

@@ -370,3 +370,9 @@ Decisions D7–D19 (D1–D6 were the fan site and keeping the Scaling Lab in M2,
 | D17 | Not in M1b: the back-office UI, ticket revocation, CheckIn, the Scaling Lab | [M1b](milestones/m1b.md) |
 | D18 | Team of five; M1b time-boxed to three weeks; M1a closed as done | [0016](adr/0016-teaching-milestones.md) (update) |
 | D19 | The demo runs on one laptop, offline, with one presenter | [0016](adr/0016-teaching-milestones.md) (update), [M1b](milestones/m1b.md) |
+
+## 16. After M1b — Agreed 2026-10-20
+
+| # | Decision | Recorded in |
+|---|---|---|
+| D20 | The Scaling Lab's basics (load generator, slider, live tiles and charts, first presets) are built now, under Aspire, instead of in M2; Kubernetes, pods and autoscaling stay in M2–M5. Revises D6 | [0017](adr/0017-scaling-lab-and-load-generator.md) (update), [0016](adr/0016-teaching-milestones.md) (update) |

@@ -95,3 +95,37 @@ and presets 1–5 in M5. k6 remains the tool for the pass/fail target tests
   ([0021](0021-product-tooling-platform-separation.md)).
 - The lab depends on product metric names and deployment labels; they are part of the
   product's documented contract.
+
+## Updates
+
+- **2026-10-20 (D20):** The lab's M2 basics are brought forward and run under Aspire now:
+  the load generator, the requests-per-second slider, live tiles and charts of offered versus
+  achieved requests, outcomes and latency, and the first presets (steady, step 28 → 84, on-sale
+  spike, past capacity). Without the lab's capacity limits (M5), one instance of each host serves
+  about 200–250 requests/s of the default mix on the owner's machine, so the slider goes to 400
+  for now, and the generator to 1,000. Kubernetes, the pod list, Prometheus, Toxiproxy and autoscaling stay where they were
+  (M2–M5). How to use it: [the Scaling Lab runbook](../demos/scaling-lab.md). Implementation
+  decisions, all within this ADR:
+  - **The mix is browsing and holds.** Browsing is anonymous (event list, event page,
+    availability); a hold takes one place, best available, and is let go of at once, so places
+    keep cycling and nothing is sold. Checkouts join the mix later: they create orders and
+    payments, which need LocalPay's headless mode and the invariant checker at the end of a run.
+  - **Holds are placed by twenty lab fans** (`lab01`–`lab20` in the development realm, passwords
+    equal to the names), each with at most one hold at a time ([0024](0024-domain-scope-m1-m6.md)).
+    Their tokens come from the development client's password grant, as for the seeder.
+  - **Outcomes:** 2xx is OK; 409 and 429 are refusals, correct behaviour and not errors (T1);
+    another 4xx is a client error, a generator bug or a contract change; 5xx, a timeout (5 s) or
+    no connection is a failure. Latency is measured for answered requests only, p99 per kind,
+    so holds and browsing show against their own targets (T1, T4).
+  - **The generator protects itself:** at most 500 requests in flight; past that, or with no lab
+    fan free, a request is counted as skipped, never silently dropped. It sends through one plain
+    HttpClient without retries, which would hide failures.
+  - **1 in 20 of the generator's requests is traced** (head sampling). The product's hosts follow
+    the caller's decision, so under load the dashboard keeps a sample of traces instead of
+    drowning; metrics still count every request ([observability](../observability.md)).
+  - **A hot-section option** sends every hold to one section, where fans compete for the same
+    places.
+  - **Presets run in the lab's page:** moving the slider or Stop ends one; closing the page leaves
+    the last rate set. The lab is single-user, as decided above.
+  - **Both tools start with the AppHost** (the lab at http://localhost:5300, the generator's API
+    at http://localhost:5301); the generator idles at 0 requests/s.

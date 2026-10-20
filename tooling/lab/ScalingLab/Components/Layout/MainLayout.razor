@@ -1,0 +1,23 @@
+@inherits LayoutComponentBase
+
+<header class="topbar">
+    <div class="topbar-inner">
+        <span class="brand">EventTicketing · Scaling Lab</span>
+        <span class="topbar-note">Tooling: load on the product through its public API</span>
+    </div>
+</header>
+
+<main class="page">
+    @Body
+</main>
+
+<footer class="footer">
+    Under Aspire for now: one instance of each host. Kubernetes and several instances come in M2, autoscaling and the
+    lab's presets for it in M5 (ADR-0017).
+</footer>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">×</span>
+</div>

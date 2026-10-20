@@ -1,0 +1,466 @@
+@page "/"
+@implements IDisposable
+@inject LoadGeneratorApi Generator
+@inject PublicApiClient PublicApi
+@inject TimeProvider Time
+
+<PageTitle>Scaling Lab</PageTitle>
+
+<header class="intro">
+    <h1>Scaling Lab</h1>
+    <p class="muted">
+        The load generator sends requests to PublicApi on a fixed schedule, whether or not earlier answers came back
+        (an open model, ADR-0017). <strong>Offered</strong> is what the slider asks for, <strong>achieved</strong> what was
+        answered. When achieved falls behind offered, or latency climbs, the system is saturated.
+    </p>
+</header>
+
+@if (_error is not null)
+{
+    <div class="alert error" role="alert">@_error</div>
+}
+
+<section class="card controls" aria-label="Load">
+    <div class="control">
+        <label for="rate">Rate</label>
+        <input id="rate" type="range" min="0" max="@Presets.SliderTop" step="4" value="@_rate" @oninput="RateMovedAsync" />
+        <output for="rate"><strong>@Charts.Format(_rate)</strong> requests/s</output>
+    </div>
+    <div class="control">
+        <label for="mix">Holds</label>
+        <input id="mix" type="range" min="0" max="100" step="5" value="@HoldPercent" @oninput="MixMovedAsync" />
+        <output for="mix"><strong>@HoldPercent%</strong> hold a place and let go of it; the rest browse</output>
+    </div>
+    <div class="control">
+        <label for="event">Event</label>
+        <select id="event" value="@(_eventId?.ToString() ?? "")" @onchange="EventChosenAsync">
+            <option value="">The first event on sale</option>
+            @foreach (var onSale in _events)
+            {
+                <option value="@onSale.EventId">@onSale.Name</option>
+            }
+        </select>
+        <output for="event" class="muted">@EventText</output>
+    </div>
+    <div class="control">
+        <label for="section">Holds go for</label>
+        <select id="section" value="@(_section ?? "")" @onchange="SectionChosenAsync">
+            <option value="">Any section</option>
+            @foreach (var section in _availability?.Sections ?? [])
+            {
+                <option value="@section.Section">Section @section.Section only</option>
+            }
+        </select>
+        <output for="section" class="muted">One section only: a hot section, where fans compete for the same places.</output>
+    </div>
+    <div class="presets">
+        <span class="presets-label">Scenarios</span>
+        @foreach (var preset in Presets.All)
+        {
+            <button type="button" class="button small @(_running == preset ? "active" : null)" title="@preset.Description" @onclick="() => Start(preset)">@preset.Name</button>
+        }
+        <button type="button" class="button small stop" @onclick="StopAsync">Stop</button>
+        @if (_running is not null)
+        {
+            <span class="running">@_running.Name · @Charts.Format(_rate) requests/s@(StageText)</span>
+        }
+    </div>
+</section>
+
+<section class="tiles" aria-label="The last 5 seconds">
+    @Tile("Offered", Recent(second => second.Offered), "requests/s", note: Skipped > 0 ? $"{Charts.Format(Skipped)}/s skipped: the generator's own limit" : "what the slider asks for")
+    @Tile("Achieved", Achieved, "requests/s",
+        status: FallingBehind ? Status.Warning : null,
+        note: FallingBehind ? "falling behind what was offered" : "answered, whatever the answer")
+    @Tile("OK", Recent(second => second.Ok), "answers/s", note: "2xx")
+    @Tile("Refused", Recent(second => second.Refused), "answers/s", note: "409 seat taken, 429: correct, not errors")
+    @Tile("Failed", Recent(second => second.Failed + second.ClientErrors), "answers/s",
+        status: Failing ? Status.Critical : Status.Good,
+        note: Failing ? FailedNote : "no 5xx, timeouts or broken connections")
+    @Tile("Hold p99", LatestP99("Hold"), "ms", status: OverTarget("Hold", 200), note: "target under 200 ms (T1)")
+    @Tile("Browse p99", LatestP99("Browse"), "ms", status: OverTarget("Browse", 100), note: "target under 100 ms (T4)")
+    @Tile("In flight", _stats?.InFlight, "requests", note: "sent, not answered yet")
+</section>
+
+<section class="charts">
+    <LineChart Title="Requests per second" Unit="req/s" MinimumTop="20" Series="ThroughputSeries" />
+    <LineChart Title="Answers per second, by outcome (releases included)" Unit="per s" MinimumTop="20" Series="OutcomeSeries" />
+    <LineChart Title="Latency of answered requests, ms" Unit="ms" MinimumTop="50" Series="LatencySeries" />
+
+    <figure class="card places">
+        <figcaption><span class="chart-title">Free places@(PlacesTitle)</span></figcaption>
+        @if (_availability?.Sections is { Count: > 0 } sections)
+        {
+            <ul class="meters">
+                @foreach (var section in sections)
+                {
+                    var share = section.Total > 0 ? (double)(section.Available ?? 0) / section.Total.Value : 0;
+                    <li>
+                        <span class="meter-label">@section.Section</span>
+                        <span class="meter" role="meter" aria-valuemin="0" aria-valuemax="@section.Total" aria-valuenow="@section.Available" aria-label="Section @section.Section free places">
+                            <span class="meter-fill" style="width: @Charts.Number(share * 100)%"></span>
+                        </span>
+                        <span class="meter-value">@section.Available / @section.Total</span>
+                    </li>
+                }
+            </ul>
+            <p class="muted small">Holds are let go of at once, so the free places stay near the total: the load cycles through them.</p>
+        }
+        else
+        {
+            <p class="muted">No event on sale yet. Start <strong>seed</strong> in the Aspire dashboard (or <code>dotnet run --project tooling/seed</code>).</p>
+        }
+    </figure>
+</section>
+
+<details class="card table-view">
+    <summary>The last 10 seconds as a table</summary>
+    <table>
+        <thead>
+            <tr>
+                <th>Second</th><th>Offered</th><th>Skipped</th><th>Achieved</th><th>OK</th><th>Refused</th><th>4xx</th><th>Failed</th>
+                <th>p50 ms</th><th>p95 ms</th><th>p99 ms</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var second in (_stats?.Seconds ?? []).TakeLast(10).Reverse())
+            {
+                <tr>
+                    <td>@second.At.ToLocalTime().ToString("HH:mm:ss")</td>
+                    <td>@second.Offered</td><td>@second.Skipped</td><td>@AnsweredScheduled(second)</td><td>@second.Ok</td><td>@second.Refused</td>
+                    <td>@second.ClientErrors</td><td>@second.Failed</td>
+                    <td>@Milliseconds(second.LatencyP50Ms)</td><td>@Milliseconds(second.LatencyP95Ms)</td><td>@Milliseconds(second.LatencyP99Ms)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</details>
+
+@code {
+    private const int Window = 120;
+    private const int RecentSeconds = 5;
+
+    private readonly CancellationTokenSource _stop = new();
+    private StatsSnapshot? _stats;
+    private Availability? _availability;
+    private List<EventSummary> _events = [];
+    private string? _error;
+    private bool _synced;
+
+    private double _rate;
+    private double _holdShare = 0.2;
+    private Guid? _eventId;
+    private string? _section;
+
+    private bool _applying;
+    private bool _changed;
+
+    private CancellationTokenSource? _preset;
+    private Preset? _running;
+    private DateTimeOffset? _stageEnds;
+
+    private enum Status { Good, Warning, Critical }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Only once the circuit is interactive: prerendering has no use for a polling loop.
+        if (firstRender)
+        {
+            _ = PollAsync();
+        }
+    }
+
+    private async Task PollAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1), Time);
+        var tick = 0;
+        try
+        {
+            do
+            {
+                await RefreshStatsAsync();
+                if (tick % 10 == 0)
+                {
+                    await RefreshEventsAsync();
+                }
+
+                if (tick % 2 == 0)
+                {
+                    await RefreshAvailabilityAsync();
+                }
+
+                tick++;
+                StateHasChanged();
+            }
+            while (await timer.WaitForNextTickAsync(_stop.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+    }
+
+    private async Task RefreshStatsAsync()
+    {
+        try
+        {
+            _stats = await Generator.StatsAsync(Window, _stop.Token);
+            _error = null;
+            if (!_synced && _stats is not null)
+            {
+                // Another tab, or an earlier visit, may have set the load: show what the generator is doing.
+                (_rate, _holdShare, _eventId, _section) = (_stats.Settings.RequestsPerSecond, _stats.Settings.HoldShare, _stats.Settings.EventId, _stats.Settings.Section);
+                _synced = true;
+            }
+        }
+        catch (Exception exception) when (exception is HttpRequestException || (exception is TaskCanceledException && !_stop.IsCancellationRequested))
+        {
+            _error = $"The load generator doesn't answer at {Generator.BaseAddress}. It runs with the AppHost (dotnet run --project dev/AppHost).";
+        }
+    }
+
+    private async Task RefreshEventsAsync()
+    {
+        try
+        {
+            var page = await PublicApi.Events.GetAsync(request => request.QueryParameters.PageSize = 50, _stop.Token);
+            _events = page?.Items?.Where(summary => summary.SalesPhase == "OnSale").ToList() ?? [];
+        }
+        catch (Exception exception) when (exception is Microsoft.Kiota.Abstractions.ApiException or HttpRequestException)
+        {
+            // PublicApi is still starting; the next round tries again.
+        }
+    }
+
+    private async Task RefreshAvailabilityAsync()
+    {
+        if (ShownEventId is not { } eventId)
+        {
+            _availability = null;
+            return;
+        }
+
+        try
+        {
+            _availability = await PublicApi.Events[eventId].Availability.GetAsync(cancellationToken: _stop.Token);
+        }
+        catch (Exception exception) when (exception is Microsoft.Kiota.Abstractions.ApiException or HttpRequestException)
+        {
+            // Keep the last numbers; under heavy load this read may be slow too.
+        }
+    }
+
+    /// <summary>
+    /// Sends the current settings. One request at a time: while one is on its way, a newer change
+    /// (a slider being dragged) waits and goes next, so the generator never ends on an older value.
+    /// </summary>
+    private async Task ApplyAsync()
+    {
+        _changed = true;
+        if (_applying)
+        {
+            return;
+        }
+
+        _applying = true;
+        try
+        {
+            while (_changed)
+            {
+                _changed = false;
+                await Generator.SetAsync(new LoadSettings(_rate, _holdShare, _eventId, _section), _stop.Token);
+            }
+        }
+        catch (Exception exception) when (exception is HttpRequestException || (exception is TaskCanceledException && !_stop.IsCancellationRequested))
+        {
+            _error = $"The load generator didn't take the new settings: {exception.Message}";
+        }
+        finally
+        {
+            _applying = false;
+        }
+    }
+
+    private async Task RateMovedAsync(ChangeEventArgs change)
+    {
+        CancelPreset();
+        _rate = double.Parse((string)change.Value!, System.Globalization.CultureInfo.InvariantCulture);
+        await ApplyAsync();
+    }
+
+    private async Task MixMovedAsync(ChangeEventArgs change)
+    {
+        _holdShare = int.Parse((string)change.Value!, System.Globalization.CultureInfo.InvariantCulture) / 100d;
+        await ApplyAsync();
+    }
+
+    private async Task EventChosenAsync(ChangeEventArgs change)
+    {
+        _eventId = Guid.TryParse(change.Value as string, out var eventId) ? eventId : null;
+        _section = null; // another event has other sections
+        await ApplyAsync();
+        await RefreshStatsAsync();
+        await RefreshAvailabilityAsync();
+    }
+
+    private async Task SectionChosenAsync(ChangeEventArgs change)
+    {
+        _section = change.Value as string is { Length: > 0 } section ? section : null;
+        await ApplyAsync();
+    }
+
+    private void Start(Preset preset) => _ = RunAsync(preset);
+
+    /// <summary>Runs a preset's stages in this page; moving the slider or Stop ends it. Closing the page leaves the last rate set.</summary>
+    private async Task RunAsync(Preset preset)
+    {
+        CancelPreset();
+        var run = _preset = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
+        _running = preset;
+        try
+        {
+            foreach (var stage in preset.Stages)
+            {
+                _rate = stage.Rate;
+                _stageEnds = Time.GetUtcNow() + stage.For;
+                await ApplyAsync();
+                StateHasChanged();
+                if (stage.For is { } length)
+                {
+                    await Task.Delay(length, Time, run.Token);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Replaced by another preset, the slider or Stop.
+        }
+        finally
+        {
+            if (_preset == run)
+            {
+                (_preset, _running, _stageEnds) = (null, null, null);
+                StateHasChanged();
+            }
+
+            run.Dispose();
+        }
+    }
+
+    private void CancelPreset()
+    {
+        _preset?.Cancel();
+        (_preset, _running, _stageEnds) = (null, null, null);
+    }
+
+    private async Task StopAsync()
+    {
+        CancelPreset();
+        _rate = 0;
+        await ApplyAsync();
+    }
+
+    // Cancelled, not disposed: the polling loop may still read its token once more.
+    public void Dispose()
+    {
+        _preset?.Cancel();
+        _stop.Cancel();
+    }
+
+    // What the page shows
+
+    private int HoldPercent => (int)Math.Round(_holdShare * 100);
+
+    private string StageText => _stageEnds is { } ends
+        ? $" · next step in {Math.Max(0, Math.Ceiling((ends - Time.GetUtcNow()).TotalSeconds))} s"
+        : "";
+
+    /// <summary>
+    /// The event under load: as the generator reports it, or, before any load, the one it will
+    /// choose (the first on sale, in the same order PublicApi lists them).
+    /// </summary>
+    private Guid? ShownEventId => _stats?.EventId ?? _eventId ?? _events.FirstOrDefault()?.EventId;
+
+    private string? ShownEventName => _events.FirstOrDefault(summary => summary.EventId == ShownEventId)?.Name;
+
+    private string EventText => ShownEventId is null
+        ? "Nothing on sale yet: run the seeder."
+        : $"{(_stats?.Settings.RequestsPerSecond > 0 ? "Loading" : "Will load")} {ShownEventName ?? "an event"}.";
+
+    private string PlacesTitle => ShownEventName is { } name ? $": {name}" : "";
+
+    private IReadOnlyList<SecondStats> Last => _stats?.Seconds.TakeLast(RecentSeconds).ToList() ?? [];
+
+    private double? Recent(Func<SecondStats, int> value) => Last.Count == 0 ? null : Last.Average(value);
+
+    /// <summary>Answers to the scheduled requests: browsing and holds. A release follows its hold, so it isn't one.</summary>
+    private static int AnsweredScheduled(SecondStats second) =>
+        second.CompletedByKind.GetValueOrDefault("Browse") + second.CompletedByKind.GetValueOrDefault("Hold");
+
+    private double? Achieved => Recent(AnsweredScheduled);
+
+    private double Skipped => Recent(second => second.Skipped) ?? 0;
+
+    private bool FallingBehind => Recent(second => second.Offered) is > 0 and var offered && (Achieved ?? 0) < 0.9 * offered;
+
+    private bool Failing => Last.Any(second => second.Failed + second.ClientErrors > 0);
+
+    private string FailedNote => Last.Sum(second => second.ClientErrors) > 0
+        ? "includes 4xx: a generator bug or a contract change"
+        : "5xx, timeouts or broken connections";
+
+    private double? LatestP99(string kind) =>
+        Last.Select(second => second.LatencyP99MsByKind.GetValueOrDefault(kind)).LastOrDefault(value => value is not null);
+
+    private Status? OverTarget(string kind, double targetMs) => LatestP99(kind) switch
+    {
+        null => null,
+        > 0 and var p99 when p99 > targetMs => Status.Warning,
+        _ => Status.Good,
+    };
+
+    private static string Milliseconds(double? value) => value is { } ms ? Charts.Format(ms) : "–";
+
+    private IReadOnlyList<SecondStats> Seconds => _stats?.Seconds ?? [];
+
+    private IReadOnlyList<ChartSeries> ThroughputSeries =>
+    [
+        new("Offered", "var(--offered)", [.. Seconds.Select(second => (double?)second.Offered)], Dashed: true),
+        new("Achieved", "var(--achieved)", [.. Seconds.Select(second => (double?)AnsweredScheduled(second))]),
+    ];
+
+    private IReadOnlyList<ChartSeries> OutcomeSeries =>
+    [
+        new("OK", "var(--ok)", [.. Seconds.Select(second => (double?)second.Ok)]),
+        new("Refused", "var(--refused)", [.. Seconds.Select(second => (double?)second.Refused)]),
+        new("Failed", "var(--failed)", [.. Seconds.Select(second => (double?)(second.Failed + second.ClientErrors))]),
+    ];
+
+    private IReadOnlyList<ChartSeries> LatencySeries =>
+    [
+        new("p50", "var(--p50)", [.. Seconds.Select(second => second.LatencyP50Ms)]),
+        new("p95", "var(--p95)", [.. Seconds.Select(second => second.LatencyP95Ms)]),
+        new("p99", "var(--p99)", [.. Seconds.Select(second => second.LatencyP99Ms)]),
+    ];
+
+    private RenderFragment Tile(string label, double? value, string unit, Status? status = null, string? note = null) =>
+        @<div class="tile @(status?.ToString().ToLowerInvariant())">
+            <div class="tile-label">@label</div>
+            <div class="tile-value">@(value is { } number ? Charts.Format(number) : "–") <span class="tile-unit">@unit</span></div>
+            <div class="tile-note">
+                @if (status is Status.Critical)
+                {
+                    <span class="status-icon" aria-label="Problem">⚠</span>
+                }
+                else if (status is Status.Warning)
+                {
+                    <span class="status-icon" aria-label="Warning">▲</span>
+                }
+                else if (status is Status.Good)
+                {
+                    <span class="status-icon" aria-label="Fine">✓</span>
+                }
+                @note
+            </div>
+        </div>;
+}

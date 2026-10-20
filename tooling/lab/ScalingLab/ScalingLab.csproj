@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- The Scaling Lab (ADR-0017): one page with a slider for the load generator's rate and live
+       counters and charts of what the system did with it. Tooling: it talks to the load generator,
+       and to PublicApi only through its Kiota client, for the event list and free places (ADR-0021). -->
+  <PropertyGroup>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\clients\Clients.csproj" />
+  </ItemGroup>
+</Project>
