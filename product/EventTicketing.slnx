@@ -38,6 +38,12 @@
     <Project Path="src/Modules/Payments/Payments.Domain/Payments.Domain.csproj" />
     <Project Path="src/Modules/Payments/Payments.Infrastructure/Payments.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Ticketing/">
+    <Project Path="src/Modules/Ticketing/Ticketing.Application/Ticketing.Application.csproj" />
+    <Project Path="src/Modules/Ticketing/Ticketing.Contracts/Ticketing.Contracts.csproj" />
+    <Project Path="src/Modules/Ticketing/Ticketing.Domain/Ticketing.Domain.csproj" />
+    <Project Path="src/Modules/Ticketing/Ticketing.Infrastructure/Ticketing.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/Shared.Application/Shared.Application.csproj" />
     <Project Path="src/Shared/Shared.Contracts/Shared.Contracts.csproj" />

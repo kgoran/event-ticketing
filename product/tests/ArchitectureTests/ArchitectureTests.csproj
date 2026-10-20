@@ -23,6 +23,10 @@
     <ProjectReference Include="..\..\src\Modules\Payments\Payments.Contracts\Payments.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Payments\Payments.Domain\Payments.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Ticketing\Ticketing.Application\Ticketing.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Ticketing\Ticketing.Contracts\Ticketing.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Ticketing\Ticketing.Domain\Ticketing.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Ticketing\Ticketing.Infrastructure\Ticketing.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Shared\Shared.Application\Shared.Application.csproj" />
     <ProjectReference Include="..\..\src\Shared\Shared.Contracts\Shared.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Shared\Shared.Domain\Shared.Domain.csproj" />

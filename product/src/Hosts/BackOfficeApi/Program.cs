@@ -5,6 +5,7 @@ using EventTicketing.Organizers;
 using EventTicketing.Payments.Infrastructure;
 using EventTicketing.Shared.Infrastructure.Authentication;
 using EventTicketing.Shared.Infrastructure.Modules;
+using EventTicketing.Ticketing.Infrastructure;
 using Scalar.AspNetCore;
 
 // Organizers and admins: events, organizers, reporting, refunds.
@@ -12,7 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddApiAuthentication();
-builder.AddModules(HostKind.BackOfficeApi, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule());
+builder.AddModules(HostKind.BackOfficeApi, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule());
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 

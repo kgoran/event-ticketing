@@ -20,6 +20,13 @@ var fanSiteSecret = builder.AddParameter(
     new GenerateParameterDefault { MinLength = 32, Special = false },
     secret: true);
 
+// The secret every event's private signing key is encrypted under (envelope encryption, ADR-0051).
+// Only Workers signs tickets, so only Workers gets it. Generated per run like the other secrets.
+var ticketingMasterKey = builder.AddParameter(
+    "ticketing-master-key",
+    new GenerateParameterDefault { MinLength = 48, Special = false },
+    secret: true);
+
 // The development realm: roles, one organizer group, test users ana, ben, cid, dan, eva, fil (fans), olga (organizer),
 // adam (admin), passwords equal to the user names, and the fan site's client. A fixed port keeps token URLs stable in
 // .http files.
@@ -103,6 +110,7 @@ var workers = WithTimings(builder.AddProject<Projects.Workers>("workers"))
     .WithReference(localPay)
     .WithEnvironment("Payments__LocalPay__BaseUrl", "http://localpay")
     .WithEnvironment("Payments__LocalPay__WebhookSecret", webhookSecret)
+    .WithEnvironment("Ticketing__MasterKey", ticketingMasterKey)
     .WithHttpHealthCheck("/health")
     .WaitForCompletion(migrator);
 
