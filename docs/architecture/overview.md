@@ -225,11 +225,12 @@ Workers · Orders:   ══► Inventory.ConfirmHold(holdId, orderId)          s
 
 ```
 OrderConfirmed ─► Ticketing (Workers):
-   render PDFs + upload to object storage (safe to repeat, keyed by ticketId)  ← side effects first
-   tx: one ticket per seat (unique per order + seat), QR = signature over (ticketId, eventId, version)
-       + outbox TicketsIssued {ticketIds, document keys}
-TicketsIssued ─► Notifications (email) · CheckIn (door list) · Reporting
+   tx: one ticket per seat (unique per order + seat), QR = JWS (ES256) over (ticketId, eventId, version)
+       signed with the event's key + outbox TicketsIssued {tickets with codes, buyer email, event name}
+   (M4: render PDFs + upload to object storage first, safe to repeat, keyed by ticketId)
+TicketsIssued ─► Notifications (email, outside the transaction, delivery log) · CheckIn (door list, M3) · Reporting
 "My tickets" in PublicApi reads from Ticketing directly, so fans have their tickets even if the email fails.
+Public keys: GET /events/{eventId}/ticket-keys (a JSON Web Key Set). ADR-0051, ADR-0052.
 ```
 
 ### 4.5 Check-in at the door

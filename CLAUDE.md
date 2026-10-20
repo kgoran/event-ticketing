@@ -30,11 +30,18 @@ demo (Q4: `dotnet run --project dev/AppHost -- --Demo=true`, runbook `docs/demos
 `product/src/Frontends/FanSite`, http://localhost:5100, fans' tokens kept on the server).
 Implementation decisions: ADRs 0038–0049.
 
-**M1b is in progress** (`docs/milestones/m1b.md`, agreed 2026-10-20, decisions D7–D19, ADRs 0050–0052):
-tickets with signed QR codes, "My tickets", email through Mailpit, the Stripe adapter tested against
-`stripe-mock` (no Stripe account; the demo uses LocalPay only), the per-fan ticket limit, Organizers
-keeping Keycloak in step. Team of five, three-week time-box; the demo runs offline on one laptop.
-The Scaling Lab stays in M2.
+**M1b is built** (`docs/milestones/m1b.md`, agreed 2026-10-20, decisions D7–D19, ADRs 0050–0052):
+the Ticketing module (signed JWS QR codes, a key per event under envelope encryption, public keys at
+`GET /events/{id}/ticket-keys`), "My tickets" in PublicApi and the fan site, the Notifications module
+(email through Mailpit at http://localhost:8025, Razor templates, delivery log), the Stripe adapter
+contract-tested against `stripe-mock` (no Stripe account; the demo uses LocalPay only; how to turn on
+test mode: `docs/payments.md`), LocalPay's create-failure, slow-create and stale-failure scenarios,
+the per-fan ticket limit, Organizers keeping Keycloak's groups in step, T2 with tickets. Runbook
+`docs/demos/m1b.md` (offline, one presenter); dry run `DemoM1bDryRunTests`.
+
+**Next: the Scaling Lab, brought forward (D20, 2026-10-20):** the load generator, the
+requests-per-second slider and live counters, under Aspire; autoscaling and the pod list wait for
+Kubernetes in M2 (ADR-0016, ADR-0017).
 
 ## Commands
 

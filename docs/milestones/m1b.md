@@ -1,7 +1,8 @@
 # M1b: tickets, email and the Stripe adapter
 
 - **Status:** Agreed 2026-10-20 (decisions D7–D19). Time-box: **3 weeks**, team of five.
-  M1a is closed as done.
+  M1a is closed as done. **Built 2026-10-20**, every backlog item including G2: O3 #26, TK1 #27,
+  TK2 #28, I3 #29, N1 #30, L2 #31, P3 #32, G2 #33, Q5 #34, Q6 (runbook `docs/demos/m1b.md`).
 - **Related:** [ADR-0016](../adr/0016-teaching-milestones.md) (milestones), [M1a](m1a.md),
   [payments](../payments.md), [architecture overview](../architecture/overview.md) §4.4,
   ADRs [0050](../adr/0050-stripe-adapter-without-an-account.md),
