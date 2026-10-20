@@ -15,6 +15,9 @@ public interface IHoldRepository
     /// </summary>
     Task<Hold?> FindCurrentAsync(Guid eventId, string customerId, CancellationToken cancellationToken);
 
+    /// <summary>How many places the fan has bought for the event: the places of their confirmed holds.</summary>
+    Task<int> PlacesBoughtAsync(Guid eventId, string customerId, CancellationToken cancellationToken);
+
     /// <summary>Marks up to <paramref name="batch"/> Active or InCheckout holds whose time has run out as Expired.</summary>
     Task<int> ExpireLapsedAsync(int batch, CancellationToken cancellationToken);
 }
@@ -88,6 +91,12 @@ public sealed record InventoryPolicy
     public TimeSpan CheckoutBackstop { get; init; } = TimeSpan.FromMinutes(35);
 
     public int MaxSeatsPerHold { get; init; } = 8;
+
+    /// <summary>
+    /// The most places one fan may buy for one event (ADR-0024): already bought plus the new hold.
+    /// One current hold per fan per event means two holds can't pass the check together.
+    /// </summary>
+    public int MaxTicketsPerFan { get; init; } = 8;
 
     /// <summary>How often the sweeper tidies up expired holds (ADR-0010: about every 2 s).</summary>
     public TimeSpan SweepInterval { get; init; } = TimeSpan.FromSeconds(2);

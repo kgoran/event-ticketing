@@ -218,6 +218,11 @@ internal sealed class HoldRepository(InventoryDbContext db) : IHoldRepository
             cancellationToken);
     }
 
+    public Task<int> PlacesBoughtAsync(Guid eventId, string customerId, CancellationToken cancellationToken) =>
+        db.Holds
+            .Where(hold => hold.EventId == eventId && hold.CustomerId == customerId && hold.Status == HoldStatus.Confirmed)
+            .SumAsync(hold => hold.SeatIds.Count, cancellationToken);
+
     public Task<int> ExpireLapsedAsync(int batch, CancellationToken cancellationToken) =>
         HoldSweeps.ExpireLapsedAsync(db, batch, cancellationToken);
 }

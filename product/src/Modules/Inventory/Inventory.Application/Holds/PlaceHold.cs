@@ -69,6 +69,19 @@ internal sealed class PlaceHoldHandler(
                 $"You already hold seats for this event (hold {current.Id}). Release it or check out first.");
         }
 
+        // The ticket limit counts what the fan already bought (ADR-0041 update). Checked before
+        // claiming, so a refused hold takes nothing from anyone, not even for a moment.
+        var requested = command.SeatIds?.Count ?? command.Quantity ?? 0;
+        var bought = await holds.PlacesBoughtAsync(command.EventId, customerId, cancellationToken);
+        if (bought + requested > policy.MaxTicketsPerFan)
+        {
+            return Error.Conflict(
+                "hold.ticket_limit",
+                bought == 0
+                    ? $"You can buy at most {policy.MaxTicketsPerFan} tickets for this event."
+                    : $"You can buy at most {policy.MaxTicketsPerFan} tickets for this event, and you already have {bought}.");
+        }
+
         var holdId = Guid.CreateVersion7();
         var claim = command.SeatIds is { Count: > 0 } seatIds
             ? await seats.TryClaimAsync(command.EventId, seatIds, holdId, policy.HoldLifetime, cancellationToken)
