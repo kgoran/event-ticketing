@@ -11,6 +11,7 @@ using EventTicketing.Shared.Infrastructure.Modules;
 using EventTicketing.Shared.Infrastructure.Persistence;
 using EventTicketing.Shared.Infrastructure.Scheduling;
 using EventTicketing.Testing;
+using EventTicketing.Ticketing.Infrastructure;
 using EventTicketing.WebhookIngress;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -35,6 +36,9 @@ namespace EventTicketing.Modules.IntegrationTests;
 public sealed class TestSystem : IAsyncLifetime
 {
     private const string ConnectionSetting = "ConnectionStrings:" + ModuleDatabaseRegistration.ConnectionName;
+
+    /// <summary>The secret the events' private keys are encrypted under (ADR-0051), as the AppHost generates one.</summary>
+    internal const string MasterKey = "test-master-key-at-least-32-characters-long";
 
     private static readonly TimeSpan DeliveryTimeout = TimeSpan.FromSeconds(30);
 
@@ -202,7 +206,7 @@ public sealed class TestSystem : IAsyncLifetime
         return client;
     }
 
-    private static IModule[] Modules() => [new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule()];
+    private static IModule[] Modules() => [new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule()];
 
     private WebApplicationFactory<TEntryPoint> InMemory<TEntryPoint>(WebApplicationFactory<TEntryPoint> factory)
         where TEntryPoint : class =>
@@ -228,6 +232,7 @@ public sealed class TestSystem : IAsyncLifetime
         new("Payments:LocalPay:BaseUrl", FakeLocalPay.BaseUrl),
         new("Payments:LocalPay:WebhookSecret", FakeLocalPay.WebhookSecret),
         new("Checkout:ReturnUrlTemplate", "http://publicapi.test/orders/{orderId}"),
+        new("Ticketing:MasterKey", MasterKey),
 
         // The sweeper runs only when a test makes it due (Scenarios.SweepNowAsync): a sweep briefly
         // locks expired seats, and a claim running into that lock skips the seat (ADR-0011), which

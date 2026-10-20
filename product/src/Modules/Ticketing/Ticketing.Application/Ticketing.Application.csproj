@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Ticketing.Domain\Ticketing.Domain.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Application\Shared.Application.csproj" />
+    <ProjectReference Include="..\..\Catalog\Catalog.Contracts\Catalog.Contracts.csproj" />
+    <ProjectReference Include="..\..\Orders\Orders.Contracts\Orders.Contracts.csproj" />
+    <ProjectReference Include="..\Ticketing.Contracts\Ticketing.Contracts.csproj" />
+  </ItemGroup>
+</Project>

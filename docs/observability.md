@@ -43,6 +43,7 @@ POST /orders                                       (ASP.NET Core)
 | `eventticketing.commands.duration` | histogram (s) | `command`, `outcome`, `error.code` | How long handlers take |
 | `eventticketing.inventory.places_held` | counter | — | Places claimed by successful holds |
 | `eventticketing.inventory.swept` | counter | `swept.kind` (seats, holds) | What the sweeper tidied up (ADR-0010) |
+| `eventticketing.tickets.issued` | counter | — | Tickets issued for confirmed orders, one per place (ADR-0051) |
 | `eventticketing.orders.transitions` | counter | `order.status` (confirmed, expired, failed, refunding, refunded, refund_failed) | How checkouts end |
 | `eventticketing.payments.webhooks` | counter | `payment.provider`, `webhook.result` (stored, duplicate, invalid_signature) | Webhook traffic, and duplicates dropped |
 | `eventticketing.payments.outcomes` | counter | `payment.status` (succeeded, failed, cancelled) | What providers report |

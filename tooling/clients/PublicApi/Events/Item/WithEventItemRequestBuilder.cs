@@ -3,6 +3,7 @@
 using EventTicketing.Tooling.Clients.Public.Events.Item.Availability;
 using EventTicketing.Tooling.Clients.Public.Events.Item.Holds;
 using EventTicketing.Tooling.Clients.Public.Events.Item.SeatMap;
+using EventTicketing.Tooling.Clients.Public.Events.Item.TicketKeys;
 using EventTicketing.Tooling.Clients.Public.Models;
 using Microsoft.Kiota.Abstractions.Extensions;
 using Microsoft.Kiota.Abstractions.Serialization;
@@ -34,6 +35,11 @@ namespace EventTicketing.Tooling.Clients.Public.Events.Item
         public global::EventTicketing.Tooling.Clients.Public.Events.Item.SeatMap.SeatMapRequestBuilder SeatMap
         {
             get => new global::EventTicketing.Tooling.Clients.Public.Events.Item.SeatMap.SeatMapRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The ticketKeys property</summary>
+        public global::EventTicketing.Tooling.Clients.Public.Events.Item.TicketKeys.TicketKeysRequestBuilder TicketKeys
+        {
+            get => new global::EventTicketing.Tooling.Clients.Public.Events.Item.TicketKeys.TicketKeysRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>
         /// Instantiates a new <see cref="global::EventTicketing.Tooling.Clients.Public.Events.Item.WithEventItemRequestBuilder"/> and sets the default values.

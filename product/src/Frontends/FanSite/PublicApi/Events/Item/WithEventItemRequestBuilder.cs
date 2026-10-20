@@ -3,6 +3,7 @@
 using EventTicketing.FanSite.PublicApi.Events.Item.Availability;
 using EventTicketing.FanSite.PublicApi.Events.Item.Holds;
 using EventTicketing.FanSite.PublicApi.Events.Item.SeatMap;
+using EventTicketing.FanSite.PublicApi.Events.Item.TicketKeys;
 using EventTicketing.FanSite.PublicApi.Models;
 using Microsoft.Kiota.Abstractions.Extensions;
 using Microsoft.Kiota.Abstractions.Serialization;
@@ -34,6 +35,11 @@ namespace EventTicketing.FanSite.PublicApi.Events.Item
         public global::EventTicketing.FanSite.PublicApi.Events.Item.SeatMap.SeatMapRequestBuilder SeatMap
         {
             get => new global::EventTicketing.FanSite.PublicApi.Events.Item.SeatMap.SeatMapRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The ticketKeys property</summary>
+        public global::EventTicketing.FanSite.PublicApi.Events.Item.TicketKeys.TicketKeysRequestBuilder TicketKeys
+        {
+            get => new global::EventTicketing.FanSite.PublicApi.Events.Item.TicketKeys.TicketKeysRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>
         /// Instantiates a new <see cref="global::EventTicketing.FanSite.PublicApi.Events.Item.WithEventItemRequestBuilder"/> and sets the default values.

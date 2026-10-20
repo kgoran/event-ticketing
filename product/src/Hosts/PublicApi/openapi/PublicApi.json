@@ -71,6 +71,41 @@
         }
       }
     },
+    "/events/{eventId}/ticket-keys": {
+      "get": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "The public keys that verify an event's ticket codes, as a JSON Web Key Set",
+        "operationId": "GetTicketKeys",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketKeySet"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/events": {
       "get": {
         "tags": [
@@ -1045,6 +1080,55 @@
             "format": "uuid"
           }
         }
+      },
+      "TicketKey": {
+        "required": [
+          "kty",
+          "crv",
+          "x",
+          "y",
+          "kid",
+          "alg",
+          "use"
+        ],
+        "type": "object",
+        "properties": {
+          "kty": {
+            "type": "string"
+          },
+          "crv": {
+            "type": "string"
+          },
+          "x": {
+            "type": "string"
+          },
+          "y": {
+            "type": "string"
+          },
+          "kid": {
+            "type": "string"
+          },
+          "alg": {
+            "type": "string"
+          },
+          "use": {
+            "type": "string"
+          }
+        }
+      },
+      "TicketKeySet": {
+        "required": [
+          "keys"
+        ],
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TicketKey"
+            }
+          }
+        }
       }
     }
   },
@@ -1054,6 +1138,9 @@
     },
     {
       "name": "Seats"
+    },
+    {
+      "name": "Tickets"
     },
     {
       "name": "Browse"
