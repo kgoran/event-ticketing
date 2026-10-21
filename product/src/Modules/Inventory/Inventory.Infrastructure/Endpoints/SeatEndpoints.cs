@@ -2,6 +2,7 @@ using EventTicketing.Inventory.Application.Holds;
 using EventTicketing.Inventory.Infrastructure.Persistence;
 using EventTicketing.Shared.Application.Commands;
 using EventTicketing.Shared.Domain;
+using EventTicketing.Shared.Infrastructure.Features;
 using EventTicketing.Shared.Infrastructure.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -65,7 +66,11 @@ internal static class SeatEndpoints
             .WithSummary("Hold places for a few minutes, all or none: the seats you picked, or the best free places of a section")
             .Produces<HoldPlaced>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .PausedBy(
+                FeatureFlags.PauseHolds,
+                "New holds are paused for a moment. Please try again shortly.",
+                "An operator has paused new holds. Places held already stay yours, and checkouts go on.");
 
         endpoints.MapDelete("/holds/{holdId:guid}", async (Guid holdId, ICommandHandler<ReleaseHold, Unit> handler, CancellationToken cancellationToken) =>
             {

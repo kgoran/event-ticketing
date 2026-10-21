@@ -37,6 +37,7 @@
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.FeatureManagement" Version="4.8.0" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.18.0" />
     <!-- The runtime for the Kiota-generated API clients: the tooling's and the fan site's (ADR-0037). -->
     <PackageVersion Include="Microsoft.Kiota.Bundle" Version="2.1.2" />

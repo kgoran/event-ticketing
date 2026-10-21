@@ -1,0 +1,24 @@
+{{/*
+Feature flags (FF1, docs/feature-flags.md): one file every host reads and re-reads while running.
+After the first install the flags belong to whoever operates the system (`lab flag`), so a deploy
+keeps the values that run and adds only flags it doesn't know yet, from `features` in the values.
+When it adds none, it renders the running file exactly as it is: Helm applies server-side, and a
+different spelling of the same flags would conflict with the operator's change.
+*/}}
+{{- $running := lookup "v1" "ConfigMap" .Release.Namespace "eventticketing-features" }}
+{{- $file := dict "FeatureManagement" .Values.features | toPrettyJson }}
+{{- if $running }}
+{{- $runningFile := index $running.data "features.json" }}
+{{- $runningFlags := dig "FeatureManagement" dict (fromJson $runningFile) }}
+{{- $flags := merge (deepCopy $runningFlags) .Values.features }}
+{{- $file = ternary $runningFile (dict "FeatureManagement" $flags | toPrettyJson) (eq (toJson $flags) (toJson $runningFlags)) }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eventticketing-features
+  labels:
+    app.kubernetes.io/part-of: eventticketing
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  features.json: {{ $file | quote }}

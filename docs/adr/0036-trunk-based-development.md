@@ -43,3 +43,7 @@ against continuous delivery.
 - **2026-10-21 (D34):** product-ci builds every container image on every pull request. A `lab`
   workflow runs `lab up` in kind with a smoke test on pull requests that touch deployment files,
   and nightly. [M2 plan](../milestones/m2.md).
+- **2026-10-21 (FF1, D45):** Feature flags arrive with Microsoft.FeatureManagement, read from
+  configuration in every host. In the lab they live in a ConfigMap that every instance re-reads,
+  switched with `lab flag` without a deploy; a deploy keeps the flags that run. The first flag is
+  an operator's brake, `PauseHolds`. How to add one: [feature flags](../feature-flags.md).

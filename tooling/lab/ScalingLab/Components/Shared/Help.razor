@@ -208,8 +208,9 @@
 
         case HelpTopic.Refused:
             <p>
-                Answers each second with <strong>409 Conflict</strong> or <strong>429 Too Many Requests</strong>, averaged over the
-                last 5 seconds. These are the system saying no on purpose, so they are correct behaviour, not errors.
+                Answers each second with <strong>409 Conflict</strong>, <strong>429 Too Many Requests</strong>, or
+                <strong>503</strong> with a Retry-After, averaged over the last 5 seconds. These are the system saying no on
+                purpose, so they are correct behaviour, not errors.
             </p>
             <ul>
                 <li>
@@ -220,6 +221,11 @@
                 <li>
                     <strong>429:</strong> a rate or capacity limit. Nothing sets one in the lab yet. M5's capacity settings will
                     turn excess load away quickly instead of letting it queue (T7).
+                </li>
+                <li>
+                    <strong>503 with Retry-After:</strong> "not now, come back in 30 s". An operator has switched on the
+                    <code>PauseHolds</code> flag (<code>dotnet run lab.cs -- flag PauseHolds on</code>): new holds are refused
+                    while browsing goes on. A 503 without Retry-After is a failure.
                 </li>
             </ul>
             <p>Under contention, refusals with no failures are exactly what you want to see.</p>

@@ -56,3 +56,9 @@ env: {}
 resources:
   requests: { cpu: 50m, memory: 160Mi }
   limits: { memory: 512Mi }
+
+# Feature flags at the first install (FF1, docs/feature-flags.md); after that, `lab flag` switches
+# them in the running system, and a deploy keeps them.
+features:
+  # An operator's brake: refuse new holds with 503 and Retry-After (D45).
+  PauseHolds: false

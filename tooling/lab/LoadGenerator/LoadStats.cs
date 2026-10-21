@@ -17,7 +17,7 @@ public enum Outcome
     Ok,
 
     /// <summary>
-    /// 409 or 429: refused on purpose, by the product's rules (the seats were just taken) or to
+    /// 409, 429 or a 503 with Retry-After: refused on purpose, by the product's rules (the seats were just taken) or to
     /// protect itself (too many requests). Correct behaviour, not an error.
     /// </summary>
     Refused,

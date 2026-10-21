@@ -20,6 +20,7 @@ dotnet run lab.cs -- deploy   roll the product out from the current source, as a
                    --load 100  … with 100 requests/s running, and count the failed ones (T10)
                    --restart   … every host again, even if nothing changed
                    --during-on-sale "<why>"   … although an on-sale's rush is on
+dotnet run lab.cs -- flag     the feature flags; `flag PauseHolds on` switches one without a deploy
 dotnet run lab.cs -- down     delete the cluster and everything in it
 ```
 
@@ -161,3 +162,14 @@ Each was fixed in configuration, not code ([ADR-0018](adr/0018-capacity-from-con
 
 With those fixes, PublicApi went from 2 to 5 instances and back at 100 requests/s without a single
 failed request.
+
+## And on its second day
+
+4. **A CPU autoscaler takes a new instance's first minute for load** ([Autoscaling](#autoscaling)):
+   warm up before ready, no dynamic PGO, a 20-second scale-up window (D43).
+5. **A column renamed in one release breaks the release still running**: 26% of requests failed
+   during the rollout. Expand, then contract ([database changes](database-changes.md)).
+6. **Helm 4 applies server-side, and whoever changed a field last owns it.** After `lab flag`
+   changed the flags' file, the next deploy refused: the chart rendered the same flags spelled
+   differently, a conflict with `kubectl`'s change. Charts render operator-owned fields exactly as
+   they run (`lookup`), and the lab's upgrades use `--force-conflicts` for a flag a release adds.
