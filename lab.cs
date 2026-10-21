@@ -121,6 +121,13 @@ sealed class Lab(string root)
         Step("Tools");
         await _tools.EnsureAsync();
 
+        if (ClusterExists() && ClusterNodes() < ConfiguredNodes())
+        {
+            throw new LabException(
+                $"The lab cluster has {ClusterNodes()} node(s); this version of the lab makes {ConfiguredNodes()}, one per zone (D47). "
+                + "Make it again: dotnet run lab.cs -- down, then up.");
+        }
+
         if (!ClusterExists())
         {
             Step("Cluster");
@@ -222,11 +229,13 @@ sealed class Lab(string root)
             Run("dotnet", ["publish", PathOf(project), "-c", "Release", "-t:PublishContainer", $"-p:ContainerImageTag={tag}", "-v:quiet", "-nologo"]);
         }
 
-        // Only what the node lacks: kind exports every image it is given before it looks.
+        // Only what a node lacks: kind exports every image it is given before it looks. Every node,
+        // since a pod may start on any of them (D47).
         Step("Images: into the cluster");
-        var present = Capture("docker", ["exec", $"{ClusterName}-control-plane", "crictl", "images", "-o", "json"]);
+        var nodes = Capture(_tools.Kind, ["get", "nodes", "--name", ClusterName]).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var present = nodes.Select(node => Capture("docker", ["exec", node, "crictl", "images", "-o", "json"])).ToList();
         var missing = Images.Select(pair => $"eventticketing/{pair.Image}:{tag}")
-            .Where(image => !present.Contains($"\"docker.io/{image}\"", StringComparison.Ordinal))
+            .Where(image => present.Any(images => !images.Contains($"\"docker.io/{image}\"", StringComparison.Ordinal)))
             .ToList();
         if (missing.Count == 0)
         {
@@ -616,7 +625,13 @@ sealed class Lab(string root)
             return 0;
         }
 
+        Run(_tools.Kubectl, ["--context", Context, "get", "nodes", "-L", "topology.kubernetes.io/zone"]);
+        Console.WriteLine();
         Run(_tools.Kubectl, ["--context", Context, "get", "pods", "--all-namespaces", "-l", "!job-name", "-o", "wide"]);
+        Console.WriteLine();
+        // The database (D48): which instance is the primary, and where each one runs.
+        Run(_tools.Kubectl, ["--context", Context, "get", "cluster", "eventticketing", "-n", "eventticketing"]);
+        Run(_tools.Kubectl, ["--context", Context, "get", "pods", "-n", "eventticketing", "-l", "cnpg.io/cluster=eventticketing", "-L", "cnpg.io/instanceRole", "-o", "wide"]);
         Console.WriteLine();
         PrintAddresses();
         return 0;
@@ -704,6 +719,10 @@ sealed class Lab(string root)
         Console.WriteLine($"  Keycloak admin     user admin, password {Encoding.UTF8.GetString(Convert.FromBase64String(adminPassword))} (generated for this cluster)");
         Console.WriteLine("  Fans               ana, ben, cid, … (password = name); olga (organizer), adam (admin)");
     }
+
+    private int ClusterNodes() => Capture(_tools.Kind, ["get", "nodes", "--name", ClusterName]).Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+
+    private int ConfiguredNodes() => File.ReadAllLines(PathOf("platform/kind/cluster.yaml")).Count(line => line.TrimStart().StartsWith("- role:", StringComparison.Ordinal));
 
     private bool ClusterExists() =>
         Capture(_tools.Kind, ["get", "clusters"]).Split('\n', StringSplitOptions.TrimEntries).Contains(ClusterName);

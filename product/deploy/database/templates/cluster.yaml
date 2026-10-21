@@ -18,5 +18,15 @@ spec:
   postgresql:
     parameters:
       max_connections: {{ .Values.maxConnections | quote }}
+    # Quorum commit: a commit returns once any one standby has it (D48). With two standbys a slow
+    # or lost one doesn't hold writes up; with none left, writes wait (no commit with one copy).
+    synchronous:
+      method: any
+      number: 1
+  # One instance per zone; after a zone failure the cluster runs on two until the zone is back.
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: topology.kubernetes.io/zone
+    podAntiAffinityType: required
   resources:
     {{- toYaml .Values.resources | nindent 4 }}

@@ -26,6 +26,18 @@ spec:
         {{- include "eventticketing.labels" $context | nindent 8 }}
     spec:
       {{- include "eventticketing.podSecurity" $context | nindent 6 }}
+      # A host's instances spread over the zones, and over nodes (D47), as a preference: when a zone
+      # is lost, its replacements must still start in the others. Counted per rollout's revision.
+      topologySpreadConstraints:
+        {{- range list "topology.kubernetes.io/zone" "kubernetes.io/hostname" }}
+        - maxSkew: 1
+          topologyKey: {{ . }}
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "eventticketing.selector" $context | nindent 14 }}
+          matchLabelKeys: [pod-template-hash]
+        {{- end }}
       # A stopping instance first waits (preStop), then finishes its requests on SIGTERM.
       terminationGracePeriodSeconds: 30
       containers:
