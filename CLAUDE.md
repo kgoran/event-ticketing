@@ -54,7 +54,9 @@ Lab. The owner asked for the items up to several instances first (IM1–CI1); th
 Built: images (IM1), `lab.cs` and the platform (LAB1), the product chart with the Migrator Job (DP1),
 tooling in the cluster with seeding and `reset` (LAB2), the Scaling Lab's Instances panel (SL1), the `lab`
 workflow running `up` and `check` in kind (CI1). How to run it and what it taught (probe timeouts, preStop, the
-connection budget): `docs/lab.md`. **Stopped there, as the owner asked:** DP2–DP4, FF1 and Q7 wait for review.
+connection budget): `docs/lab.md`. After that cut the owner agreed D36–D42 (ADR-0054: an **Auto** switch for
+PublicApi with KEDA, on CPU until M3's Prometheus; connection recycling; 200 lab fans) and asked for the rest of M2
+(CL1, LF1, AS1, DP2–DP4, FF1, Q7) without review stops. Decisions continue at D43.
 
 ## Commands
 

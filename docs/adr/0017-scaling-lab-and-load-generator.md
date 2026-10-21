@@ -134,3 +134,11 @@ and presets 1–5 in M5. k6 remains the tool for the pass/fail target tests
   PublicApi's instance count, the hand-operated version of M5's autoscaler. Its service account
   may read the product namespace and change only deployment scale. Under Aspire the panel says
   instances need the lab cluster.
+- **2026-10-21 (D39, D41, D42):** The Instances panel gets an **Auto** checkbox for PublicApi and a
+  switch between the demo-speed and realistic profiles
+  ([0054](0054-publicapi-autoscaling-switch-in-the-lab.md)). Off pauses KEDA and leaves − / + as
+  before; on lets KEDA's autoscaler choose between 1 and 8 instances, and the panel shows what it
+  measures and wants. The lab's service account may additionally read and patch `ScaledObjects`
+  and read the autoscalers in the product namespace. **The lab fans become two hundred**
+  (`lab01`–`lab200`): twenty could hold only about 110 places a second, so at a high hold share
+  the generator, not PublicApi, was the limit.
