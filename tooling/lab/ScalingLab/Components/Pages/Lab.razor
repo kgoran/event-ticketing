@@ -12,7 +12,8 @@
     <p class="muted">
         The load generator sends requests to PublicApi on a fixed schedule, whether or not earlier answers came back
         (an open model, ADR-0017). <strong>Offered</strong> is what the slider asks for, <strong>achieved</strong> what was
-        answered. When achieved falls behind offered, or latency climbs, the system is saturated.
+        answered. When achieved falls behind what was sent, or latency climbs, the system is saturated; when requests are
+        skipped, the generator is the limit. Each <span class="help-mark" aria-hidden="true">i</span> explains its part of the page.
     </p>
 </header>
 
@@ -23,17 +24,17 @@
 
 <section class="card controls" aria-label="Load">
     <div class="control">
-        <label for="rate">Rate</label>
+        <div class="control-head"><label for="rate">Rate</label><Help Topic="HelpTopic.Rate" /></div>
         <input id="rate" type="range" min="0" max="@Presets.SliderTop" step="4" value="@_rate" @oninput="RateMovedAsync" />
         <output for="rate"><strong>@Charts.Format(_rate)</strong> requests/s</output>
     </div>
     <div class="control">
-        <label for="mix">Holds</label>
+        <div class="control-head"><label for="mix">Holds</label><Help Topic="HelpTopic.Holds" /></div>
         <input id="mix" type="range" min="0" max="100" step="5" value="@HoldPercent" @oninput="MixMovedAsync" />
         <output for="mix"><strong>@HoldPercent%</strong> hold a place and let go of it; the rest browse</output>
     </div>
     <div class="control">
-        <label for="event">Event</label>
+        <div class="control-head"><label for="event">Event</label><Help Topic="HelpTopic.Event" /></div>
         <select id="event" value="@(_eventId?.ToString() ?? "")" @onchange="EventChosenAsync">
             <option value="">The first event on sale</option>
             @foreach (var onSale in _events)
@@ -44,7 +45,7 @@
         <output for="event" class="muted">@EventText</output>
     </div>
     <div class="control">
-        <label for="section">Holds go for</label>
+        <div class="control-head"><label for="section">Holds go for</label><Help Topic="HelpTopic.Section" /></div>
         <select id="section" value="@(_section ?? "")" @onchange="SectionChosenAsync">
             <option value="">Any section</option>
             @foreach (var section in _availability?.Sections ?? [])
@@ -55,7 +56,7 @@
         <output for="section" class="muted">One section only: a hot section, where fans compete for the same places.</output>
     </div>
     <div class="presets">
-        <span class="presets-label">Scenarios</span>
+        <span class="presets-label">Scenarios</span><Help Topic="HelpTopic.Scenarios" />
         @foreach (var preset in Presets.All)
         {
             <button type="button" class="button small @(_running == preset ? "active" : null)" title="@preset.Description" @onclick="() => Start(preset)">@preset.Name</button>
@@ -69,23 +70,25 @@
 </section>
 
 <section class="tiles" aria-label="The last 5 seconds">
-    @Tile("Offered", Recent(second => second.Offered), "requests/s", note: Skipped > 0 ? $"{Charts.Format(Skipped)}/s skipped: the generator's own limit" : "what the slider asks for")
-    @Tile("Achieved", Achieved, "requests/s",
+    @Tile("Offered", HelpTopic.Offered, Offered, "requests/s",
+        status: Skipped > 0 ? Status.Warning : null,
+        note: Skipped > 0 ? $"{Charts.Format(Skipped)}/s skipped: the generator's own limit, not the system's" : "what the slider asks for")
+    @Tile("Achieved", HelpTopic.Achieved, Achieved, "requests/s",
         status: FallingBehind ? Status.Warning : null,
-        note: FallingBehind ? "falling behind what was offered" : "answered, whatever the answer")
-    @Tile("OK", Recent(second => second.Ok), "answers/s", note: "2xx")
-    @Tile("Refused", Recent(second => second.Refused), "answers/s", note: "409 seat taken, 429: correct, not errors")
-    @Tile("Failed", Recent(second => second.Failed + second.ClientErrors), "answers/s",
+        note: FallingBehind ? "falling behind what was sent" : Skipped > 0 ? $"keeps up with the {Charts.Format(Sent)}/s sent" : "answered, whatever the answer")
+    @Tile("OK", HelpTopic.Ok, Recent(second => second.Ok), "answers/s", note: "2xx, releases included")
+    @Tile("Refused", HelpTopic.Refused, Recent(second => second.Refused), "answers/s", note: "409 seat taken, 429: correct, not errors")
+    @Tile("Failed", HelpTopic.Failed, Recent(second => second.Failed + second.ClientErrors), "answers/s",
         status: Failing ? Status.Critical : Status.Good,
         note: Failing ? FailedNote : "no 5xx, timeouts or broken connections")
-    @Tile("Hold p99", LatestP99("Hold"), "ms", status: OverTarget("Hold", 200), note: "target under 200 ms (T1)")
-    @Tile("Browse p99", LatestP99("Browse"), "ms", status: OverTarget("Browse", 100), note: "target under 100 ms (T4)")
-    @Tile("In flight", _stats?.InFlight, "requests", note: "sent, not answered yet")
+    @Tile("Hold p99", HelpTopic.HoldP99, LatestP99("Hold"), "ms", status: OverTarget("Hold", 200), note: "target under 200 ms (T1)")
+    @Tile("Browse p99", HelpTopic.BrowseP99, LatestP99("Browse"), "ms", status: OverTarget("Browse", 100), note: "target under 100 ms (T4)")
+    @Tile("In flight", HelpTopic.InFlight, _stats?.InFlight, "requests", note: "sent, not answered yet")
 </section>
 
 <section class="card instances" aria-label="Instances">
     <div class="instances-head">
-        <h2>Instances</h2>
+        <div class="heading"><h2>Instances</h2><Help Topic="HelpTopic.Instances" /></div>
         @if (PublicApiHost is { } publicApi)
         {
             <div class="stepper" role="group" aria-label="PublicApi instances">
@@ -141,12 +144,12 @@
 </section>
 
 <section class="charts">
-    <LineChart Title="Requests per second" Unit="req/s" MinimumTop="20" Series="ThroughputSeries" />
-    <LineChart Title="Answers per second, by outcome (releases included)" Unit="per s" MinimumTop="20" Series="OutcomeSeries" />
-    <LineChart Title="Latency of answered requests, ms" Unit="ms" MinimumTop="50" Series="LatencySeries" />
+    <LineChart Title="Requests per second" Unit="req/s" MinimumTop="20" Series="ThroughputSeries" Help="HelpTopic.RequestsChart" />
+    <LineChart Title="Answers per second, by outcome (releases included)" Unit="per s" MinimumTop="20" Series="OutcomeSeries" Help="HelpTopic.OutcomesChart" />
+    <LineChart Title="Latency of answered requests, ms" Unit="ms" MinimumTop="50" Series="LatencySeries" Help="HelpTopic.LatencyChart" />
 
     <figure class="card places">
-        <figcaption><span class="chart-title">Free places@(PlacesTitle)</span></figcaption>
+        <figcaption><span class="heading"><span class="chart-title">Free places@(PlacesTitle)</span><Help Topic="HelpTopic.FreePlaces" /></span></figcaption>
         @if (_availability?.Sections is { Count: > 0 } sections)
         {
             <ul class="meters">
@@ -513,9 +516,14 @@
 
     private double? Achieved => Recent(AnsweredScheduled);
 
+    private double? Offered => Recent(second => second.Offered);
+
     private double Skipped => Recent(second => second.Skipped) ?? 0;
 
-    private bool FallingBehind => Recent(second => second.Offered) is > 0 and var offered && (Achieved ?? 0) < 0.9 * offered;
+    /// <summary>What PublicApi actually got: skipped requests were never sent, so they can't fall behind.</summary>
+    private double Sent => (Offered ?? 0) - Skipped;
+
+    private bool FallingBehind => Sent > 0 && (Achieved ?? 0) < 0.9 * Sent;
 
     private bool Failing => Last.Any(second => second.Failed + second.ClientErrors > 0);
 
@@ -557,9 +565,9 @@
         new("p99", "var(--p99)", [.. Seconds.Select(second => second.LatencyP99Ms)]),
     ];
 
-    private RenderFragment Tile(string label, double? value, string unit, Status? status = null, string? note = null) =>
+    private RenderFragment Tile(string label, HelpTopic help, double? value, string unit, Status? status = null, string? note = null) =>
         @<div class="tile @(status?.ToString().ToLowerInvariant())">
-            <div class="tile-label">@label</div>
+            <div class="tile-head"><span class="tile-label">@label</span><Help Topic="help" /></div>
             <div class="tile-value">@(value is { } number ? Charts.Format(number) : "–") <span class="tile-unit">@unit</span></div>
             <div class="tile-note">
                 @if (status is Status.Critical)

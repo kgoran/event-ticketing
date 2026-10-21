@@ -50,5 +50,12 @@ public sealed class ScalingLabTests(RunningApp running)
         using var lab = running.App.CreateHttpClient("scalinglab", "http");
         var page = await lab.GetStringAsync(new Uri("/", UriKind.Relative), Ct);
         page.Should().Contain("Scaling Lab").And.Contain("Requests per second").And.Contain("Hold p99");
+
+        // Every part of the page has its explanation: an ⓘ button and the popover it opens.
+        foreach (var topic in new[] { "rate", "holds", "event", "section", "scenarios", "offered", "achieved", "ok", "refused", "failed",
+                     "holdp99", "browsep99", "inflight", "instances", "requestschart", "outcomeschart", "latencychart", "freeplaces" })
+        {
+            page.Should().Contain($"popovertarget=\"help-{topic}\"").And.Contain($"id=\"help-{topic}\"", "the {0} explanation is on the page", topic);
+        }
     }
 }
