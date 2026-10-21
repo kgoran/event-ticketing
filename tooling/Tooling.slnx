@@ -13,6 +13,7 @@
     <Project Path="simulators/LocalPay/LocalPay.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Lab.SystemTests/Lab.SystemTests.csproj" />
     <Project Path="tests/LocalPay.Tests/LocalPay.Tests.csproj" />
     <Project Path="tests/ScalingLab.Tests/ScalingLab.Tests.csproj" />
   </Folder>

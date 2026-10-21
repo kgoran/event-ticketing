@@ -56,7 +56,12 @@ tooling in the cluster with seeding and `reset` (LAB2), the Scaling Lab's Instan
 workflow running `up` and `check` in kind (CI1). How to run it and what it taught (probe timeouts, preStop, the
 connection budget): `docs/lab.md`. After that cut the owner agreed D36–D42 (ADR-0054: an **Auto** switch for
 PublicApi with KEDA, on CPU until M3's Prometheus; connection recycling; 200 lab fans) and asked for the rest of M2
-(CL1, LF1, AS1, DP2–DP4, FF1, Q7) without review stops. Decisions continue at D43.
+without review stops. **M2 is built:** instances warm up before they count (D43), `lab deploy` rolls out under load
+with T10 measured (DP2) and refuses during an on-sale's rush (DP4, D44), a column renamed by expand and contract
+(DP3, `docs/database-changes.md`), feature flags with `PauseHolds` and `lab flag` (FF1, D45,
+`docs/feature-flags.md`), the M2 demo (`docs/demos/m2.md`) with its dry run `tooling/tests/Lab.SystemTests` in the
+nightly lab workflow (Q7). D43–D45 were decided while building and wait for the owner's review. Decisions continue at
+D46.
 
 ## Commands
 

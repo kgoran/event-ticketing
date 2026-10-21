@@ -11,6 +11,7 @@ on:
       - product/deploy/**
       - tooling/deploy/**
       - dev/AppHost/Realms/**
+      - tooling/tests/Lab.SystemTests/**
       - .github/workflows/lab.yml
   schedule:
     - cron: "17 2 * * *"
@@ -65,6 +66,31 @@ jobs:
       - name: Deploy under load
         run: |
           dotnet run lab.cs -- deploy --restart --load 50 --during-on-sale "lab workflow: measuring T10"
+
+      # Q7: the M2 demo's other steps as a dry run (docs/demos/m2.md): a purchase in the cluster,
+      # scaling by hand and with Auto, a flag switched without a deploy; none may fail a request.
+      - name: M2 demo dry run
+        env:
+          LAB_SYSTEM_TESTS: "1"
+        run: dotnet test --project tooling/tests/Lab.SystemTests
+
+      # The definition of done: `reset` in under 3 minutes (a slower runner gets a warning up to 5).
+      - name: Reset
+        run: |
+          start=$(date +%s)
+          dotnet run lab.cs -- reset
+          took=$(( $(date +%s) - start ))
+          echo "reset took $took s"
+          if [ "$took" -gt 300 ]; then echo "::error::reset took $took s; M2 asks for under 3 minutes."; exit 1; fi
+          if [ "$took" -gt 180 ]; then echo "::warning::reset took $took s; M2 asks for under 3 minutes."; fi
+
+      # ...and `down` leaves nothing behind: no cluster, no node container.
+      - name: Down
+        run: |
+          dotnet run lab.cs -- down
+          if .tools/bin/kind get clusters 2>/dev/null | grep -qx eventticketing; then echo "::error::The cluster is still there."; exit 1; fi
+          left="$(docker ps -a --filter label=io.x-k8s.kind.cluster=eventticketing -q)"
+          if [ -n "$left" ]; then echo "::error::Containers are left: $left"; exit 1; fi
 
       - name: What ran (on failure)
         if: failure()

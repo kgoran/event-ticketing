@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- M2 Q7: the whole system in the lab cluster, as the M2 demo shows it (docs/demos/m2.md), from
+       outside: the usual localhost ports and the cluster's API. Skipped unless LAB_SYSTEM_TESTS=1;
+       the lab workflow runs them after `lab up`, on deployment changes and nightly. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="KubernetesClient" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="AwesomeAssertions" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>
