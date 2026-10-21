@@ -1,0 +1,19 @@
+# The database and its owner, created at first start. CloudNativePG writes the owner's password to
+# the Secret {{ .Values.name }}-app, and serves the primary as the Service {{ .Values.name }}-rw.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.name }}
+  labels:
+    app.kubernetes.io/part-of: eventticketing
+spec:
+  instances: {{ .Values.instances }}
+  imageName: {{ .Values.image }}
+  bootstrap:
+    initdb:
+      database: eventticketing
+      owner: eventticketing
+  storage:
+    size: {{ .Values.storage }}
+  resources:
+    {{- toYaml .Values.resources | nindent 4 }}

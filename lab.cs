@@ -54,6 +54,17 @@ sealed class Lab(string root)
         (8025, "Mailpit"), (8180, "Keycloak"), (18888, "Aspire Dashboard"),
     ];
 
+    /// <summary>The images `up` builds, and the projects they come from.</summary>
+    private static readonly (string Image, string Project)[] Images =
+    [
+        ("publicapi", "product/src/Hosts/PublicApi"),
+        ("backofficeapi", "product/src/Hosts/BackOfficeApi"),
+        ("webhookingress", "product/src/Hosts/WebhookIngress"),
+        ("workers", "product/src/Hosts/Workers"),
+        ("migrator", "product/src/Hosts/Migrator"),
+        ("fansite", "product/src/Frontends/FanSite"),
+    ];
+
     private readonly Tools _tools = new(Path.Combine(root, ".tools", "bin"));
     private readonly Stopwatch _clock = Stopwatch.StartNew();
 
@@ -105,9 +116,75 @@ sealed class Lab(string root)
 
         await InstallPlatformAsync();
 
+        var tag = ImageTag();
+        BuildAndLoadImages(tag);
+        InstallProduct(tag);
+
         Step("Ready");
         PrintAddresses();
         return 0;
+    }
+
+    /// <summary>
+    /// The images' tag (ADR-0029, D25): the commit, or the commit plus a hash of the working tree when
+    /// something isn't committed. The same source always gets the same tag, so a repeated `up` with
+    /// nothing changed rebuilds nothing and restarts nothing.
+    /// </summary>
+    private string ImageTag()
+    {
+        var commit = Capture("git", ["-C", root, "rev-parse", "--short=12", "HEAD"]);
+        if (Capture("git", ["-C", root, "status", "--porcelain"]).Length == 0)
+        {
+            return commit;
+        }
+
+        // Every file git would see, committed or not, in a scratch index: its tree is a content hash.
+        var index = Path.Combine(Path.GetTempPath(), $"lab-index-{Environment.ProcessId}");
+        try
+        {
+            var environment = new Dictionary<string, string> { ["GIT_INDEX_FILE"] = index };
+            Capture("git", ["-C", root, "add", "--all"], environment: environment);
+            return $"{commit}-dirty-{Capture("git", ["-C", root, "write-tree"], environment: environment)[..12]}";
+        }
+        finally
+        {
+            File.Delete(index);
+        }
+    }
+
+    /// <summary>One image per host (ADR-0029), built by the SDK from the current source and loaded into the cluster.</summary>
+    private void BuildAndLoadImages(string tag)
+    {
+        Step($"Images: {tag}");
+        foreach (var (image, project) in Images)
+        {
+            if (Succeeds("docker", ["image", "inspect", $"eventticketing/{image}:{tag}"]))
+            {
+                Console.WriteLine($"  eventticketing/{image}:{tag} is built already");
+                continue;
+            }
+
+            Run("dotnet", ["publish", PathOf(project), "-c", "Release", "-t:PublishContainer", $"-p:ContainerImageTag={tag}", "-v:quiet", "-nologo"]);
+        }
+
+        Step("Images: into the cluster");
+        Run(_tools.Kind, ["load", "docker-image", "--name", ClusterName, .. Images.Select(pair => $"eventticketing/{pair.Image}:{tag}")]);
+    }
+
+    /// <summary>
+    /// The database first, as its own release, then the product: the Migrator runs before the hosts
+    /// roll out (D32), and Helm waits until every host is ready.
+    /// </summary>
+    private void InstallProduct(string tag)
+    {
+        Step("Product: database");
+        Helm("eventticketing-database", PathOf("product/deploy/database"), repo: null, version: null, "eventticketing", values: null);
+        Kubectl("wait", "--for=condition=Ready", "cluster/eventticketing", "-n", "eventticketing", "--timeout=300s");
+
+        Step("Product: migrations and hosts");
+        Helm("eventticketing", PathOf("product/deploy/chart"), repo: null, version: null, "eventticketing",
+            PathOf("product/deploy/chart/values-lab.yaml"), $"image.tag={tag}");
+        Kubectl("get", "deployments", "-n", "eventticketing");
     }
 
     public int Down()
@@ -234,16 +311,27 @@ sealed class Lab(string root)
         }
     }
 
-    private void Helm(string release, string chart, string repo, string version, string space, string? values)
+    /// <summary>Installs or upgrades a release and waits until it is ready: a pinned chart from a repository, or a local one.</summary>
+    private void Helm(string release, string chart, string? repo, string? version, string space, string? values, params string[] settings)
     {
         List<string> arguments =
         [
-            "--kube-context", Context, "upgrade", "--install", release, chart, "--repo", repo, "--version", version,
-            "--namespace", space, "--create-namespace", "--wait", "--timeout", "5m",
+            "--kube-context", Context, "upgrade", "--install", release, chart,
+            "--namespace", space, "--create-namespace", "--wait", "--timeout", "10m",
         ];
+        if (repo is not null && version is not null)
+        {
+            arguments.AddRange(["--repo", repo, "--version", version]);
+        }
+
         if (values is not null)
         {
             arguments.AddRange(["--values", values]);
+        }
+
+        foreach (var setting in settings)
+        {
+            arguments.AddRange(["--set", setting]);
         }
 
         Run(_tools.Helm, arguments);
@@ -280,13 +368,32 @@ sealed class Lab(string root)
         }
     }
 
+    /// <summary>Whether a command succeeds; what it prints is discarded.</summary>
+    private static bool Succeeds(string file, IEnumerable<string> arguments)
+    {
+        try
+        {
+            Capture(file, arguments);
+            return true;
+        }
+        catch (LabException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Runs a command and returns what it printed.</summary>
-    private static string Capture(string file, IEnumerable<string> arguments, string? failure = null)
+    private static string Capture(string file, IEnumerable<string> arguments, string? failure = null, Dictionary<string, string>? environment = null)
     {
         var start = new ProcessStartInfo(file) { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var argument in arguments)
         {
             start.ArgumentList.Add(argument);
+        }
+
+        foreach (var (name, value) in environment ?? [])
+        {
+            start.Environment[name] = value;
         }
 
         Process process;

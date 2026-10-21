@@ -1,0 +1,7 @@
+apiVersion: v2
+name: eventticketing
+description: >-
+  The product (ADR-0021, D26): a Deployment, Service and route per host, and the Migrator as a
+  Job before every install and upgrade (D32). The database is the eventticketing-database release.
+type: application
+version: 0.1.0

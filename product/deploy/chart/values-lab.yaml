@@ -1,0 +1,29 @@
+# The lab (ADR-0053): images loaded into the kind cluster, the platform's internal addresses, the
+# public ones on localhost, and several instances of the stateless hosts (D30).
+
+image:
+  # Loaded by `kind load`; a missing image should fail loudly, not be looked for in a registry.
+  pullPolicy: Never
+
+telemetry:
+  otlpEndpoint: http://aspire-dashboard.platform.svc.cluster.local:18889
+
+identity:
+  authority: http://keycloak.platform.svc.cluster.local:8080/realms/eventticketing
+  requireHttpsMetadata: false
+
+urls:
+  fanSite: http://localhost:5100
+  localPay: http://localpay.lab.svc.cluster.local:8080
+  keycloak: http://keycloak.platform.svc.cluster.local:8080
+  smtpHost: mailpit.platform.svc.cluster.local
+
+hosts:
+  publicapi: { replicas: 3 }
+  webhookingress: { replicas: 2 }
+  # Two Workers compete for the outbox and the schedule; rows are claimed with SKIP LOCKED (ADR-0014).
+  workers: { replicas: 2 }
+
+env:
+  # Every SQL command at Information is a lot of logging under load.
+  Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning

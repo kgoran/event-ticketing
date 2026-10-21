@@ -1,0 +1,54 @@
+# Defaults for any environment. values-lab.yaml holds the lab's addresses and instance counts.
+
+image:
+  # Images are named eventticketing/<host> (ADR-0029); all hosts of a release share one tag.
+  repository: eventticketing
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# The CloudNativePG cluster from product/deploy/database: its Service <cluster>-rw and Secret <cluster>-app.
+database:
+  cluster: eventticketing
+
+# OpenTelemetry collector the hosts export to (ServiceDefaults): empty sends nothing.
+telemetry:
+  otlpEndpoint: ""
+
+# Keycloak's realm as the hosts reach it; tokens carry its public issuer (ADR-0053).
+identity:
+  authority: ""
+  requireHttpsMetadata: true
+
+# Addresses the hosts need.
+urls:
+  # The fan site's public address: sign-in redirects, the return page after paying, links in emails.
+  fanSite: ""
+  # LocalPay's API (payments) and Keycloak's base address (Organizers keeps its groups in step).
+  localPay: ""
+  keycloak: ""
+  smtpHost: ""
+  smtpPort: 1025
+
+# The Secret with client secrets, the webhook secret and the ticketing master key (D33).
+secrets:
+  name: lab-secrets
+
+# Every host of the product. `route` names the gateway listener that serves it; `database` gives it
+# the connection string.
+hosts:
+  publicapi: { replicas: 1, route: publicapi, database: true }
+  backofficeapi: { replicas: 1, route: backofficeapi, database: true }
+  webhookingress: { replicas: 1, route: webhookingress, database: true }
+  workers: { replicas: 1, database: true }
+  fansite: { replicas: 1, route: fansite }
+
+gateway:
+  name: lab
+  namespace: platform
+
+# Settings every host gets, as environment variables (configuration, never code: ADR-0018).
+env: {}
+
+resources:
+  requests: { cpu: 50m, memory: 160Mi }
+  limits: { memory: 512Mi }
