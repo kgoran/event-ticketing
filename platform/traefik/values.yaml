@@ -2,6 +2,9 @@
 # localhost port. The cluster maps each host port to the NodePort below (platform/kind/cluster.yaml);
 # inside the cluster, clients that stand in for the outside world use the same ports on the
 # `traefik` service, so their requests are balanced across instances one by one.
+# The way in (D59): in zone-a with the port mappings, which no drill stops.
+nodeSelector: { topology.kubernetes.io/zone: zone-a }
+
 providers:
   kubernetesGateway:
     enabled: true

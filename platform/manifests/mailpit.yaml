@@ -17,6 +17,8 @@ spec:
       labels:
         app.kubernetes.io/name: mailpit
     spec:
+      # The lab's outside world lives in zone-a, the way in, which no drill stops (D59).
+      nodeSelector: { topology.kubernetes.io/zone: zone-a }
       containers:
         - name: mailpit
           image: axllent/mailpit:v1.31.3

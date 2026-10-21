@@ -38,6 +38,10 @@ spec:
               {{- include "eventticketing.selector" $context | nindent 14 }}
           matchLabelKeys: [pod-template-hash]
         {{- end }}
+      # A lost node's instances are replaced after 30 s, not Kubernetes' default 5 minutes (D59).
+      tolerations:
+        - { key: node.kubernetes.io/unreachable, operator: Exists, effect: NoExecute, tolerationSeconds: 30 }
+        - { key: node.kubernetes.io/not-ready, operator: Exists, effect: NoExecute, tolerationSeconds: 30 }
       # A stopping instance first waits (preStop), then finishes its requests on SIGTERM.
       terminationGracePeriodSeconds: 30
       containers:

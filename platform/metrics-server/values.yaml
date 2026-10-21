@@ -2,3 +2,5 @@
 # kind's kubelets serve self-signed certificates.
 args:
   - --kubelet-insecure-tls
+# Operators run in zone-a, which no drill stops (D59).
+nodeSelector: { topology.kubernetes.io/zone: zone-a }

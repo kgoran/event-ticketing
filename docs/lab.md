@@ -22,6 +22,8 @@ dotnet run lab.cs -- deploy   roll the product out from the current source, as a
                    --restart   … every host again, even if nothing changed
                    --during-on-sale "<why>"   … although an on-sale's rush is on
 dotnet run lab.cs -- flag     the feature flags; `flag PauseHolds on` switches one without a deploy
+dotnet run lab.cs -- drill failover            the database's primary crashes under load (T10, then T2)
+dotnet run lab.cs -- drill zone [zone-b|zone-c] a zone's node stops under load, then starts again
 dotnet run lab.cs -- down     delete the cluster and everything in it
 ```
 
@@ -67,6 +69,44 @@ The Migrator runs as a Job before each deploy of the product. A deploy keeps the
 that run (someone may have changed them in the Scaling Lab, or the autoscaler did), and the Auto
 switch and its speed as they are; `reset` restores what `product/deploy/chart/values-lab.yaml` says:
 Auto off, PublicApi at 3.
+
+## Drills (T10)
+
+Each drill runs 100 requests/s through the gateway, breaks something, and times the way back from
+outside: when the database had a new primary, which seconds had failed requests, then T2's
+invariants (D59).
+
+- **`drill failover`**: the primary crashes (its pod is deleted at once, with no time to finish
+  anything). CloudNativePG promotes a standby, and the `-rw` service follows it.
+- **`drill zone`**: a worker node stops, as a zone would fail, and starts again afterwards. Without
+  a zone named, the one with the database's primary, if it is a worker's.
+  zone-a is never stopped: it is the lab's way in, with the port mappings, the gateway, Keycloak,
+  Mailpit, the operators and the tooling, which stand for the outside world.
+
+Measured on 2026-10-21:
+
+| Drill | New primary after | Requests failed | Within |
+|---|---|---|---|
+| Failover (crash) | 22 s | 1,692 of 8,586 | 24 s: **T10's 60 s held**; T2 held |
+| Zone (the primary's zone) | 59 s | 6,025 of 13,203 | 63 s; T2 held |
+| Zone (another zone) | 53 s | 4,006 of 10,903 | 59 s; T2 held |
+
+What the drills taught:
+
+- **A graceful delete is not a crash.** The first drill deleted the primary's pod normally:
+  PostgreSQL's smart shutdown then waits up to 180 s for clients to leave, and the pools keep their
+  connections, so the failover took 129 s. The drill now crashes it; and a planned stop (a drain, an
+  upgrade) gives clients 10 s (`smartShutdownTimeout`).
+- **A zone without the primary still fails requests for most of a minute**: until Kubernetes marks
+  the node NotReady, Traefik keeps sending requests to the instances there. CI's run of that case:
+  1,737 of 31,216 failed, within 55 s.
+- **A zone failure is noticed late.** Kubernetes marks a silent node NotReady after about 40 s, and
+  only then does anything move: most of a zone drill's minute is waiting to know. The hosts on the
+  lost node are replaced after 30 s more (their tolerations; Kubernetes' default is 5 minutes).
+- **Everything fails while the primary is gone**, browsing too, because every read goes to it.
+  Browsing from the replica (RR1) and the cache (VK1) are what change that.
+- **A pod on a lost node still looks ready** to the API for a while. The lab asks CloudNativePG
+  which instances are healthy.
 
 ## T2's invariants
 
