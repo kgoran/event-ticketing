@@ -101,14 +101,28 @@ public static partial class SharedOutputCache
                 && http.RequestServices.GetService<IOutputCacheStore>() is { } store
                 && (result is not IStatusCodeHttpResult { StatusCode: { } status } || status < 400))
             {
-                foreach (var tag in tags.Select(tag => Resolve(tag, http)).OfType<string>())
+                var resolved = tags.Select(tag => Resolve(tag, http)).OfType<string>().ToList();
+                foreach (var tag in resolved)
                 {
                     await store.EvictByTagAsync(tag, http.RequestAborted);
                 }
+
+                // Once more a second later: a replica applies a commit a moment after the primary, and a
+                // request in that moment would cache the old answer again (D50).
+                _ = EvictAgainAsync(store, resolved);
             }
 
             return result;
         });
+
+    private static async Task EvictAgainAsync(IOutputCacheStore store, IReadOnlyList<string> tags)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        foreach (var tag in tags)
+        {
+            await store.EvictByTagAsync(tag, CancellationToken.None);
+        }
+    }
 
     /// <summary>A tag with its route values filled in, or null if the request's route lacks one.</summary>
     private static string? Resolve(string tag, HttpContext context)

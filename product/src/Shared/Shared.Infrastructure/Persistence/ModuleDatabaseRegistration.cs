@@ -13,6 +13,12 @@ public static partial class ModuleDatabaseRegistration
     public const string ConnectionName = "eventticketing";
 
     /// <summary>
+    /// The connection string for reads a replica may serve (D50): only reads that decide nothing,
+    /// such as browsing. Without it the replica's reads go to the primary (Aspire, tests).
+    /// </summary>
+    public const string ReplicaConnectionName = "eventticketing-replica";
+
+    /// <summary>
     /// Registers a module's DbContext: PostgreSQL, snake_case names, the module's schema, and its own
     /// migrations history table. The Migrator host also gets the module's migration (ADR-0031).
     /// </summary>
@@ -56,6 +62,37 @@ public static partial class ModuleDatabaseRegistration
             builder.Services.AddScoped<IModuleMigration>(services =>
                 new ModuleDbMigration(schema, services.GetRequiredService<TContext>()));
         }
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers a read-only context on a replica (D50, ADR-0003: replicas never decide): no change
+    /// tracking, no migrations, and no health check, since a replica that is gone for a moment must
+    /// not take the host out of rotation. Its data may be a moment behind the primary's.
+    /// </summary>
+    public static IHostApplicationBuilder AddModuleReplicaDatabase<TContext>(this IHostApplicationBuilder builder, string schema)
+        where TContext : ModuleDbContext
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddDbContextPool<TContext>((services, options) =>
+        {
+            var configuration = services.GetRequiredService<IConfiguration>();
+            options
+                .UseNpgsql(
+                    configuration.GetConnectionString(ReplicaConnectionName) is { Length: > 0 } replica ? replica
+                        : configuration.GetConnectionString(ConnectionName) ?? throw new InvalidOperationException($"Connection string '{ConnectionName}' is missing."),
+                    npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", schema))
+                .UseSnakeCaseNamingConvention()
+                .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+        });
+
+        builder.EnrichNpgsqlDbContext<TContext>(settings =>
+        {
+            settings.DisableRetry = true;
+            settings.DisableHealthChecks = true;
+        });
 
         return builder;
     }

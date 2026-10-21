@@ -108,6 +108,31 @@ What the drills taught:
 - **A pod on a lost node still looks ready** to the API for a while. The lab asks CloudNativePG
   which instances are healthy.
 
+## Connections: PgBouncer, and the replicas (D49, D50)
+
+The hosts reach the primary through PgBouncer (CloudNativePG's `Pooler`, two instances, transaction
+mode): each host keeps its pool of 20, PgBouncer keeps at most 2 × 40 connections to PostgreSQL. With
+PublicApi at 8 instances under 300 requests/s the primary had **33 connections**. The Migrator
+connects to the primary directly. Browsing (Catalog's event list, pages and seat maps, when the
+cache misses) reads a replica through its own connection string; its connections are recycled
+after a minute, so they spread over the replicas and follow them.
+
+PgBouncer needed tuning for a failover. Its defaults wait 15 s before trying a server again and
+let clients queue for 2 minutes: the failover drill had 42 s of errors and a third of its usual
+throughput. With `server_login_retry` 1 s, `server_connect_timeout` 3 s and `query_wait_timeout`
+10 s, it is back to 26 s.
+
+| Failover drill | Requests failed | Within |
+|---|---|---|
+| M2 (no cache, the primary for everything) | 1,692 | 24 s |
+| Browsing's cache and snapshots | 1,179 | 25 s |
+| And PgBouncer, defaults | 2,540 | 42 s |
+| And PgBouncer, tuned | 1,555 | 26 s |
+
+The drill also found a bug in the load generator: answers broken half-way by the failover threw
+an exception it didn't expect, those requests were never counted as finished, and after 500 of
+them it skipped everything. It now counts every request, in a `finally`.
+
 ## Browsing's cache and availability snapshots (D52, D53)
 
 PublicApi keeps the event list, event pages and seat maps in Valkey, for everyone alike, signed in

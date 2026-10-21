@@ -125,6 +125,24 @@ public sealed class LoadGeneratorTests
         lastSecond.Failed.Should().Be(0);
     }
 
+    [Fact]
+    public async Task A_request_that_fails_in_an_unexpected_way_is_still_counted_and_not_left_in_flight()
+    {
+        var clock = new ManualClock(new DateTimeOffset(2026, 10, 21, 20, 0, 0, TimeSpan.Zero));
+        var stats = new LoadStats(clock);
+        var nowhere = new Uri("http://localhost:1/");
+        using var http = new HttpClient();
+        var traffic = new Traffic(new LabUrls(nowhere, nowhere), new LabFans(new LabUrls(nowhere, nowhere), http, TimeProvider.System), new TargetEvents(TimeProvider.System), stats, http);
+
+        // A failover once broke answers half-way with an exception nobody expected (M3's drill).
+        var measuring = () => traffic.MeasureAsync(RequestKind.Browse, () => throw new InvalidOperationException("the answer broke"));
+
+        await measuring.Should().ThrowAsync<InvalidOperationException>();
+        stats.InFlight.Should().Be(0);
+        clock.Advance(TimeSpan.FromSeconds(1)); // a snapshot leaves out the second still filling up
+        stats.Snapshot(new LoadSettings(), null, 2).Seconds.Sum(second => second.Failed).Should().Be(1);
+    }
+
     private sealed class ManualClock(DateTimeOffset now) : TimeProvider
     {
         private DateTimeOffset _now = now;

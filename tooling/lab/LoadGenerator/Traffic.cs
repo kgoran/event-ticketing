@@ -99,11 +99,17 @@ internal sealed class Traffic(LabUrls urls, LabFans fans, TargetEvents events, L
         }
     }
 
-    private async Task MeasureAsync(RequestKind kind, Func<Task> request)
+    /// <summary>
+    /// Sends one request and counts how it ended. Every request started is counted as finished, in
+    /// a finally: a failover once broke connections in the middle of an answer, the exception wasn't
+    /// one of those expected here, and the requests stayed "in flight" until the generator's limit
+    /// skipped everything else. Anything unexpected is a failure.
+    /// </summary>
+    internal async Task MeasureAsync(RequestKind kind, Func<Task> request)
     {
         stats.Started();
         var started = Stopwatch.GetTimestamp();
-        Outcome outcome;
+        var outcome = Outcome.Failed;
         try
         {
             await request();
@@ -113,12 +119,14 @@ internal sealed class Traffic(LabUrls urls, LabFans fans, TargetEvents events, L
         {
             outcome = Classify(exception.ResponseStatusCode, exception.ResponseHeaders.ContainsKey("Retry-After"));
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or IOException)
         {
-            outcome = Outcome.Failed; // no connection, or no answer within the timeout
+            // No connection, a broken one, or no answer within the timeout: a failure, as set above.
         }
-
-        stats.Completed(kind, outcome, Stopwatch.GetElapsedTime(started));
+        finally
+        {
+            stats.Completed(kind, outcome, Stopwatch.GetElapsedTime(started));
+        }
     }
 
     /// <summary>

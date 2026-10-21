@@ -38,8 +38,21 @@ instance as a replica), the connection string for hosts that use the database, a
 {{- if .database }}
 - name: DATABASE_PASSWORD
   valueFrom: { secretKeyRef: { name: {{ .root.Values.database.cluster }}-app, key: password } }
+{{- if eq .name "migrator" }}
+# The Migrator changes the schema: straight to the primary, not through PgBouncer.
 - name: ConnectionStrings__eventticketing
-  value: Host={{ .root.Values.database.cluster }}-rw;Database=eventticketing;Username=eventticketing;Password=$(DATABASE_PASSWORD);Maximum Pool Size={{ .root.Values.database.maxPoolSize }}
+  value: Host={{ .root.Values.database.cluster }}-rw;Database=eventticketing;Username=eventticketing;Password=$(DATABASE_PASSWORD)
+{{- else }}
+# Through PgBouncer (D49), which resets nothing between transactions, so Npgsql needn't either.
+- name: ConnectionStrings__eventticketing
+  value: Host={{ .root.Values.database.cluster }}-pooler-rw;Database=eventticketing;Username=eventticketing;Password=$(DATABASE_PASSWORD);Maximum Pool Size={{ .root.Values.database.maxPoolSize }};No Reset On Close=true
+{{- end }}
+{{- if eq .name "publicapi" }}
+# Browsing reads a replica (D50); connections are recycled after a minute, so they spread over the
+# replicas and follow them when one changes.
+- name: ConnectionStrings__eventticketing-replica
+  value: Host={{ .root.Values.database.cluster }}-ro;Database=eventticketing;Username=eventticketing;Password=$(DATABASE_PASSWORD);Maximum Pool Size={{ .root.Values.database.maxPoolSize }};Connection Lifetime=60
+{{- end }}
 {{- end }}
 {{- range $key, $value := .root.Values.env }}
 - name: {{ $key }}
