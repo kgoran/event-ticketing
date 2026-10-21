@@ -4,6 +4,7 @@ using EventTicketing.Notifications;
 using EventTicketing.Orders.Infrastructure;
 using EventTicketing.Organizers;
 using EventTicketing.Payments.Infrastructure;
+using EventTicketing.PublicApi;
 using EventTicketing.Shared.Infrastructure.Authentication;
 using EventTicketing.Shared.Infrastructure.Modules;
 using EventTicketing.Ticketing.Infrastructure;
@@ -13,6 +14,7 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+builder.AddWarmUp(PublicApiWarmUp.RunAsync);
 builder.AddApiAuthentication();
 builder.AddModules(HostKind.PublicApi, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule());
 builder.Services.AddOpenApi();

@@ -418,3 +418,4 @@ and alternatives: [M2](milestones/m2.md#decisions) and [0054](adr/0054-publicapi
 | D40 | CPU as the signal until Prometheus (M3), with PublicApi's CPU request calibrated to 20 requests/s per instance | [0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md), [0019](adr/0019-autoscaling-signals.md) (update) |
 | D41 | 1 to 8 instances; demo-speed and realistic profiles switched in the lab | [0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md) |
 | D42 | Two hundred lab fans instead of twenty | [0017](adr/0017-scaling-lab-and-load-generator.md) (update) |
+| D43 | New instances don't count as load: a warm-up before readiness, no dynamic PGO in the lab, a 20-second scale-up window (decided while building, for review) | [0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md) (update), [lab](lab.md#autoscaling) |

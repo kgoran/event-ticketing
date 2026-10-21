@@ -60,7 +60,8 @@ public static class ServiceDefaultsExtensions
                 .AddAspNetCoreInstrumentation(options =>
                     options.Filter = context =>
                         !context.Request.Path.StartsWithSegments(HealthEndpointPath)
-                        && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath))
+                        && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath)
+                        && !context.Request.Headers.ContainsKey(WarmUpService.Header))
                 .AddHttpClientInstrumentation());
 
         // Aspire, and later the lab, set the OTLP endpoint; without it nothing is exported.
@@ -77,6 +78,22 @@ public static class ServiceDefaultsExtensions
     {
         builder.Services.AddHealthChecks()
             .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Warms the host up before it reports ready (D43): once it listens, <paramref name="routine"/>
+    /// sends it requests, and /health stays unhealthy until that has finished (or given up after a
+    /// minute). /alive isn't affected, so a slow warm-up never gets the host restarted.
+    /// </summary>
+    public static TBuilder AddWarmUp<TBuilder>(this TBuilder builder, WarmUpRoutine routine)
+        where TBuilder : IHostApplicationBuilder
+    {
+        builder.Services.AddSingleton(routine);
+        builder.Services.AddSingleton<WarmUpState>();
+        builder.Services.AddHostedService<WarmUpService>();
+        builder.Services.AddHealthChecks().AddCheck<WarmUpHealthCheck>("warm-up");
 
         return builder;
     }

@@ -79,11 +79,23 @@ What the first runs showed (2026-10-21, default mix, demo speed):
   4.2) at 56–70% CPU, and 30 s after the load stopped it was back to 1. Not one of 16,784
   requests failed, and p99 stayed under 100 ms.
 - **Cold instances fool a CPU autoscaler.** An instance that has just started does its first-time
-  work while it serves its first requests: compiling code, building EF Core's queries. At only
-  28 requests/s a fresh instance used several times its CPU request, the autoscaler read that as
-  load and went to the maximum of 8, and every instance it added was cold too. Precompiled images
-  (ReadyToRun) helped a little, not enough. The fix is to let an instance warm up before it says
-  it is ready, because the autoscaler ignores instances that aren't ready (D43, next).
+  work while it serves its first requests. At only 28 requests/s a fresh instance used several
+  times its CPU request, the autoscaler read that as load and went to the maximum of 8, and every
+  instance it added was cold too. Three things fixed it (D43), each measured:
+  1. **Warm up before ready.** PublicApi sends itself its browsing requests a few dozen times
+     (about 5 s) and only then passes its readiness check; the autoscaler ignores instances that
+     aren't ready, and Traefik sends them nothing. A new instance is ready 10 s after it starts.
+  2. **No dynamic PGO** (`DOTNET_TieredPGO=0`). .NET recompiles busy methods once more in the
+     background, which cost a new instance 621m of CPU in its first half-minute of holds instead
+     of the 140m it settles at. Without it: 224m, and the same steady CPU.
+  3. **A 20-second scale-up window.** The autoscaler scales up only to the lowest count it wanted
+     over 20 s, so one instance's first moments don't buy another.
+
+  Then the step behaves: 1 → 2 at 28/s, 2 → 5 (and one more, briefly) at 84/s, back down after
+  Stop, with no failed request. The count needs about 60–70 s to catch up with the step: most of
+  that is measuring (metrics-server and the autoscaler each look every 15 s), the rest the
+  20-second window. Precompiled images (ReadyToRun) were tried too: they cut the first spike only
+  from 569% to 420%, cost 50 MB per image and three more minutes per build, and aren't used.
 
 ## Three things the lab taught on its first day
 

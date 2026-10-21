@@ -32,6 +32,7 @@ hosts:
       minReplicas: 1
       maxReplicas: 8
       cpuUtilization: 70
+      scaleUpSeconds: 20
       scaleDownSeconds: 30
   webhookingress: { replicas: 2 }
   # Two Workers compete for the outbox and the schedule; rows are claimed with SKIP LOCKED (ADR-0014).
@@ -40,3 +41,8 @@ hosts:
 env:
   # Every SQL command at Information is a lot of logging under load.
   Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
+  # No dynamic PGO (D43): it recompiles every busy method once more in the background, so a new
+  # instance used about four times its usual CPU for its first half-minute of traffic, which the
+  # CPU autoscaler took for load. Measured in the lab: the spike went from 621m to 224m, and the
+  # steady CPU didn't change (about 5m per request/s). Worth revisiting on utilization (M3).
+  DOTNET_TieredPGO: "0"

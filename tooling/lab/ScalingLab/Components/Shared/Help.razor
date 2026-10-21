@@ -366,7 +366,10 @@
                     the load does, and a new instance needs a few more seconds to become ready. Part of "scaling is slow" is
                     "measuring is slow" (ADR-0019).
                 </li>
-                <li>It adds instances at once.</li>
+                <li>
+                    It adds instances once it has wanted them for 20 s. A new instance costs extra CPU in its first moments
+                    under load, and that alone shouldn't buy another one (D43).
+                </li>
                 <li>
                     It gives them back only after the load has stayed lower for a while. <strong>Demo speed</strong> waits 30 s,
                     <strong>Realistic</strong> 5 minutes, Kubernetes' default, so that a short dip doesn't remove instances
