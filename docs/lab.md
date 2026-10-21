@@ -78,7 +78,8 @@ invariants (D59).
 
 - **`drill failover`**: the primary crashes (its pod is deleted at once, with no time to finish
   anything). CloudNativePG promotes a standby, and the `-rw` service follows it.
-- **`drill zone`**: a worker node stops, as a zone would fail, and starts again afterwards.
+- **`drill zone`**: a worker node stops, as a zone would fail, and starts again afterwards. Without
+  a zone named, the one with the database's primary, if it is a worker's.
   zone-a is never stopped: it is the lab's way in, with the port mappings, the gateway, Keycloak,
   Mailpit, the operators and the tooling, which stand for the outside world.
 
@@ -96,6 +97,9 @@ What the drills taught:
   PostgreSQL's smart shutdown then waits up to 180 s for clients to leave, and the pools keep their
   connections, so the failover took 129 s. The drill now crashes it; and a planned stop (a drain, an
   upgrade) gives clients 10 s (`smartShutdownTimeout`).
+- **A zone without the primary still fails requests for most of a minute**: until Kubernetes marks
+  the node NotReady, Traefik keeps sending requests to the instances there. CI's run of that case:
+  1,737 of 31,216 failed, within 55 s.
 - **A zone failure is noticed late.** Kubernetes marks a silent node NotReady after about 40 s, and
   only then does anything move: most of a zone drill's minute is waiting to know. The hosts on the
   lost node are replaced after 30 s more (their tolerations; Kubernetes' default is 5 minutes).

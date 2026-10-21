@@ -637,18 +637,23 @@ sealed class Lab(string root)
             throw new LabException("No lab cluster. Start one with: dotnet run lab.cs -- up");
         }
 
+        var primary = DatabasePod("primary") ?? throw new LabException("No database primary is running.");
+        var primaryNode = Capture(_tools.Kubectl, ["--context", Context, "get", "pod", primary, "-n", "eventticketing", "-o", "jsonpath={.spec.nodeName}"]);
+        string[] workers = [$"{ClusterName}-worker", $"{ClusterName}-worker2"];
+
+        // Without a zone named, the primary's, if a drill may stop it: the harder case.
         var (kind, node) = options switch
         {
             ["failover"] => ("failover", null),
-            ["zone"] => ("zone", $"{ClusterName}-worker"),
-            ["zone", "zone-b"] => ("zone", $"{ClusterName}-worker"),
-            ["zone", "zone-c"] => ("zone", $"{ClusterName}-worker2"),
+            ["zone"] => ("zone", workers.Contains(primaryNode) ? primaryNode : workers[0]),
+            ["zone", "zone-b"] => ("zone", workers[0]),
+            ["zone", "zone-c"] => ("zone", workers[1]),
             _ => throw new LabException("Use: drill failover, or drill zone [zone-b|zone-c]."),
         };
+        var promotes = kind == "failover" || node == primaryNode;
 
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
         var previous = await http.GetStringAsync(GeneratorSettings);
-        var primary = DatabasePod("primary") ?? throw new LabException("No database primary is running.");
 
         Step("Load: 100 requests/s through the gateway, 20% holds");
         await SetLoadAsync(http, """{"requestsPerSecond":100,"holdShare":0.2}""");
@@ -667,12 +672,13 @@ sealed class Lab(string root)
             }
             else
             {
-                Step($"Zone: the node {node} stops");
+                Step($"Zone: the node {node} stops{(promotes ? ", with the database's primary" : ", not the primary's")}");
                 Run("docker", ["stop", node!]);
             }
 
             // Until the database has a primary again (CloudNativePG promotes a standby), then a minute
-            // more under load, so the drill shows the way back as well as the break.
+            // more under load, so the drill shows the way back as well as the break. Without the
+            // primary in the zone, two minutes: long enough for Kubernetes to notice and move the hosts.
             while (clock.Elapsed < TimeSpan.FromMinutes(5))
             {
                 if (promoted is null && DatabasePod("primary") is { } now && now != primary)
@@ -681,7 +687,7 @@ sealed class Lab(string root)
                     Console.WriteLine($"  {now} is the primary after {promoted.Value.TotalSeconds:0} s");
                 }
 
-                if (promoted is { } at && clock.Elapsed > at + TimeSpan.FromSeconds(60))
+                if ((promoted is { } at && clock.Elapsed > at + TimeSpan.FromSeconds(60)) || (!promotes && clock.Elapsed > TimeSpan.FromMinutes(2)))
                 {
                     break;
                 }
@@ -704,7 +710,8 @@ sealed class Lab(string root)
         var errorSeconds = failing.Count == 0 ? 0 : failing[^1].index - failing[0].index + 1;
 
         Step("T10: requests that failed during the drill");
-        Console.WriteLine(promoted is { } p ? $"  A new primary after {p.TotalSeconds:0} s." : "  No new primary within 5 minutes.");
+        Console.WriteLine(promoted is { } p ? $"  A new primary after {p.TotalSeconds:0} s."
+            : promotes ? "  No new primary within 5 minutes." : $"  The primary, {primary}, kept running in another zone.");
         Console.WriteLine(failing.Count == 0
             ? $"  {completed} answered, none failed."
             : $"  {completed} answered, {failing.Sum(second => second.failed)} failed, within {errorSeconds} s (from {failing[0].index - (window.Count - seconds)} s to {failing[^1].index - (window.Count - seconds)} s after the failure).");
@@ -720,7 +727,7 @@ sealed class Lab(string root)
             Kubectl("wait", "node", node, "--for=condition=Ready", "--timeout=180s");
             Kubectl("wait", "--for=condition=Ready", "cluster/eventticketing", "-n", "eventticketing", "--timeout=300s");
         }
-        return promoted is not null && invariants && (kind != "failover" || errorSeconds < 60) ? 0 : 1;
+        return (promoted is not null || !promotes) && invariants && (kind != "failover" || errorSeconds < 60) ? 0 : 1;
     }
 
     /// <summary>
