@@ -19,5 +19,7 @@ public static class CommandTelemetry
     internal static readonly Histogram<double> Duration = Meter.CreateHistogram<double>(
         "eventticketing.commands.duration",
         unit: "s",
-        description: "Time spent in command handlers.");
+        description: "Time spent in command handlers.",
+        tags: null,
+        advice: HistogramBuckets.Seconds);
 }

@@ -1,8 +1,8 @@
 # Observability: traces and metrics
 
 Everything the product emits goes through OpenTelemetry. ServiceDefaults subscribes to every
-source and meter named `EventTicketing.*`, so a new one appears in the Aspire dashboard (and
-later in the lab's Grafana) without configuration. This page is the catalogue: add a row when
+source and meter named `EventTicketing.*`, so a new one appears in the Aspire dashboard and in
+the lab's Grafana without configuration. This page is the catalogue: add a row when
 you add a span or an instrument.
 
 ## Traces
@@ -28,6 +28,10 @@ POST /orders                                       (ASP.NET Core)
   and publishes `PaymentSucceeded` from a span in that trace, linked to the webhook's trace.
 - Command spans are named `command <Command>`; message spans `consume <event name>` (outbox) or
   `scheduled <message type>` (scheduler).
+- **Background loops are not traced on their own.** A database or Valkey call that belongs to no
+  request and no message (the outbox's, the schedule's and the availability snapshots' polling,
+  every second) is not exported (`BackgroundCallsFilter` in ServiceDefaults): in the lab they were
+  95% of all traces. The same calls inside a request or a message are, as its children.
 
 | Source | Spans |
 |---|---|
@@ -53,7 +57,9 @@ POST /orders                                       (ASP.NET Core)
 | `eventticketing.messages.lag` | histogram (s) | `message.type` | Time from an event occurring to its delivery |
 
 All tag names start with `eventticketing.` (shortened in the table). Tags only take values from
-small, fixed sets: never IDs, user names or amounts.
+small, fixed sets: never IDs, user names or amounts. A histogram in seconds names its buckets
+(`HistogramBuckets`): OpenTelemetry's defaults are for milliseconds, and with them every percentile
+read about 5 s (found on the lab's dashboards; an architecture test now checks it).
 
 ## Under load: sampling
 
@@ -65,5 +71,18 @@ sampled-out parent, so it is always traced.
 
 ## Seeing it
 
-Start the AppHost and open the dashboard: **Traces** shows a purchase as one trace (filter by
-`command StartCheckout`); **Metrics** lists the instruments above per resource.
+**Under Aspire:** start the AppHost and open the dashboard: **Traces** shows a purchase as one
+trace (filter by `command StartCheckout`); **Metrics** lists the instruments above per resource.
+
+**In the lab** (D55, [docs/lab.md](lab.md#seeing-it-grafana-d55)): Grafana at
+http://localhost:3000, fed by the OpenTelemetry Collector. The dashboards are in
+`product/deploy/chart/dashboards/`: **Services** (per host), **Purchases** (the instruments above),
+**Database** (CloudNativePG and PgBouncer). In Prometheus a name loses its dots and gains its unit:
+`eventticketing.commands.handled` is `eventticketing_commands_handled_total`, the tag
+`eventticketing.command` is the label `eventticketing_command`; `service.name` is the label `job`
+and `service.instance.id` (the pod) is `instance`. Logs in Loki carry `service_name`, and
+`trace_id` as structured metadata: `{service_name="publicapi"} | trace_id="…"` finds a trace's
+lines, which is what Tempo's **Logs for this span** runs.
+
+**Adding a panel:** add the instrument (and its row above), then the panel in Grafana; export the
+dashboard's JSON over its file. A panel's description says what it shows and how to read it.

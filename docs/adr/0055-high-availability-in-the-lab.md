@@ -30,7 +30,7 @@ were named in earlier decisions; this one says how they fit together in the lab.
   sessions.
 - **Observability (D55, D56).** An OpenTelemetry Collector receives what the hosts send and passes
   metrics to Prometheus, logs to Loki and traces to Tempo; Grafana shows a dashboard per service,
-  provisioned from `product/deploy/dashboards`. The Aspire Dashboard stays for Aspire only.
+  provisioned from the product's chart (`product/deploy/chart/dashboards`, D68). The Aspire Dashboard stays for Aspire only.
   PublicApi's autoscaler moves to requests in progress per instance (ADR-0054's planned change).
 - **Toxiproxy (D57)** sits between the hosts and PgBouncer, with no delay until a drill adds one.
 - **Invariants and drills (D58, D59).** `tooling/checks` checks T2's rules in SQL through a

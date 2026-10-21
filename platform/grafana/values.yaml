@@ -1,0 +1,62 @@
+# Grafana for the lab (D55) at http://localhost:3000: Prometheus, Loki and Tempo as data sources,
+# linked both ways (a trace's logs, a log line's trace), and the dashboards the product ships as
+# ConfigMaps labelled grafana_dashboard (product/deploy/chart/dashboards). Anyone may look and use
+# Explore, which takes the Editor role; the provisioned dashboards can't be saved over from the UI,
+# and nothing made there survives a restart. Settings take the admin password `lab status` prints.
+# In zone-a (D59).
+nodeSelector: { topology.kubernetes.io/zone: zone-a }
+# Grafana 13 uses about 340 MB idle; 384 MB was killed on the first dashboard with live data.
+resources:
+  requests: { cpu: 50m, memory: 256Mi }
+  limits: { memory: 768Mi }
+persistence: { enabled: false }
+admin:
+  existingSecret: lab-secrets
+  userKey: grafana-admin-user
+  passwordKey: grafana-admin-password
+grafana.ini:
+  auth.anonymous: { enabled: true, org_role: Editor }
+  analytics: { reporting_enabled: false, check_for_updates: false, check_for_plugin_updates: false }
+  news: { news_feed_enabled: false }
+  # No apps downloaded from grafana.com at every start (the Drilldown apps): the lab works offline
+  # once set up, and they took memory. Explore needs only the bundled data sources.
+  plugins: { preinstall_disabled: true }
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    searchNamespace: ALL
+    folderAnnotation: grafana_folder
+    provider: { foldersFromFilesStructure: true }
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        url: http://prometheus-server.platform.svc.cluster.local
+        isDefault: true
+        jsonData: { timeInterval: 5s }
+      - name: Loki
+        uid: loki
+        type: loki
+        url: http://loki.platform.svc.cluster.local:3100
+        jsonData:
+          derivedFields:
+            - { name: Trace, datasourceUid: tempo, matcherType: label, matcherRegex: trace_id, url: "$${__value.raw}" }
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        url: http://tempo.platform.svc.cluster.local:3200
+        jsonData:
+          # A span's logs: the same service's lines carrying the trace's id. Loki keeps an OTLP log's
+          # trace_id as structured metadata, not in the line, so the query filters on it.
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: "-5m"
+            spanEndTimeShift: "5m"
+            tags: [{ key: service.name, value: service_name }]
+            customQuery: true
+            query: '{$${__tags}} | trace_id="$${__trace.traceId}"'
+          serviceMap: { datasourceUid: prometheus }

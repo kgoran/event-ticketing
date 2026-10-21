@@ -26,7 +26,6 @@ nodes:
       - { hostPort: 5301, containerPort: 30301, listenAddress: 127.0.0.1 } # load generator
       - { hostPort: 8025, containerPort: 30025, listenAddress: 127.0.0.1 } # Mailpit
       - { hostPort: 8180, containerPort: 30180, listenAddress: 127.0.0.1 } # Keycloak
-      - { hostPort: 18888, containerPort: 30888, listenAddress: 127.0.0.1 } # Aspire Dashboard
       - { hostPort: 3000, containerPort: 30030, listenAddress: 127.0.0.1 } # Grafana (M3)
   - role: worker
     labels: { topology.kubernetes.io/zone: zone-b }

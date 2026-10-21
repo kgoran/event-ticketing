@@ -6,7 +6,7 @@ image:
   pullPolicy: Never
 
 telemetry:
-  otlpEndpoint: http://aspire-dashboard.platform.svc.cluster.local:18889
+  otlpEndpoint: http://opentelemetry-collector.platform.svc.cluster.local:4317
 
 identity:
   authority: http://keycloak.platform.svc.cluster.local:8080/realms/eventticketing

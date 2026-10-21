@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using EventTicketing.Shared.Application;
 
 namespace EventTicketing.Shared.Infrastructure.Messaging;
 
@@ -25,7 +26,7 @@ internal static class MessagingTelemetry
         "eventticketing.messages.duplicates", description: "Deliveries dropped by the inbox because the consumer had already handled the message.");
 
     public static readonly Histogram<double> Lag = Meter.CreateHistogram<double>(
-        "eventticketing.messages.lag", unit: "s", description: "Time from an event occurring to its delivery.");
+        "eventticketing.messages.lag", unit: "s", description: "Time from an event occurring to its delivery.", tags: null, advice: HistogramBuckets.Delays);
 
     public static Activity? StartProcessing(string operation, string messageType, Guid messageId, MessageHeaders headers)
     {

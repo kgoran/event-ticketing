@@ -24,6 +24,9 @@ instance as a replica), the connection string for hosts that use the database, a
 {{- with .root.Values.telemetry.otlpEndpoint }}
 - name: OTEL_EXPORTER_OTLP_ENDPOINT
   value: {{ . | quote }}
+# Metrics every 5 s, not OpenTelemetry's default minute: the autoscaler reads them (D56).
+- name: OTEL_METRIC_EXPORT_INTERVAL
+  value: "5000"
 {{- end }}
 - name: OTEL_SERVICE_NAME
   value: {{ .name }}

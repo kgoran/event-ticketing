@@ -72,3 +72,7 @@ valkey:
   resources:
     requests: { cpu: 25m, memory: 64Mi }
     limits: { memory: 320Mi }
+
+# The product's Grafana dashboards (D55), from dashboards/: ConfigMaps for Grafana's sidecar.
+dashboards:
+  enabled: true

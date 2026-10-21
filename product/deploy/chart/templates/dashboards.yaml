@@ -1,0 +1,23 @@
+{{- /*
+The product's Grafana dashboards (D55): one ConfigMap per file in dashboards/, which Grafana's
+sidecar finds by the grafana_dashboard label, in any namespace, and files in the folder named by
+grafana_folder. They ship with the release, so a dashboard changes with the code it shows.
+*/ -}}
+{{- if .Values.dashboards.enabled }}
+{{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-{{ base $path | trimSuffix ".json" }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: eventticketing
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+  annotations:
+    grafana_folder: EventTicketing
+data:
+  {{ base $path }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+{{- end }}
+{{- end }}

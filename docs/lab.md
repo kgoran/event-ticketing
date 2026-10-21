@@ -45,7 +45,7 @@ The usual ports, as under Aspire:
 | http://localhost:5300 | Scaling Lab, with the **Instances** panel |
 | http://localhost:8025 | Mailpit |
 | http://localhost:8180 | Keycloak (`status` prints the admin password) |
-| http://localhost:18888 | Aspire Dashboard: traces, logs and metrics, each instance as its own replica |
+| http://localhost:3000 | Grafana: the dashboards, and Explore for metrics, logs and traces (no sign-in needed; `status` prints the admin password) |
 
 `kubectl --context kind-eventticketing …` reaches the cluster (or `.tools/bin/kubectl`).
 
@@ -58,7 +58,7 @@ which database instance is the primary. A cluster made before M3 had one node: `
 
 | Namespace | What |
 |---|---|
-| `platform` | Traefik (the gateway), Keycloak, Mailpit, the Aspire Dashboard |
+| `platform` | Traefik (the gateway), Keycloak, Mailpit, and the observability stack: the OpenTelemetry Collector, Prometheus, Loki, Tempo, Grafana (D55) |
 | `cnpg-system` | the CloudNativePG operator |
 | `keda` | KEDA, which runs PublicApi's autoscaler when the Scaling Lab's **Auto** is on ([ADR-0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md)) |
 | `kube-system` | metrics-server, which measures each pod's CPU for `kubectl top` and the autoscaler |
@@ -69,6 +69,30 @@ The Migrator runs as a Job before each deploy of the product. A deploy keeps the
 that run (someone may have changed them in the Scaling Lab, or the autoscaler did), and the Auto
 switch and its speed as they are; `reset` restores what `product/deploy/chart/values-lab.yaml` says:
 Auto off, PublicApi at 3.
+
+## Seeing it: Grafana (D55)
+
+Every host and every tool sends its telemetry over OTLP to one place, the **OpenTelemetry
+Collector**, which passes metrics to **Prometheus**, logs to **Loki** and traces to **Tempo**.
+**Grafana** (http://localhost:3000) shows all three. Prometheus also scrapes the database instances
+and PgBouncer (CloudNativePG's exporters) and Kubernetes itself (kube-state-metrics). Everything is
+kept on the pods for six hours, and goes when a pod restarts: it's a lab.
+
+| Dashboard (folder EventTicketing) | What it answers |
+|---|---|
+| **Services** | One host at a time (the **Service** picker): requests per second, errors, p99, requests in progress, CPU, memory and database connections per instance, calls out, and its warnings from Loki |
+| **Purchases** | Hold and checkout results, how orders end, payments, webhooks, refunds, the outbox's messages and their lag, tickets and emails |
+| **Database** | Which instance is primary, replication lag, transactions per instance (the primary's writes, the replicas' browsing), connections, and PgBouncer's clients, servers and waits |
+
+Every panel's **i** says what it shows and how to read it. The dashboards ship with the product's
+chart (`product/deploy/chart/dashboards/`, one ConfigMap each, which Grafana's sidecar picks up),
+so they change with the code they show. To change one, edit it in Grafana, **Export → JSON**,
+and replace the file: Grafana doesn't save over a provisioned dashboard.
+
+**From a trace to its logs and back.** Explore → Tempo finds traces (by service, by duration, by
+status); a span's **Logs for this span** opens the lines that service wrote in that trace. From a
+log line in Loki, the **trace_id** field opens its trace. The load generator traces 1 in 20
+requests (docs/observability.md), so a lab run has traces to look at without keeping every one.
 
 ## Drills (T10)
 
@@ -275,3 +299,15 @@ failed request.
    changed the flags' file, the next deploy refused: the chart rendered the same flags spelled
    differently, a conflict with `kubectl`'s change. Charts render operator-owned fields exactly as
    they run (`lookup`), and the lab's upgrades use `--force-conflicts` for a flag a release adds.
+
+## And when it got dashboards (M3)
+
+7. **The first dashboards found two bugs that no test had.** Every command's p99 read exactly 5 s:
+   the histograms measured seconds in OpenTelemetry's default buckets, which are for milliseconds,
+   so everything fell into the first one (now `HistogramBuckets`, checked by an architecture test).
+   And 95% of all traces were the outbox's polling, one per second per loop, burying the requests'
+   (background calls are no longer traced on their own). Telemetry is code: look at it under load.
+8. **An observability stack has its own capacity plan.** Grafana 13 was killed at 384 MB on the
+   first dashboard with live data; Prometheus held 98,000 series after half an hour, 60,000 of them
+   the API server's own metrics nobody read (15,000 now). Limits from measurements, and scrape
+   only what a dashboard or an alert reads. All the lab's pods together: about 6.3 GB.
