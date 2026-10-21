@@ -5,6 +5,7 @@
 //   dotnet run lab.cs -- up       create the cluster if there is none, then build and deploy the current source
 //   dotnet run lab.cs -- reset    keep the cluster and platform; a fresh database, redeployed, reseeded
 //   dotnet run lab.cs -- status   what runs, and where to open it
+//   dotnet run lab.cs -- check    does it work: hosts ready, addresses answering, sign-in, a burst of load
 //   dotnet run lab.cs -- down     delete the cluster and everything in it
 //
 // A .NET file-based app (D24), so it needs only the .NET SDK and Docker. The tools it drives
@@ -30,6 +31,7 @@ try
         "down" => lab.Down(),
         "reset" => await lab.ResetAsync(),
         "status" => lab.Status(),
+        "check" => await lab.CheckAsync(),
         _ => Lab.Help(),
     };
 }
@@ -94,6 +96,7 @@ sealed class Lab(string root)
               dotnet run lab.cs -- up       create the cluster if there is none, then build and deploy the current source
               dotnet run lab.cs -- reset    keep the cluster and platform; a fresh database, redeployed, reseeded
               dotnet run lab.cs -- status   what runs, and where to open it
+              dotnet run lab.cs -- check    does it work: hosts ready, addresses answering, sign-in, a burst of load
               dotnet run lab.cs -- down     delete the cluster and everything in it
             """);
         return 0;
@@ -272,6 +275,105 @@ sealed class Lab(string root)
 
         Run(_tools.Kind, ["delete", "cluster", "--name", ClusterName]);
         return 0;
+    }
+
+    /// <summary>
+    /// Whether the lab works, as CI and a presenter need to know (D34): every host ready at its count,
+    /// every address answering, a token from Keycloak accepted by PublicApi, the demo on sale, and a
+    /// few seconds of load through the gateway without a failed request.
+    /// </summary>
+    public async Task<int> CheckAsync()
+    {
+        if (!_tools.Installed || !ClusterExists())
+        {
+            throw new LabException("No lab cluster. Start one with: dotnet run lab.cs -- up");
+        }
+
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        var failures = new List<string>();
+        async Task Check(string what, Func<Task<string?>> probe)
+        {
+            string? problem;
+            try
+            {
+                problem = await probe();
+            }
+            catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or LabException or JsonException or KeyNotFoundException)
+            {
+                problem = exception.Message;
+            }
+
+            Console.WriteLine($"  {(problem is null ? "ok  " : "FAIL")}  {what}{(problem is null ? "" : $": {problem}")}");
+            if (problem is not null)
+            {
+                failures.Add(what);
+            }
+        }
+
+        Step("Hosts");
+        using (var deployments = JsonDocument.Parse(Capture(_tools.Kubectl, ["--context", Context, "get", "deployments", "--all-namespaces", "-o", "json"])))
+        {
+            foreach (var deployment in deployments.RootElement.GetProperty("items").EnumerateArray())
+            {
+                var name = deployment.GetProperty("metadata").GetProperty("name").GetString()!;
+                var wanted = deployment.GetProperty("spec").GetProperty("replicas").GetInt32();
+                var ready = deployment.GetProperty("status").TryGetProperty("readyReplicas", out var count) ? count.GetInt32() : 0;
+                await Check($"{name}: {ready} of {wanted} ready", () => Task.FromResult(ready == wanted ? null : "not all instances are ready"));
+            }
+        }
+
+        Step("Addresses");
+        foreach (var (port, what) in Addresses)
+        {
+            await Check($"{what} at http://localhost:{port}", async () =>
+            {
+                using var response = await http.GetAsync(new Uri($"http://localhost:{port}/"));
+                return (int)response.StatusCode < 500 ? null : $"HTTP {(int)response.StatusCode}";
+            });
+        }
+
+        Step("Sign-in and the demo");
+        await Check("a token from Keycloak is accepted by PublicApi", async () =>
+        {
+            using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "password", ["client_id"] = "eventticketing-dev", ["username"] = "ana", ["password"] = "ana",
+            });
+            using var token = await http.PostAsync(new Uri("http://localhost:8180/realms/eventticketing/protocol/openid-connect/token"), form);
+            token.EnsureSuccessStatusCode();
+            using var body = JsonDocument.Parse(await token.Content.ReadAsStringAsync());
+            using var me = new HttpRequestMessage(HttpMethod.Get, new Uri("http://localhost:5101/me"));
+            me.Headers.Authorization = new("Bearer", body.RootElement.GetProperty("access_token").GetString());
+            using var answer = await http.SendAsync(me);
+            return answer.IsSuccessStatusCode ? null : $"GET /me answered {(int)answer.StatusCode}";
+        });
+        await Check("the demo is on sale", async () =>
+            (await http.GetStringAsync(new Uri("http://localhost:5101/events?q=demo"))).Contains("Demo Concert", StringComparison.Ordinal) ? null : "no Demo Concert");
+
+        Step("A burst of load through the gateway");
+        await Check("20 requests/s for 8 s, none failed", async () =>
+        {
+            static StringContent Rate(int rate) => new($"{{\"requestsPerSecond\":{rate},\"holdShare\":0.2}}", Encoding.UTF8, "application/json");
+            (await http.PutAsync(new Uri("http://localhost:5301/settings"), Rate(20))).EnsureSuccessStatusCode();
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(9));
+                using var stats = JsonDocument.Parse(await http.GetStringAsync(new Uri("http://localhost:5301/stats?seconds=6")));
+                var seconds = stats.RootElement.GetProperty("seconds").EnumerateArray().ToList();
+                int Sum(string property) => seconds.Sum(second => second.GetProperty(property).GetInt32());
+                return Sum("ok") == 0 ? "nothing was answered"
+                    : Sum("failed") + Sum("clientErrors") > 0 ? $"{Sum("failed")} failed, {Sum("clientErrors")} client errors of {Sum("completed")}"
+                    : null;
+            }
+            finally
+            {
+                await http.PutAsync(new Uri("http://localhost:5301/settings"), Rate(0));
+            }
+        });
+
+        Console.WriteLine();
+        Console.WriteLine(failures.Count == 0 ? "The lab works." : $"{failures.Count} check(s) failed.");
+        return failures.Count == 0 ? 0 : 1;
     }
 
     public int Status()
