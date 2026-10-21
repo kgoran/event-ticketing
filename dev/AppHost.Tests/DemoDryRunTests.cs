@@ -28,7 +28,7 @@ public sealed class DemoDryRunTests(RunningApp running)
         await DemoScript.PayAsync(redirectUrl);
 
         await DemoScript.OrderAsync(ana, orderId, DemoScript.AsyncStep, "Confirmed");
-        (await _demo.AvailableSeatsAsync(eventId)).Should().NotContain(pair);
+        await _demo.SeatsShowAsync(eventId, free: false, pair);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class DemoDryRunTests(RunningApp running)
         await DemoScript.PayAsync(redirectUrl);
 
         await DemoScript.OrderAsync(dan, orderId, DemoScript.AsyncStep, "Failed");
-        (await _demo.AvailableSeatsAsync(eventId)).Should().Contain(seat);
+        await _demo.SeatsShowAsync(eventId, free: true, seat);
     }
 }
 
@@ -131,11 +131,11 @@ public sealed class DemoCheckoutDeadlineTests(RunningApp running)
         // Nobody pays. At the deadline Orders cancels the payments at LocalPay, then releases the seats.
         await DemoScript.OrderAsync(ben, abandoned.OrderId, PastTheDeadline, "Expired");
         (await _demo.LocalPayStatusAsync(abandoned.RedirectUrl)).Should().Be("expired");
-        (await _demo.AvailableSeatsAsync(concert.EventId)).Should().Contain(abandonedSeat);
+        await _demo.SeatsShowAsync(concert.EventId, free: true, abandonedSeat);
 
         // LocalPay completes the racing payment as it's being expired: the webhook confirms it.
         await DemoScript.OrderAsync(eva, racing.OrderId, PastTheDeadline, "Confirmed");
         (await _demo.LocalPayStatusAsync(racing.RedirectUrl)).Should().Be("succeeded");
-        (await _demo.AvailableSeatsAsync(scenarios.EventId)).Should().NotContain(racingSeat);
+        await _demo.SeatsShowAsync(scenarios.EventId, free: false, racingSeat);
     }
 }

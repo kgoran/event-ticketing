@@ -79,6 +79,17 @@ internal sealed class DemoScript(RunningApp running)
         return [.. availability.GetProperty("availableSeatIds").EnumerateArray().Select(id => id.GetGuid())];
     }
 
+    /// <summary>
+    /// Waits until availability shows the seats free (or taken): it comes from a snapshot about a
+    /// second old (D53), and T3 allows 10 s for a freed seat to show.
+    /// </summary>
+    public Task SeatsShowAsync(Guid eventId, bool free, params Guid[] seats) =>
+        RunningApp.EventuallyAsync(
+            () => AvailableSeatsAsync(eventId),
+            available => seats.All(seat => available.Contains(seat) == free),
+            TimeSpan.FromSeconds(10),
+            Ct);
+
     /// <summary>LocalPay's own view of a payment, by the ID at the end of its checkout URL.</summary>
     public async Task<string> LocalPayStatusAsync(string redirectUrl)
     {
