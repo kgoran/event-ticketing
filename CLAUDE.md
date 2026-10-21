@@ -65,12 +65,14 @@ dotnet build product/EventTicketing.slnx            # product only (CI builds to
 dotnet test --solution product/EventTicketing.slnx  # unit + architecture tests (Microsoft.Testing.Platform)
 dotnet test --project dev/AppHost.Tests             # whole system under Aspire; needs Docker
 dotnet run --project dev/AppHost                    # local development
-dotnet run lab.cs -- up | reset | status | down     # the lab cluster (kind); docs/lab.md
+dotnet run lab.cs -- up | reset | status | check | deploy | down   # the lab cluster (kind); docs/lab.md
 ```
 
 Package versions live in `Directory.Packages.props`; warnings are errors. EF Core migrations:
 `dotnet ef migrations add <Name> --project <module project> --startup-project <module project>
---context <ModuleDbContext> --output-dir Persistence/Migrations` (`dotnet tool restore` first). A build regenerates
+--context <ModuleDbContext> --output-dir Persistence/Migrations` (`dotnet tool restore` first). A migration must work
+for its own release and the one before it: no renames, drops only in a `…Contract` migration a release later
+(`docs/database-changes.md`; `MigrationRulesTests` checks it). A build regenerates
 `product/src/Hosts/*/openapi/*.json`; commit them (CI fails if they are stale). After a PublicApi contract change, also
 run `bash product/src/Frontends/FanSite/generate-client.sh` and `bash tooling/clients/generate.sh` (CI checks both).
 
@@ -97,7 +99,8 @@ run `bash product/src/Frontends/FanSite/generate-client.sh` and `bash tooling/cl
 | `docs/architecture/overview.md` | Agreed architecture: modules, hosts, key flows, targets, milestones, repository, Scaling Lab |
 | `docs/adr/` | Architecture decision records, one per agreed decision (index in `README.md`) |
 | `docs/milestones/` | Milestone plans: scope, backlog, definition of done, demo script |
-| `docs/lab.md` | The lab cluster: commands, addresses, what runs, lessons |
+| `docs/lab.md` | The lab cluster: commands, addresses, what runs, deploys under load, autoscaling, lessons |
+| `docs/database-changes.md` | Changing the database without downtime: the expand/contract rule and the worked example |
 
 ## Background
 
