@@ -64,6 +64,8 @@ entry under **Updates** that settles something the ADR explicitly left open.
 | [0052](0052-email-through-mailpit.md) | Email: SMTP with MailKit, Mailpit locally, Razor templates, a delivery log |
 | [0053](0053-the-lab-cluster-addresses-identity-and-platform.md) | The lab cluster: addresses, identity and platform in M2 |
 | [0054](0054-publicapi-autoscaling-switch-in-the-lab.md) | PublicApi's autoscaling switch in the lab, from M2: KEDA, paused when off, CPU until Prometheus |
+| [0055](0055-high-availability-in-the-lab.md) | High availability in the lab: zones, the database, Valkey, observability, drills (M3) |
+| [0056](0056-check-in-devices-scanner-and-revocation.md) | Check-in: devices as Keycloak clients, the scanner as a PWA, revocation by an admin (M3) |
 
 ## Template
 
