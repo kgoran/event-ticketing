@@ -12,4 +12,11 @@
     <IsPackable>false</IsPackable>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+
+  <!-- Container images, for the projects that publish one (ADR-0029): `dotnet publish -t:PublishContainer`
+       builds an image on Microsoft's chiseled base, which runs as a non-root user. Invariant
+       globalization and NodaTime's own time zones mean nothing needs the larger -extra variant. -->
+  <PropertyGroup>
+    <ContainerFamily>noble-chiseled</ContainerFamily>
+  </PropertyGroup>
 </Project>
