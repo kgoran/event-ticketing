@@ -58,9 +58,18 @@ Both releases' writes keep the two columns equal (`ExpandContractTests`).
 
 ### Release 2: contract
 
-`EventVenueTimeZoneContract`, once release 1 runs everywhere: drop the trigger, its function and
-`time_zone`. Release 1 never reads `time_zone`, so its instances keep serving while release 2
-rolls out.
+[`EventVenueTimeZoneContract`](../product/src/Modules/Catalog/Catalog/Persistence/Migrations/20261021194014_EventVenueTimeZoneContract.cs),
+once release 1 runs everywhere: drop the trigger, its function and `time_zone`. Release 1 never
+reads `time_zone`, so its instances keep serving while release 2 rolls out. The code doesn't
+change; `ExpandContractTests` goes, with the column it checked.
+
+Deployed onto release 1 with `lab deploy --load 100`: **0 of 7,412 requests failed.**
+
+| Release | Requests during the rollout | Failed |
+|---|---|---|
+| EF Core's rename, in one release | 9,243 | 2,405 (26%) |
+| Release 1, expand | 7,586 | 0 |
+| Release 2, contract | 7,412 | 0 |
 
 ## Checklist for a pull request with a migration
 
