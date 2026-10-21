@@ -15,7 +15,8 @@ pinned versions of kind, kubectl and Helm into `.tools/` and checks their checks
 dotnet run lab.cs -- up       create the cluster if there is none, then build and deploy the current source
 dotnet run lab.cs -- reset    keep the cluster and platform; a fresh database, redeployed, reseeded
 dotnet run lab.cs -- status   what runs, and where to open it
-dotnet run lab.cs -- check    does it work: hosts ready, addresses answering, sign-in, a burst of load
+dotnet run lab.cs -- check    does it work: hosts ready, addresses answering, sign-in, a burst of load, T2's invariants
+                   --invariants  … only T2's invariants (tooling/checks/invariants.sql)
 dotnet run lab.cs -- deploy   roll the product out from the current source, as a release would
                    --load 100  … with 100 requests/s running, and count the failed ones (T10)
                    --restart   … every host again, even if nothing changed
@@ -66,6 +67,17 @@ The Migrator runs as a Job before each deploy of the product. A deploy keeps the
 that run (someone may have changed them in the Scaling Lab, or the autoscaler did), and the Auto
 switch and its speed as they are; `reset` restores what `product/deploy/chart/values-lab.yaml` says:
 Auto off, PublicApi at 3.
+
+## T2's invariants
+
+`tooling/checks/invariants.sql` holds T2's rules across the modules' schemas: no place sold twice,
+no ticket without a confirmed seat, every paid order confirmed or refunded, no refund paid twice,
+every confirmed order with its tickets (D58). `check` runs them last, and `check --invariants`
+alone; both print each violation, with the place or order it concerns. They run in one read-only
+transaction on a replica, so every schema is read at the same moment and nothing can be written.
+Work that finishes asynchronously gets five minutes before it counts. The product never reads
+across schemas (ADR-0002); only the lab's checker does. `InvariantCheckerTests` plants a
+violation in the lab's data and expects the checker to name it.
 
 ## Deploys under load (T10)
 

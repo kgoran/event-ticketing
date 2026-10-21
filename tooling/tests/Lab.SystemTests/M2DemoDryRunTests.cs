@@ -19,6 +19,26 @@ public sealed class M2DemoDryRunTests
     public async Task Step_3_a_purchase_in_the_cluster_becomes_tickets_and_an_email()
     {
         RequireLab();
+        var (fan, _) = await BuyOneAsync();
+
+        using var mailpit = Client(Mailpit);
+        await EventuallyAsync(
+            async () => (await mailpit.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/messages?limit=500", UriKind.Relative), Ct))
+                .GetProperty("messages").EnumerateArray()
+                .Count(message => message.GetProperty("Subject").GetString() == "Your tickets for Demo Concert"
+                    && message.GetProperty("To").EnumerateArray().Any(to => to.GetProperty("Address").GetString() == $"{fan}@example.test")),
+            count => count >= 1,
+            TimeSpan.FromSeconds(60),
+            "the tickets' email reaches Mailpit");
+    }
+
+    /// <summary>
+    /// A lab fan buys one place at Demo Concert: hold, checkout, approve on LocalPay's page, the order
+    /// confirmed and its ticket issued. A fan from the upper hundred, so repeated runs don't reach the
+    /// ticket limit.
+    /// </summary>
+    internal static async Task<(string Fan, Guid OrderId)> BuyOneAsync()
+    {
         using var anonymous = Client(PublicApi);
         var events = await anonymous.GetFromJsonAsync<JsonElement>(new Uri("/events?q=%22Demo%20Concert%22", UriKind.Relative), Ct);
         var eventId = events.GetProperty("items")[0].GetProperty("eventId").GetGuid();
@@ -26,7 +46,6 @@ public sealed class M2DemoDryRunTests
         var section = availability.GetProperty("sections").EnumerateArray()
             .First(s => s.GetProperty("available").GetInt32() > 0).GetProperty("section").GetString()!;
 
-        // A lab fan from the upper hundred, so repeated runs don't reach the ticket limit.
         var name = $"lab{Random.Shared.Next(101, 201)}";
         using var fan = Client(PublicApi, await TokenAsync(name));
         var hold = await (await fan.PostJsonAsync($"/events/{eventId}/holds", new { section, quantity = 1 })).CreatedAsync();
@@ -52,15 +71,7 @@ public sealed class M2DemoDryRunTests
             TimeSpan.FromSeconds(60),
             "one ticket is issued");
 
-        using var mailpit = Client(Mailpit);
-        await EventuallyAsync(
-            async () => (await mailpit.GetFromJsonAsync<JsonElement>(new Uri("/api/v1/messages?limit=500", UriKind.Relative), Ct))
-                .GetProperty("messages").EnumerateArray()
-                .Count(message => message.GetProperty("Subject").GetString() == "Your tickets for Demo Concert"
-                    && message.GetProperty("To").EnumerateArray().Any(to => to.GetProperty("Address").GetString() == $"{name}@example.test")),
-            count => count >= 1,
-            TimeSpan.FromSeconds(60),
-            "the tickets' email reaches Mailpit");
+        return (name, orderId);
     }
 
     [Fact]
