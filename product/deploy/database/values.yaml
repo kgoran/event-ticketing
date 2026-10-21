@@ -1,6 +1,7 @@
-# One instance in M2; M3 adds the synchronous standby and read replicas (ADR-0003).
+# Three instances, one per zone (D48, ADR-0055): the primary and two standbys. Every commit waits
+# for one of the standbys, so losing a zone loses nothing; the other standby serves reads.
 name: eventticketing
-instances: 1
+instances: 3
 # The same PostgreSQL version as under Aspire.
 image: ghcr.io/cloudnative-pg/postgresql:18.3-minimal-trixie
 storage: 2Gi

@@ -48,13 +48,18 @@ The usual ports, as under Aspire:
 
 ## What runs
 
+Three nodes, each its own zone (D47): `eventticketing-control-plane` is `zone-a`, the two workers
+are `zone-b` and `zone-c`. Stopping one is how a zone fails. `status` shows each node's zone, and
+which database instance is the primary. A cluster made before M3 had one node: `down`, then `up`.
+
+
 | Namespace | What |
 |---|---|
 | `platform` | Traefik (the gateway), Keycloak, Mailpit, the Aspire Dashboard |
 | `cnpg-system` | the CloudNativePG operator |
 | `keda` | KEDA, which runs PublicApi's autoscaler when the Scaling Lab's **Auto** is on ([ADR-0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md)) |
 | `kube-system` | metrics-server, which measures each pod's CPU for `kubectl top` and the autoscaler |
-| `eventticketing` | the database (release `eventticketing-database`) and the product (release `eventticketing`): PublicApi ×3, WebhookIngress ×2, Workers ×2, BackOfficeApi, the fan site |
+| `eventticketing` | the database (release `eventticketing-database`: a primary and two standbys, one per zone) and the product (release `eventticketing`): PublicApi ×3, WebhookIngress ×2, Workers ×2, BackOfficeApi, the fan site |
 | `lab` | LocalPay, the load generator, the Scaling Lab (release `eventticketing-tooling`) |
 
 The Migrator runs as a Job before each deploy of the product. A deploy keeps the instance counts

@@ -51,8 +51,11 @@ spec:
           readinessProbe:
             httpGet: { path: /health/ready, port: management }
             periodSeconds: 5
+          # Capped (D47): without a limit Keycloak's JVM sizes its heap from the whole node and took
+          # 3.3 GB. It takes 70% of the limit for its heap.
           resources:
-            requests: { cpu: 100m, memory: 512Mi }
+            requests: { cpu: 100m, memory: 768Mi }
+            limits: { memory: 1280Mi }
           volumeMounts:
             - { name: realm, mountPath: /opt/keycloak/data/import, readOnly: true }
       volumes:
