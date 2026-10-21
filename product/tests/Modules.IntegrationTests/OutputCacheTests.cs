@@ -33,18 +33,21 @@ public sealed class OutputCacheTests(TestSystem system)
     [Fact]
     public async Task A_page_is_cached_no_longer_than_until_its_on_sale_opens()
     {
-        var sale = await system.OnSaleAsync(onSaleAt: DateTimeOffset.UtcNow.AddSeconds(4));
+        // Far enough ahead for a busy test run to set the event up before it opens.
+        var sale = await system.OnSaleAsync(onSaleAt: DateTimeOffset.UtcNow.AddSeconds(15));
         var page = new Uri($"/events/{sale.EventId}", UriKind.Relative);
         using var anonymous = system.PublicApi();
 
         var before = await anonymous.GetAsync(page, CancellationToken);
-        before.Headers.CacheControl!.MaxAge.Should().BeLessThanOrEqualTo(TimeSpan.FromSeconds(4), "a browser mustn't keep it past the opening either");
-        (await before.Content.ReadFromJsonAsync<EventPage>(CancellationToken))!.SalesPhase.Should().Be("Scheduled");
+        var scheduled = (await before.Content.ReadFromJsonAsync<EventPage>(CancellationToken))!;
+        scheduled.SalesPhase.Should().Be("Scheduled");
+        var opensIn = scheduled.OnSaleAt!.Value - DateTimeOffset.UtcNow;
+        before.Headers.CacheControl!.MaxAge.Should().BeLessThanOrEqualTo(opensIn + TimeSpan.FromSeconds(1), "a browser mustn't keep it past the opening either");
 
-        await Task.Delay(TimeSpan.FromSeconds(5), CancellationToken);
+        await Task.Delay(opensIn + TimeSpan.FromSeconds(1), CancellationToken);
 
         var after = await anonymous.GetAsync(page, CancellationToken);
-        (await after.Content.ReadFromJsonAsync<EventPage>(CancellationToken))!.SalesPhase.Should().Be("OnSale", $"fans refreshing at the opening see it open (Age {after.Headers.Age}, before: Age {before.Headers.Age}, max-age {before.Headers.CacheControl?.MaxAge})");
+        (await after.Content.ReadFromJsonAsync<EventPage>(CancellationToken))!.SalesPhase.Should().Be("OnSale", $"fans refreshing at the opening see it open (Age {after.Headers.Age})");
     }
 
     [Fact]

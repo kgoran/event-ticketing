@@ -24,6 +24,7 @@
     <PackageVersion Include="Aspire.Hosting.Valkey" Version="13.6.1" />
     <PackageVersion Include="Aspire.Npgsql" Version="13.6.1" />
     <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.6.1" />
+    <PackageVersion Include="Aspire.StackExchange.Redis" Version="13.6.1" />
     <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.6.1" />
     <PackageVersion Include="Aspire.StackExchange.Redis.OutputCaching" Version="13.6.1" />
   </ItemGroup>

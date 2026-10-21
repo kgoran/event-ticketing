@@ -46,12 +46,13 @@ public static partial class SharedOutputCache
 
     /// <summary>
     /// Caches the endpoint's successful answers for <paramref name="lifetime"/> under
-    /// <paramref name="tag"/>, for every caller alike, signed in or not: only for answers that don't
+    /// <paramref name="tags"/>, for every caller alike, signed in or not: only for answers that don't
     /// depend on who asks. ASP.NET Core's default policy skips requests with an Authorization header,
-    /// and the fan site's calls carry one.
+    /// and the fan site's calls carry one. A tag may name a route value in braces, such as
+    /// "catalog-event:{eventId}", so a change can evict one event's answers and leave the rest.
     /// </summary>
-    public static RouteHandlerBuilder CachedForEveryone(this RouteHandlerBuilder endpoint, TimeSpan lifetime, string tag) =>
-        endpoint.CacheOutput(new SameForEveryone(lifetime, tag));
+    public static RouteHandlerBuilder CachedForEveryone(this RouteHandlerBuilder endpoint, TimeSpan lifetime, params string[] tags) =>
+        endpoint.CacheOutput(new SameForEveryone(lifetime, tags));
 
     /// <summary>
     /// The moment this answer changes by itself (an on-sale opens, an event starts): it is cached no
@@ -85,11 +86,12 @@ public static partial class SharedOutputCache
     }
 
     /// <summary>
-    /// After a successful change (anything but a read), every answer cached under <paramref name="tag"/>
-    /// goes, so the next request builds it again: the cache's lifetime is how stale an answer may get
-    /// when nothing changed, not when something did.
+    /// After a successful change (anything but a read), every answer cached under
+    /// <paramref name="tags"/> goes, so the next request builds it again: the cache's lifetime is how
+    /// stale an answer may get when nothing changed, not when something did. Route values in braces
+    /// are the change's own; a tag whose value the route doesn't have is skipped.
     /// </summary>
-    public static TBuilder EvictsCached<TBuilder>(this TBuilder endpoints, string tag)
+    public static TBuilder EvictsCached<TBuilder>(this TBuilder endpoints, params string[] tags)
         where TBuilder : IEndpointConventionBuilder =>
         endpoints.AddEndpointFilter(async (context, next) =>
         {
@@ -99,13 +101,36 @@ public static partial class SharedOutputCache
                 && http.RequestServices.GetService<IOutputCacheStore>() is { } store
                 && (result is not IStatusCodeHttpResult { StatusCode: { } status } || status < 400))
             {
-                await store.EvictByTagAsync(tag, http.RequestAborted);
+                foreach (var tag in tags.Select(tag => Resolve(tag, http)).OfType<string>())
+                {
+                    await store.EvictByTagAsync(tag, http.RequestAborted);
+                }
             }
 
             return result;
         });
 
-    private sealed class SameForEveryone(TimeSpan lifetime, string tag) : IOutputCachePolicy
+    /// <summary>A tag with its route values filled in, or null if the request's route lacks one.</summary>
+    private static string? Resolve(string tag, HttpContext context)
+    {
+        var resolved = tag;
+        foreach (System.Text.RegularExpressions.Match value in RouteValue().Matches(tag))
+        {
+            if (context.Request.RouteValues[value.Groups[1].Value] is not { } found)
+            {
+                return null;
+            }
+
+            resolved = resolved.Replace(value.Value, Convert.ToString(found, System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        }
+
+        return resolved;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\{(\w+)\}")]
+    private static partial System.Text.RegularExpressions.Regex RouteValue();
+
+    private sealed class SameForEveryone(TimeSpan lifetime, string[] tags) : IOutputCachePolicy
     {
         public ValueTask CacheRequestAsync(OutputCacheContext context, CancellationToken cancellation)
         {
@@ -116,7 +141,11 @@ public static partial class SharedOutputCache
             context.AllowLocking = true; // one request builds an expired answer; the others wait for it
             context.ResponseExpirationTimeSpan = lifetime;
             context.CacheVaryByRules.QueryKeys = "*";
-            context.Tags.Add(tag);
+            foreach (var tag in tags.Select(tag => Resolve(tag, context.HttpContext)).OfType<string>())
+            {
+                context.Tags.Add(tag);
+            }
+
             return ValueTask.CompletedTask;
         }
 

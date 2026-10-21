@@ -41,8 +41,8 @@ internal static class EventEndpoints
     /// <summary>Organizers manage their events in the back office.</summary>
     public static void MapManagement(IEndpointRouteBuilder endpoints)
     {
-        // A change here changes what fans browse: the shared cache's answers go (D52).
-        var events = endpoints.MapGroup("/events").WithTags("Events").EvictsCached(BrowseEndpoints.CacheTag);
+        // A change to an event changes its page and the list: their cached answers go (D52).
+        var events = endpoints.MapGroup("/events").WithTags("Events").EvictsCached(BrowseEndpoints.ListTag, BrowseEndpoints.EventTag);
 
         events.MapPost("/", async (CreateEvent command, ICommandHandler<CreateEvent, Guid> handler, CancellationToken cancellationToken) =>
             {
