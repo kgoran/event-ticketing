@@ -57,6 +57,11 @@ instance as a replica), the connection string for hosts that use the database, a
 - name: Authentication__RequireHttpsMetadata
   value: {{ $values.identity.requireHttpsMetadata | quote }}
 {{- end }}
+{{- if and $values.valkey (or (eq .name "publicapi") (eq .name "backofficeapi")) }}
+# The shared output cache (D52): PublicApi caches browsing, BackOfficeApi evicts it on changes.
+- name: ConnectionStrings__valkey
+  value: {{ $values.valkey.connectionString | quote }}
+{{- end }}
 {{- if or (eq .name "publicapi") (eq .name "workers") }}
 - name: Payments__LocalPay__BaseUrl
   value: {{ $values.urls.localPay | quote }}

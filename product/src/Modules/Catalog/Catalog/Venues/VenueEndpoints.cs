@@ -1,6 +1,8 @@
+using EventTicketing.Catalog.Browse;
 using EventTicketing.Catalog.Persistence;
 using EventTicketing.Shared.Application.Commands;
 using EventTicketing.Shared.Application.Context;
+using EventTicketing.Shared.Infrastructure.Caching;
 using EventTicketing.Shared.Infrastructure.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -20,7 +22,8 @@ internal static class VenueEndpoints
     /// <summary>Organizers import their venues' seat maps in the back office.</summary>
     public static void MapManagement(IEndpointRouteBuilder endpoints)
     {
-        var venues = endpoints.MapGroup("/venues").WithTags("Venues");
+        // A venue's change reaches its events' pages: the shared cache's answers go (D52).
+        var venues = endpoints.MapGroup("/venues").WithTags("Venues").EvictsCached(BrowseEndpoints.CacheTag);
 
         venues.MapPost("/", async (ImportVenue command, ICommandHandler<ImportVenue, Guid> handler, CancellationToken cancellationToken) =>
             {

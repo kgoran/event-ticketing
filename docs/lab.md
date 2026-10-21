@@ -62,7 +62,7 @@ which database instance is the primary. A cluster made before M3 had one node: `
 | `cnpg-system` | the CloudNativePG operator |
 | `keda` | KEDA, which runs PublicApi's autoscaler when the Scaling Lab's **Auto** is on ([ADR-0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md)) |
 | `kube-system` | metrics-server, which measures each pod's CPU for `kubectl top` and the autoscaler |
-| `eventticketing` | the database (release `eventticketing-database`: a primary and two standbys, one per zone) and the product (release `eventticketing`): PublicApi ×3, WebhookIngress ×2, Workers ×2, BackOfficeApi, the fan site |
+| `eventticketing` | the database (release `eventticketing-database`: a primary and two standbys, one per zone) and the product (release `eventticketing`): PublicApi ×3, WebhookIngress ×2, Workers ×2, BackOfficeApi, the fan site, and Valkey (browsing's shared cache, D51) |
 | `lab` | LocalPay, the load generator, the Scaling Lab (release `eventticketing-tooling`) |
 
 The Migrator runs as a Job before each deploy of the product. A deploy keeps the instance counts
@@ -107,6 +107,15 @@ What the drills taught:
   Browsing from the replica (RR1) and the cache (VK1) are what change that.
 - **A pod on a lost node still looks ready** to the API for a while. The lab asks CloudNativePG
   which instances are healthy.
+
+## Browsing's cache (D52)
+
+PublicApi keeps the event list, event pages and seat maps in Valkey, for everyone alike, signed in
+or not: 30 s, or until an on-sale opens or an event starts if that comes sooner, and a day for a
+seat map's version. BackOfficeApi evicts them when an organizer changes anything. If Valkey is
+down, browsing goes to the database, slower but answered. Measured at 200 browsing requests/s,
+the primary's transactions from browsing fell from about 710 a second to about 410: the rest is
+availability, which VK1b moves to a snapshot. Valkey answered 4,977 lookups with 17 misses.
 
 ## T2's invariants
 

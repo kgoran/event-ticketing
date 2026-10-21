@@ -1,7 +1,9 @@
+using EventTicketing.Catalog.Browse;
 using EventTicketing.Catalog.Persistence;
 using EventTicketing.Shared.Application.Commands;
 using EventTicketing.Shared.Application.Context;
 using EventTicketing.Shared.Domain;
+using EventTicketing.Shared.Infrastructure.Caching;
 using EventTicketing.Shared.Infrastructure.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -39,7 +41,8 @@ internal static class EventEndpoints
     /// <summary>Organizers manage their events in the back office.</summary>
     public static void MapManagement(IEndpointRouteBuilder endpoints)
     {
-        var events = endpoints.MapGroup("/events").WithTags("Events");
+        // A change here changes what fans browse: the shared cache's answers go (D52).
+        var events = endpoints.MapGroup("/events").WithTags("Events").EvictsCached(BrowseEndpoints.CacheTag);
 
         events.MapPost("/", async (CreateEvent command, ICommandHandler<CreateEvent, Guid> handler, CancellationToken cancellationToken) =>
             {
