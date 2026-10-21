@@ -20,8 +20,8 @@ IResourceBuilder<ProjectResource> WithStripe(IResourceBuilder<ProjectResource> h
 var postgres = builder.AddPostgres("postgres");
 var database = postgres.AddDatabase("eventticketing");
 
-// Valkey (D51): the shared output cache for browsing, never authoritative. No volume: nothing in it
-// has to outlive a run (ADR-0022).
+// Valkey (D51): browsing's shared output cache and the availability snapshots, never authoritative.
+// No volume: nothing in it has to outlive a run (ADR-0022).
 var valkey = builder.AddValkey("valkey");
 
 // The fan site's client secret at Keycloak (a confidential client, ADR-0049). Generated fresh on every
@@ -136,6 +136,7 @@ var backOfficeApi = WithTimings(builder.AddProject<Projects.BackOfficeApi>("back
 // Workers talks to LocalPay too: cancelling payments at the deadline, status checks, refunds.
 var workers = WithStripe(WithTimings(builder.AddProject<Projects.Workers>("workers")))
     .WithReference(database)
+    .WithReference(valkey)
     .WithReference(localPay)
     .WithEnvironment("Payments__LocalPay__BaseUrl", "http://localpay")
     .WithEnvironment("Payments__LocalPay__WebhookSecret", webhookSecret)

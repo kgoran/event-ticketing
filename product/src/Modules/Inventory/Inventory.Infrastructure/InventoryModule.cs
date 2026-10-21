@@ -1,9 +1,11 @@
 using EventTicketing.Inventory.Application;
 using EventTicketing.Inventory.Application.Holds;
 using EventTicketing.Inventory.Contracts;
+using EventTicketing.Inventory.Infrastructure.Availability;
 using EventTicketing.Inventory.Infrastructure.Endpoints;
 using EventTicketing.Inventory.Infrastructure.Persistence;
 using EventTicketing.Shared.Application;
+using EventTicketing.Shared.Infrastructure.Caching;
 using EventTicketing.Shared.Infrastructure.Messaging;
 using EventTicketing.Shared.Infrastructure.Modules;
 using EventTicketing.Shared.Infrastructure.Persistence;
@@ -36,6 +38,18 @@ public sealed class InventoryModule : IModule
         builder.Services.AddScoped<ISeatInventory, SeatInventory>();
         builder.Services.AddScoped<ISalesWindows, SalesWindows>();
         builder.Services.AddScoped<IInventoryApi, InventoryApi>();
+
+        // Availability snapshots and sold-out flags in Valkey (D53): read by PublicApi, rebuilt by Workers.
+        if (host is HostKind.PublicApi or HostKind.Workers)
+        {
+            builder.AddValkeyClient();
+            builder.Services.AddSingleton<AvailabilitySnapshots>();
+        }
+
+        if (host == HostKind.Workers)
+        {
+            builder.Services.AddHostedService<AvailabilitySnapshotBuilder>();
+        }
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints, HostKind host)

@@ -60,8 +60,12 @@ internal static class BrowseEndpoints
     public const int DefaultPageSize = 20;
     public const int MaxPageSize = 50;
 
-    /// <summary>The output cache's tag for browsing: Catalog's changes evict it (D52).</summary>
-    public const string CacheTag = "catalog-browse";
+    /// <summary>The output cache's tags (D52): everything browsing, the list, and one event's answers.</summary>
+    public const string BrowseTag = "catalog-browse";
+
+    public const string ListTag = "catalog-list";
+
+    public const string EventTag = "catalog-event:{eventId}";
 
     /// <summary>
     /// Short: on-sale times and prices change, and a CDN or the output cache absorbs the load
@@ -78,21 +82,21 @@ internal static class BrowseEndpoints
         // Every caller gets the same answers here, so the shared cache serves them (ADR-0028, D52), for
         // as long as Cache-Control lets a browser keep them.
         events.MapGet("/", ListAsync)
-            .CachedForEveryone(BrowseLifetime, CacheTag)
+            .CachedForEveryone(BrowseLifetime, BrowseTag, ListTag)
             .WithName("ListEvents")
             .WithSummary("Published events that haven't started, soonest first; with q, the best matches first")
             .Produces<EventListPage>()
             .ProducesValidationProblem();
 
         events.MapGet("/{eventId:guid}", GetAsync)
-            .CachedForEveryone(BrowseLifetime, CacheTag)
+            .CachedForEveryone(BrowseLifetime, BrowseTag, EventTag)
             .WithName("GetEvent")
             .WithSummary("A published event: venue, prices, sales phase and where its seat map is")
             .Produces<EventPage>()
             .Produces(StatusCodes.Status404NotFound);
 
         events.MapGet("/{eventId:guid}/seat-map/{version}", GetSeatMapAsync)
-            .CachedForEveryone(TimeSpan.FromDays(1), CacheTag) // a version never changes; a day keeps Valkey small
+            .CachedForEveryone(TimeSpan.FromDays(1), BrowseTag, EventTag) // a version never changes; a day keeps Valkey small
             .WithName("GetSeatMap")
             .WithSummary("The seat-map geometry of a published event, at the version the event page links to")
             .Produces<SeatMap>()

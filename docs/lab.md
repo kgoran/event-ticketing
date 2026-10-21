@@ -108,14 +108,25 @@ What the drills taught:
 - **A pod on a lost node still looks ready** to the API for a while. The lab asks CloudNativePG
   which instances are healthy.
 
-## Browsing's cache (D52)
+## Browsing's cache and availability snapshots (D52, D53)
 
 PublicApi keeps the event list, event pages and seat maps in Valkey, for everyone alike, signed in
 or not: 30 s, or until an on-sale opens or an event starts if that comes sooner, and a day for a
-seat map's version. BackOfficeApi evicts them when an organizer changes anything. If Valkey is
-down, browsing goes to the database, slower but answered. Measured at 200 browsing requests/s,
-the primary's transactions from browsing fell from about 710 a second to about 410: the rest is
-availability, which VK1b moves to a snapshot. Valkey answered 4,977 lookups with 17 misses.
+seat map's version. BackOfficeApi evicts an event's answers (and the list) when an organizer
+changes it. Availability comes from a snapshot per on-sale event, rebuilt about once a second by
+one Workers instance; a sold-out section is refused from a flag, without the database. If Valkey
+is down, all of it goes to the database again: slower, still answered.
+
+At 200 browsing requests/s, measured on 2026-10-21:
+
+| | The primary's transactions/s | Its CPU |
+|---|---|---|
+| No cache | 780 | 365m |
+| Output cache | 480 | 297m |
+| And availability snapshots | **89** (idle: 71) | **89m** |
+
+In the failover drill, cached browsing keeps answering while the primary is gone: 1,179 requests
+failed instead of 1,692. Holds and availability (once its 5-second snapshot is gone) still fail.
 
 ## T2's invariants
 
