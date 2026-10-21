@@ -42,7 +42,7 @@ var ticketingMasterKey = builder.AddParameter(
     secret: true);
 
 // The development realm: roles, one organizer group, test users ana, ben, cid, dan, eva, fil (fans), olga (organizer),
-// adam (admin), lab01 to lab20 (the Scaling Lab's fans), passwords equal to the user names, and the fan site's client. A fixed port keeps token URLs stable in
+// adam (admin), lab01 to lab200 (the Scaling Lab's fans), passwords equal to the user names, and the fan site's client. A fixed port keeps token URLs stable in
 // .http files.
 // Plain HTTP even when the developer certificate is trusted: otherwise Aspire serves Keycloak over
 // HTTPS on `dotnet run` (but not in tests), and http://localhost:8180 in .http files would break.
@@ -155,7 +155,7 @@ builder.AddProject<Projects.Seed>("seed")
 
 // The Scaling Lab (ADR-0017, D20): http://localhost:5300. A slider sets the load generator's rate; the
 // lab shows what was offered and what the system did with it. The generator idles at 0 requests/s until
-// then, and loads the product only through PublicApi, as the realm's lab fans lab01 to lab20.
+// then, and loads the product only through PublicApi, as the realm's lab fans lab01 to lab200.
 var loadGenerator = builder.AddProject<Projects.LoadGenerator>("loadgenerator")
     .WithEnvironment("PUBLICAPI_URL", publicApi.GetEndpoint("http"))
     .WithEnvironment("KEYCLOAK_URL", keycloak.GetEndpoint("http"))

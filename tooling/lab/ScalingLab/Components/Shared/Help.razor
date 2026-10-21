@@ -41,7 +41,7 @@
             <p>The share of the scheduled requests that are holds. The rest browse.</p>
             <ul>
                 <li>
-                    <strong>A hold:</strong> a lab fan (<code>lab01</code> to <code>lab20</code>) asks PublicApi for the best free
+                    <strong>A hold:</strong> a lab fan (<code>lab01</code> to <code>lab200</code>) asks PublicApi for the best free
                     place in a section and lets go of it straight away. That is two requests: the hold
                     (<code>POST /events/{id}/holds</code>) and the release (<code>DELETE /holds/{id}</code>). Nothing is sold, so
                     the places keep cycling. The fan signs in at Keycloak before the hold, and that time isn't counted.
@@ -59,9 +59,10 @@
                 </li>
                 <li>
                     <strong>The generator's limit:</strong> a fan has at most one hold at a time (one hold per fan per event,
-                    ADR-0024). Twenty fans can manage about 20 ÷ (hold time + release time) holds a second: around 150 when each
-                    takes 60–70 ms. Holds beyond that are <em>skipped</em> (see Offered). To push the system harder, lower this
-                    slider: browsing has no such limit.
+                    ADR-0024). Two hundred fans manage about 200 ÷ (hold time + release time) holds a second: over 1,000 while
+                    each takes 60–70 ms, more than PublicApi serves here. When holds slow down, the fans stay busy for longer
+                    and the limit falls: at a second for a hold and its release, it is 200 a second. Holds beyond the limit are
+                    <em>skipped</em> (see Offered).
                 </li>
             </ul>
             break;
@@ -138,7 +139,7 @@
             <h4>Skipped</h4>
             <p>Asked for, but never sent, because the generator held back:</p>
             <ul>
-                <li>every lab fan was busy with a hold (the usual reason when <strong>Holds</strong> is high);</li>
+                <li>every one of the 200 lab fans was busy with a hold (see Holds);</li>
                 <li>
                     500 requests were already waiting for an answer. The system is far past overload, and the generator protects
                     itself;
@@ -152,13 +153,14 @@
                     <strong>Achieved</strong> is compared with.
                 </li>
                 <li>
-                    Any skipped requests (▲) mean the test isn't what you asked for, and the limit is the generator, not the
-                    system.
+                    Any skipped requests (▲) mean the test isn't what you asked for: the generator sent less. Then look at
+                    latency. If it is normal, the generator is the limit. If it is climbing, the system's slowness kept the fans
+                    or the 500 places in flight busy, and the skipping is a symptom of overload.
                 </li>
                 <li>
-                    Example: 400/s with 90% holds asks for about 40 browsing requests and 360 holds a second. The 20 fans manage
-                    about 110 holds a second, so about 150 are sent and 250 skipped. If PublicApi still shows no failures and a p99
-                    under target, it is fine. Lower <strong>Holds</strong> to load it harder.
+                    Example: 400/s with 90% holds asks for about 40 browsing requests and 360 holds a second. The 200 fans can
+                    send that while a hold and its release take under half a second together. If they take two seconds, the fans
+                    manage only about 100 holds a second, and the rest are skipped.
                 </li>
             </ul>
             break;
@@ -294,8 +296,7 @@
                     generator's limit of 500, then requests are skipped and p99 approaches the 5 s timeout.
                 </li>
                 <li>
-                    A high <strong>Holds</strong> share keeps this number low: with one hold per lab fan, at most 20
-                    hold-and-release pairs can be in flight.
+                    Holds can't push it past 200: with one hold per lab fan, at most 200 hold-and-release pairs are in flight.
                 </li>
             </ul>
             break;

@@ -13,7 +13,7 @@
         The load generator sends requests to PublicApi on a fixed schedule, whether or not earlier answers came back
         (an open model, ADR-0017). <strong>Offered</strong> is what the slider asks for, <strong>achieved</strong> what was
         answered. When achieved falls behind what was sent, or latency climbs, the system is saturated; when requests are
-        skipped, the generator is the limit. Each <span class="help-mark" aria-hidden="true">i</span> explains its part of the page.
+        skipped, the generator sent less than asked. Each <span class="help-mark" aria-hidden="true">i</span> explains its part of the page.
     </p>
 </header>
 
@@ -72,7 +72,7 @@
 <section class="tiles" aria-label="The last 5 seconds">
     @Tile("Offered", HelpTopic.Offered, Offered, "requests/s",
         status: Skipped > 0 ? Status.Warning : null,
-        note: Skipped > 0 ? $"{Charts.Format(Skipped)}/s skipped: the generator's own limit, not the system's" : "what the slider asks for")
+        note: Skipped > 0 ? $"{Charts.Format(Skipped)}/s skipped: the generator held back" : "what the slider asks for")
     @Tile("Achieved", HelpTopic.Achieved, Achieved, "requests/s",
         status: FallingBehind ? Status.Warning : null,
         note: FallingBehind ? "falling behind what was sent" : Skipped > 0 ? $"keeps up with the {Charts.Format(Sent)}/s sent" : "answered, whatever the answer")
