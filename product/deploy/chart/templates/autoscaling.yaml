@@ -37,6 +37,10 @@ spec:
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
+        # Scales up only to the lowest count wanted over this window: a new instance's first
+        # moments under load cost extra CPU, and shouldn't buy yet another instance (D43).
+        scaleUp:
+          stabilizationWindowSeconds: {{ .scaleUpSeconds }}
         scaleDown:
           stabilizationWindowSeconds: {{ int $scaleDown }}
   triggers:

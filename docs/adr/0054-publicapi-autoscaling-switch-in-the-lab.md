@@ -74,3 +74,15 @@ That delay is one of the lab's lessons (ADR-0019: "part of scaling is slow is me
 - T11 (a 28 → 84 step served by about three times the instances within 60 s) can be tried in the
   lab now, on CPU; it is verified on utilization in M5.
 - Changing the signal in M3 is a change to the `ScaledObject`'s trigger and nothing else.
+
+## Updates
+
+- **2026-10-21 (D43, decided while building):** Measured in the lab, a cold instance used several
+  times its CPU request while it served its first requests, and the CPU autoscaler went to its
+  maximum at 28 requests/s. Three changes, each measured: PublicApi **warms up before it passes
+  readiness** (its browsing requests, sent to itself, about 5 s; ServiceDefaults' `AddWarmUp`), so
+  the autoscaler and Traefik ignore it until then; **dynamic PGO is off** in the lab
+  (`DOTNET_TieredPGO=0`: the first-half-minute spike went from 621m to 224m, the steady CPU stayed
+  the same); and the autoscaler **scales up only to the lowest count it wanted over 20 s**. The
+  step test then reaches the right count: 2 at 28 requests/s, 5 at 84. ReadyToRun images were
+  tried and not adopted (little effect, 50 MB and about three minutes more per build).

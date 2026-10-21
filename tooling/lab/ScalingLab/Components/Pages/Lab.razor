@@ -385,7 +385,7 @@
         var changed = autoscaler.LastScaled is { } at ? $" Last change {Ago(at)}." : "";
         return $"Auto is on. CPU {cpu}% of what each instance requests, target {autoscaler.TargetCpuPercent}%: "
             + $"{current} × {cpu}% ÷ {autoscaler.TargetCpuPercent}% = {exact:0.0} → wants {wanted} ({limits}). "
-            + $"It adds instances at once and gives them back after {giveBack} below target.{changed}";
+            + $"It adds instances once it has wanted them for 20 s, and gives them back after {giveBack} below target.{changed}";
     }
 
     private string Ago(DateTimeOffset at) => (Time.GetUtcNow() - at) switch
