@@ -19,6 +19,7 @@ dotnet run lab.cs -- check    does it work: hosts ready, addresses answering, si
 dotnet run lab.cs -- deploy   roll the product out from the current source, as a release would
                    --load 100  … with 100 requests/s running, and count the failed ones (T10)
                    --restart   … every host again, even if nothing changed
+                   --during-on-sale "<why>"   … although an on-sale's rush is on
 dotnet run lab.cs -- down     delete the cluster and everything in it
 ```
 
@@ -79,6 +80,23 @@ What makes a rollout fail nothing, each part in the chart:
 
 Measured on 2026-10-21, every host rolled out again (`deploy --restart --load 100`): **0 of 8,030
 requests failed** with PublicApi at 3 instances, and **0 of 7,096** with the autoscaler on.
+
+### No release during an on-sale (DP4)
+
+Before anything else, `lab deploy` reads the on-sale schedule from PublicApi, as anyone may, and
+refuses (exit code 2) while an on-sale's rush is on: from 30 minutes before it opens until an hour
+after (D44). It names the events and says until when:
+
+```
+== Deploy gate: no release during an on-sale (DP4)
+  Refused: Demo Concert (on sale 19:33 UTC), Failure Scenarios (on sale 19:33 UTC): no release until 20:33 UTC.
+  Wait until then, or, if it can't wait: deploy --during-on-sale "<why>".
+```
+
+`--during-on-sale "<why>"` deploys anyway and prints the reason, for the fix that can't wait.
+`up` and `reset` aren't gated: they build the environment rather than release into it. Seeding
+puts the demo on sale at once, so for an hour after `up` or `reset` a plain `deploy` is refused,
+which is also how the demo and the lab workflow show the gate.
 
 One host loses something in a rollout: the fan site keeps fans' sign-ins and Blazor's circuits in
 memory, and it runs once until its token store moves to Valkey in M3

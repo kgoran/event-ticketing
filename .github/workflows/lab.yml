@@ -48,9 +48,23 @@ jobs:
       - name: Check
         run: dotnet run lab.cs -- check
 
+      # DP4: `up` has just put the demo on sale, so its rush is on and a release must be refused.
+      - name: Deploy gate refuses during an on-sale
+        run: |
+          set +e
+          dotnet run lab.cs -- deploy 2>&1 | tee gate.log
+          code=${PIPESTATUS[0]}
+          set -e
+          if [ "$code" != "2" ] || ! grep -q "Refused:" gate.log; then
+            echo "::error::The deploy gate let a release through during an on-sale (exit code $code)."
+            exit 1
+          fi
+
       # T10 (DP2): every host rolled out again under constant load; fails above 0.1% failed requests.
+      # Past the gate on purpose, as an emergency release would be.
       - name: Deploy under load
-        run: dotnet run lab.cs -- deploy --restart --load 50
+        run: |
+          dotnet run lab.cs -- deploy --restart --load 50 --during-on-sale "lab workflow: measuring T10"
 
       - name: What ran (on failure)
         if: failure()

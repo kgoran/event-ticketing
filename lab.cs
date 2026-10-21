@@ -102,6 +102,7 @@ sealed class Lab(string root)
               dotnet run lab.cs -- deploy   roll the product out from the current source, as a release would
                   --load <requests/s>       with the load generator running, and say how many requests failed (T10)
                   --restart                 roll every host out again even if nothing changed
+                  --during-on-sale "<why>"  deploy although an on-sale's rush is on (the gate refuses otherwise)
               dotnet run lab.cs -- down     delete the cluster and everything in it
             """);
         return 0;
@@ -259,7 +260,8 @@ sealed class Lab(string root)
     /// A release (DP2): the current source's images rolled out to the product while it serves. With
     /// --load, the load generator runs at that rate before, during and after the rollout, and the
     /// requests that failed are counted against T10: under 0.1%. The tooling isn't redeployed, so
-    /// the generator keeps measuring (`up` updates it); the database stays as it is.
+    /// the generator keeps measuring (`up` updates it); the database stays as it is. First of all,
+    /// the deploy gate (DP4): no release while an on-sale's rush is on.
     /// </summary>
     public async Task<int> DeployAsync(string[] options)
     {
@@ -268,11 +270,28 @@ sealed class Lab(string root)
             throw new LabException("No lab cluster. Start one with: dotnet run lab.cs -- up");
         }
 
-        var (load, restart) = DeployOptions(options);
+        var (load, restart, emergency) = DeployOptions(options);
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+
+        Step("Deploy gate: no release during an on-sale (DP4)");
+        if (await OnSaleRushAsync(http, DateTimeOffset.UtcNow) is not { } rush)
+        {
+            Console.WriteLine("  No on-sale opens around now.");
+        }
+        else if (emergency is null)
+        {
+            Console.WriteLine($"  Refused: {rush}.");
+            Console.WriteLine("  Wait until then, or, if it can't wait: deploy --during-on-sale \"<why>\".");
+            return 2;
+        }
+        else
+        {
+            Console.WriteLine($"  {rush}. Deploying anyway: \"{emergency}\".");
+        }
+
         var tag = ImageTag();
         BuildAndLoadImages(tag);
 
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
         string? previous = null;
         if (load > 0)
         {
@@ -335,10 +354,11 @@ sealed class Lab(string root)
         return share < 0.001 ? 0 : 1;
     }
 
-    private static (double Load, bool Restart) DeployOptions(string[] options)
+    private static (double Load, bool Restart, string? Emergency) DeployOptions(string[] options)
     {
         double load = 0;
         var restart = false;
+        string? emergency = null;
         for (var i = 0; i < options.Length; i++)
         {
             switch (options[i])
@@ -349,12 +369,56 @@ sealed class Lab(string root)
                 case "--restart":
                     restart = true;
                     break;
+                case "--during-on-sale" when i + 1 < options.Length && !string.IsNullOrWhiteSpace(options[i + 1]):
+                    emergency = options[++i];
+                    break;
                 default:
-                    throw new LabException($"deploy doesn't know '{options[i]}'. Options: --load <requests/s, 1 to 1000>, --restart.");
+                    throw new LabException($"deploy doesn't know '{options[i]}'. Options: --load <requests/s, 1 to 1000>, --restart, --during-on-sale \"<why>\".");
             }
         }
 
-        return (load, restart);
+        return (load, restart, emergency);
+    }
+
+    /// <summary>
+    /// The on-sale rush around which no release may start (DP4, D44): from 30 minutes before an
+    /// on-sale opens until an hour after. Not the whole time an event is on sale, which can be months.
+    /// </summary>
+    private static readonly (TimeSpan Before, TimeSpan After) Rush = (TimeSpan.FromMinutes(30), TimeSpan.FromHours(1));
+
+    /// <summary>
+    /// Whether an on-sale's rush is on (ADR-0016): the schedule is Catalog's, read through PublicApi
+    /// as anyone may, from every published event's opening time. Says which, and until when.
+    /// </summary>
+    private static async Task<string?> OnSaleRushAsync(HttpClient http, DateTimeOffset now)
+    {
+        var rushes = new List<(string Name, DateTimeOffset Opens)>();
+        for (var page = 1; ; page++)
+        {
+            using var list = JsonDocument.Parse(await http.GetStringAsync(new Uri($"http://localhost:5101/events?pageSize=50&page={page}")));
+            foreach (var item in list.RootElement.GetProperty("items").EnumerateArray())
+            {
+                if (item.TryGetProperty("onSaleAt", out var at) && at.ValueKind == JsonValueKind.String
+                    && at.GetDateTimeOffset() is var opens && now >= opens - Rush.Before && now < opens + Rush.After)
+                {
+                    rushes.Add((item.GetProperty("name").GetString() ?? "an event", opens));
+                }
+            }
+
+            if (!list.RootElement.GetProperty("hasMore").GetBoolean())
+            {
+                break;
+            }
+        }
+
+        if (rushes.Count == 0)
+        {
+            return null;
+        }
+
+        var last = rushes.MaxBy(rush => rush.Opens);
+        var names = string.Join(", ", rushes.Select(rush => $"{rush.Name} (on sale {rush.Opens.ToUniversalTime():HH:mm} UTC)"));
+        return $"{names}: no release until {(last.Opens + Rush.After).ToUniversalTime():HH:mm} UTC";
     }
 
     private static async Task SetLoadAsync(HttpClient http, string settings)
