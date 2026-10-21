@@ -51,6 +51,9 @@ the system in a local kind cluster made by `dotnet run lab.cs -- up` (pinned kin
 `.tools/`), one image per host built by the SDK, the product's Helm chart, Traefik with Gateway API,
 CloudNativePG, Keycloak, the same localhost ports as Aspire, several instances shown in the Scaling
 Lab. The owner asked for the items up to several instances first (IM1–CI1); the rest waits for review.
+Built: images (IM1), `lab.cs` and the platform (LAB1), the product chart with the Migrator Job (DP1),
+tooling in the cluster with seeding and `reset` (LAB2), the Scaling Lab's Instances panel (SL1). How to run
+it and what it taught (probe timeouts, preStop, the connection budget): `docs/lab.md`.
 
 ## Commands
 
@@ -59,6 +62,7 @@ dotnet build product/EventTicketing.slnx            # product only (CI builds to
 dotnet test --solution product/EventTicketing.slnx  # unit + architecture tests (Microsoft.Testing.Platform)
 dotnet test --project dev/AppHost.Tests             # whole system under Aspire; needs Docker
 dotnet run --project dev/AppHost                    # local development
+dotnet run lab.cs -- up | reset | status | down     # the lab cluster (kind); docs/lab.md
 ```
 
 Package versions live in `Directory.Packages.props`; warnings are errors. EF Core migrations:
@@ -90,6 +94,7 @@ run `bash product/src/Frontends/FanSite/generate-client.sh` and `bash tooling/cl
 | `docs/architecture/overview.md` | Agreed architecture: modules, hosts, key flows, targets, milestones, repository, Scaling Lab |
 | `docs/adr/` | Architecture decision records, one per agreed decision (index in `README.md`) |
 | `docs/milestones/` | Milestone plans: scope, backlog, definition of done, demo script |
+| `docs/lab.md` | The lab cluster: commands, addresses, what runs, lessons |
 
 ## Background
 

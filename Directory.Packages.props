@@ -71,6 +71,9 @@
     <PackageVersion Include="QRCoder" Version="1.8.0" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Scrutor" Version="7.0.0" />
+    <!-- The official Kubernetes client (Apache-2.0): the Scaling Lab reads and scales the product's
+         hosts (D31). 21.0.8 was eight days old when this was pinned; 19.0.2 covers the core APIs. -->
+    <PackageVersion Include="KubernetesClient" Version="19.0.2" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">

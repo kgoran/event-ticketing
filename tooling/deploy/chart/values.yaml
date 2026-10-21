@@ -1,0 +1,35 @@
+# The lab's tools (ADR-0053). One instance each: LocalPay and the load generator keep their state
+# in memory, and the Scaling Lab has one user.
+
+image:
+  repository: eventticketing
+  tag: latest
+  # Loaded into the kind cluster by lab.cs.
+  pullPolicy: Never
+
+telemetry:
+  otlpEndpoint: http://aspire-dashboard.platform.svc.cluster.local:18889
+
+gateway:
+  name: lab
+  namespace: platform
+
+# Where the product's hosts run: the Scaling Lab shows and scales them (D31).
+productNamespace: eventticketing
+
+# The product as the outside world reaches it: through the gateway, so the load is balanced across
+# PublicApi's instances one request at a time, as fans' requests would be.
+publicApi: http://traefik.platform.svc.cluster.local:5101
+keycloak: http://keycloak.platform.svc.cluster.local:8080
+webhookIngress: http://webhookingress.eventticketing.svc.cluster.local:8080
+
+localPay:
+  # Where browsers reach LocalPay's checkout page.
+  publicUrl: http://localhost:5201
+
+secrets:
+  name: lab-secrets
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { memory: 512Mi }

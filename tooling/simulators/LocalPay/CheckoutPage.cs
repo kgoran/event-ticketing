@@ -7,6 +7,13 @@ public sealed class CheckoutOptions
 {
     /// <summary>The shop's name on the page, as a real provider shows the merchant's (configuration "Checkout:ShopName").</summary>
     public string ShopName { get; set; } = "the shop";
+
+    /// <summary>
+    /// Where browsers reach LocalPay, for the checkout links it hands out ("Checkout:PublicUrl"). Unset,
+    /// links use the address the shop called: right under Aspire, but in a cluster that is an internal
+    /// name a browser can't reach.
+    /// </summary>
+    public Uri? PublicUrl { get; set; }
 }
 
 /// <summary>

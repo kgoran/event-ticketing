@@ -3,6 +3,7 @@
 @inject LoadGeneratorApi Generator
 @inject PublicApiClient PublicApi
 @inject TimeProvider Time
+@inject Instances InstanceView
 
 <PageTitle>Scaling Lab</PageTitle>
 
@@ -82,6 +83,63 @@
     @Tile("In flight", _stats?.InFlight, "requests", note: "sent, not answered yet")
 </section>
 
+<section class="card instances" aria-label="Instances">
+    <div class="instances-head">
+        <h2>Instances</h2>
+        @if (PublicApiHost is { } publicApi)
+        {
+            <div class="stepper" role="group" aria-label="PublicApi instances">
+                <span>PublicApi instances</span>
+                <button type="button" class="button small" disabled="@(publicApi.Wanted <= 1 || _scaling)" @onclick="() => ScaleAsync(publicApi.Wanted - 1)" aria-label="One fewer">−</button>
+                <strong>@publicApi.Wanted</strong>
+                <button type="button" class="button small" disabled="@(publicApi.Wanted >= Instances.MaxCount || _scaling)" @onclick="() => ScaleAsync(publicApi.Wanted + 1)" aria-label="One more">+</button>
+            </div>
+        }
+    </div>
+    @if (!InstanceView.Available)
+    {
+        <p class="muted">
+            Instances appear when the lab runs in the cluster: <code>dotnet run lab.cs -- up</code>. Under Aspire every host runs once.
+        </p>
+    }
+    else if (_instanceError is not null)
+    {
+        <div class="alert error" role="alert">@_instanceError</div>
+    }
+    else
+    {
+        <table class="hosts">
+            <tbody>
+                @foreach (var host in _hosts)
+                {
+                    <tr>
+                        <th scope="row">@host.Name</th>
+                        <td class="count">@host.Ready of @host.Wanted ready</td>
+                        <td>
+                            <ul class="chips">
+                                @foreach (var instance in host.Instances)
+                                {
+                                    <li class="chip @instance.State.ToLowerInvariant()" title="@ChipTitle(instance)">
+                                        <span class="chip-state">@StateMark(instance.State)</span> @ShortName(instance.Name)
+                                        @if (instance.Restarts > 0)
+                                        {
+                                            <span class="restarts">↻@instance.Restarts</span>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="muted small">
+            Each chip is one instance: ✓ ready for traffic, ▲ starting, ✕ stopping. Traefik balances requests across the ready
+            ones. In M5 an autoscaler moves the count; here you do.
+        </p>
+    }
+</section>
+
 <section class="charts">
     <LineChart Title="Requests per second" Unit="req/s" MinimumTop="20" Series="ThroughputSeries" />
     <LineChart Title="Answers per second, by outcome (releases included)" Unit="per s" MinimumTop="20" Series="OutcomeSeries" />
@@ -143,6 +201,9 @@
     private readonly CancellationTokenSource _stop = new();
     private StatsSnapshot? _stats;
     private Availability? _availability;
+    private IReadOnlyList<HostInstances> _hosts = [];
+    private string? _instanceError;
+    private bool _scaling;
     private List<EventSummary> _events = [];
     private string? _error;
     private bool _synced;
@@ -179,6 +240,7 @@
             do
             {
                 await RefreshStatsAsync();
+                await RefreshInstancesAsync();
                 if (tick % 10 == 0)
                 {
                     await RefreshEventsAsync();
@@ -231,6 +293,58 @@
             // PublicApi is still starting; the next round tries again.
         }
     }
+
+    private async Task RefreshInstancesAsync()
+    {
+        if (!InstanceView.Available)
+        {
+            return;
+        }
+
+        try
+        {
+            _hosts = await InstanceView.ListAsync(_stop.Token);
+            _instanceError = null;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _instanceError = Instances.Explain(exception);
+        }
+    }
+
+    /// <summary>Changes PublicApi's instance count; the next refresh shows instances starting or stopping.</summary>
+    private async Task ScaleAsync(int count)
+    {
+        _scaling = true;
+        try
+        {
+            await InstanceView.ScaleAsync("publicapi", count, _stop.Token);
+            await RefreshInstancesAsync();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _instanceError = Instances.Explain(exception);
+        }
+        finally
+        {
+            _scaling = false;
+        }
+    }
+
+    private HostInstances? PublicApiHost => _hosts.FirstOrDefault(host => host.Name == "publicapi");
+
+    private static string StateMark(string state) => state switch
+    {
+        "Ready" => "✓",
+        "Starting" => "▲",
+        _ => "✕",
+    };
+
+    private static string ChipTitle(Instance instance) =>
+        $"{instance.Name}: {instance.State.ToLowerInvariant()}" + (instance.Restarts > 0 ? $", restarted {instance.Restarts} times" : "");
+
+    /// <summary>The part of a pod's name that tells instances apart: publicapi-7d9f8-x2k4q → x2k4q.</summary>
+    private static string ShortName(string pod) => pod[(pod.LastIndexOf('-') + 1)..];
 
     private async Task RefreshAvailabilityAsync()
     {

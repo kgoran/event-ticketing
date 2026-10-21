@@ -15,5 +15,8 @@ spec:
       owner: eventticketing
   storage:
     size: {{ .Values.storage }}
+  postgresql:
+    parameters:
+      max_connections: {{ .Values.maxConnections | quote }}
   resources:
     {{- toYaml .Values.resources | nindent 4 }}

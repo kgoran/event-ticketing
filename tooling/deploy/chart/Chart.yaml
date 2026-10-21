@@ -1,0 +1,7 @@
+apiVersion: v2
+name: eventticketing-tooling
+description: >-
+  The tools the lab runs next to the product (ADR-0021): LocalPay, the load generator and the
+  Scaling Lab. Tooling uses the product only through its APIs.
+type: application
+version: 0.1.0

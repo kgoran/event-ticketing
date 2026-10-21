@@ -11,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<Instances>();
 
 builder.Services.AddHttpClient<LoadGeneratorApi>(http =>
 {

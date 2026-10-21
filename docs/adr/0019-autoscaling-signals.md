@@ -48,3 +48,12 @@ Rules:
 - KEDA and Prometheus are required in every Kubernetes environment.
 - Part of "scaling is slow" is "measuring is slow" (scrape interval + rate window + autoscaler
   cycle); the lab shows this instead of hiding it.
+
+## Updates
+
+- **2026-10-21 (M2):** A third rule, learned in the lab: **the database's connection limit must
+  cover the most instances times each instance's pool.** Every instance keeps its own connection
+  pool; five PublicApi instances under load held 96 of PostgreSQL's default 100 connections, and a
+  new instance couldn't connect. The lab caps pools at 20 and allows 300 connections, enough for
+  every host at its maximum ([lab](../lab.md)). A connection pooler in front of PostgreSQL comes
+  with the replicas in M3.

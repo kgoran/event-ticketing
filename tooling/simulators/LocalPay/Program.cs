@@ -56,6 +56,7 @@ payments.MapPost("/", async Task<Results<Created<PaymentResponse>, ProblemHttpRe
         PaymentStore store,
         HeadlessPayer headless,
         IOptions<ScenarioOptions> scenarios,
+        IOptions<CheckoutOptions> checkout,
         HttpRequest http) =>
     {
         // Scenario .06: fail before creating anything; the retry with the same key succeeds.
@@ -64,7 +65,8 @@ payments.MapPost("/", async Task<Results<Created<PaymentResponse>, ProblemHttpRe
             return TypedResults.Problem("LocalPay had an internal error. Try again with the same Idempotency-Key.", statusCode: StatusCodes.Status500InternalServerError);
         }
 
-        var (payment, created) = store.Create(request, idempotencyKey, $"{http.Scheme}://{http.Host}");
+        var baseUrl = checkout.Value.PublicUrl?.ToString().TrimEnd('/') ?? $"{http.Scheme}://{http.Host}";
+        var (payment, created) = store.Create(request, idempotencyKey, baseUrl);
         if (created)
         {
             headless.PayLater(payment);
