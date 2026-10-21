@@ -1,0 +1,19 @@
+# The lab's cluster (ADR-0020 update, D22–D23): one node in M2; M3 adds three zone-labelled nodes.
+# Each usual localhost port (ADR-0053) maps to a NodePort of Traefik's service, so the lab answers
+# where Aspire does. Only on 127.0.0.1: nothing is reachable from the network.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: eventticketing
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - { hostPort: 5100, containerPort: 30100, listenAddress: 127.0.0.1 } # fan site
+      - { hostPort: 5101, containerPort: 30101, listenAddress: 127.0.0.1 } # PublicApi
+      - { hostPort: 5102, containerPort: 30102, listenAddress: 127.0.0.1 } # BackOfficeApi
+      - { hostPort: 5103, containerPort: 30103, listenAddress: 127.0.0.1 } # WebhookIngress
+      - { hostPort: 5201, containerPort: 30201, listenAddress: 127.0.0.1 } # LocalPay
+      - { hostPort: 5300, containerPort: 30300, listenAddress: 127.0.0.1 } # Scaling Lab
+      - { hostPort: 5301, containerPort: 30301, listenAddress: 127.0.0.1 } # load generator
+      - { hostPort: 8025, containerPort: 30025, listenAddress: 127.0.0.1 } # Mailpit
+      - { hostPort: 8180, containerPort: 30180, listenAddress: 127.0.0.1 } # Keycloak
+      - { hostPort: 18888, containerPort: 30888, listenAddress: 127.0.0.1 } # Aspire Dashboard
