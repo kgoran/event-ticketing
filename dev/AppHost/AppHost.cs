@@ -126,6 +126,7 @@ publicApi.WithEnvironment("Checkout__ReturnUrlTemplate", ReferenceExpression.Cre
 
 var backOfficeApi = WithTimings(builder.AddProject<Projects.BackOfficeApi>("backofficeapi"))
     .WithReference(database)
+    .WithReference(valkey)
     .WithEnvironment("Authentication__Authority", authority)
     .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
     .WithHttpHealthCheck("/health")
