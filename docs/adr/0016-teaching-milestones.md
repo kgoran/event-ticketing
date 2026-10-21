@@ -66,3 +66,7 @@ Also part of the plan:
   ([0017](0017-scaling-lab-and-load-generator.md)). The pod list waits for Kubernetes in M2.
 - **2026-10-21:** M2 is agreed (D21–D35): the plan is [M2](../milestones/m2.md), time-boxed to three
   weeks. The owner asked for the work up to several instances in the lab first.
+- **2026-10-21 (D37):** PublicApi's autoscaling switch is brought forward from M5 into M2, on CPU
+  until M3's Prometheus ([0054](0054-publicapi-autoscaling-switch-in-the-lab.md)). M5 keeps the
+  rest: utilization as the signal, Workers on their backlog, capacity settings, the cron scaler
+  and the scaling timeline. The owner then asked for the rest of M2 without further review stops.

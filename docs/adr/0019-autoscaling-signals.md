@@ -57,3 +57,14 @@ Rules:
   new instance couldn't connect. The lab caps pools at 20 and allows 300 connections, enough for
   every host at its maximum ([lab](../lab.md)). A connection pooler in front of PostgreSQL comes
   with the replicas in M3.
+- **2026-10-21 (D36):** The second rule covers HTTP too. Inside Kubernetes a Service balances per
+  connection, not per request, so a client that keeps its connections sends everything to the
+  instances it reached first, and new instances get none of its traffic. Every service-to-service
+  HttpClient of the product recycles its pooled connections every minute (ServiceDefaults).
+  Traffic through the gateway is balanced per request already.
+- **2026-10-21 (D40, D41):** Until Prometheus arrives in M3, PublicApi scales on **CPU** in the lab
+  (KEDA's `cpu` trigger, through metrics-server), with the switch, limits and profiles of
+  [0054](0054-publicapi-autoscaling-switch-in-the-lab.md). The demo-speed profile waits 30 s before
+  scaling down, the realistic one 5 minutes. KEDA's polling interval doesn't apply to CPU:
+  Kubernetes' autoscaler reads metrics-server every 15 s. In M3 the trigger becomes utilization
+  as above.
