@@ -73,3 +73,5 @@ Also part of the plan:
 - **2026-10-21:** M2 is built ([M2](../milestones/m2.md)): with the rest of the plan, the Auto switch
   (D37–D41), and three decisions made while building that wait for the owner's review (D43–D45).
   Its demo runs as a dry run in the nightly lab workflow.
+- **2026-10-21 (D46):** M3 is planned ([M3](../milestones/m3.md), ADR-0055, ADR-0056), decided
+  overnight with the recommended answers for the owner's review; three weeks, team of five.

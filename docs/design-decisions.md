@@ -421,3 +421,23 @@ and alternatives: [M2](milestones/m2.md#decisions) and [0054](adr/0054-publicapi
 | D43 | New instances don't count as load: a warm-up before readiness, no dynamic PGO in the lab, a 20-second scale-up window (decided while building, for review) | [0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md) (update), [lab](lab.md#autoscaling) |
 | D44 | The deploy gate: `lab deploy` refuses from 30 minutes before an on-sale opens until an hour after, read from PublicApi's schedule; `--during-on-sale "<why>"` overrides it (decided while building, for review) | [M2](milestones/m2.md#decisions), [lab](lab.md#no-release-during-an-on-sale-dp4) |
 | D45 | Feature flags: Microsoft.FeatureManagement, a ConfigMap file in the lab switched by `lab flag` and kept by deploys; the first flag, `PauseHolds`, refuses new holds with 503 and Retry-After (decided while building, for review) | [M2](milestones/m2.md#decisions), [feature flags](feature-flags.md) |
+
+## 19. M3 planning — decided overnight 2026-10-21, for the owner's review
+
+The owner asked for M3 to M5 without approval ("no need to get approval from me, just start with
+M3-M5"), so each decision takes the recommended answer and waits for review. The plan:
+[M3](milestones/m3.md), with each decision's reasoning and alternatives.
+
+| # | Decision | Recorded in |
+|---|---|---|
+| D46 | M3 as ADR-0016 has it, in the plan's order; three weeks, team of five | [M3](milestones/m3.md) |
+| D47 | Three kind nodes labelled as zones; spread rules; Keycloak's memory capped | [0055](adr/0055-high-availability-in-the-lab.md) |
+| D48 | Primary, synchronous standby and read replica, one per zone | [0055](adr/0055-high-availability-in-the-lab.md) |
+| D49 | PgBouncer in transaction mode in front of the primary | [0055](adr/0055-high-availability-in-the-lab.md) |
+| D50 | Only browsing reads from the replica | [0055](adr/0055-high-availability-in-the-lab.md) |
+| D51–D54 | Valkey: one instance; output cache, availability snapshot, sold-out flags, the fan site's tokens; the fan site twice | [0055](adr/0055-high-availability-in-the-lab.md) |
+| D55, D56 | Collector, Prometheus, Loki, Tempo, Grafana; the autoscaler on utilization | [0055](adr/0055-high-availability-in-the-lab.md) |
+| D57–D59 | Toxiproxy; the invariant checker; the failover and zone drills | [0055](adr/0055-high-availability-in-the-lab.md) |
+| D60–D64 | CheckIn and CheckInApi; devices as Keycloak clients; the scanner PWA; revocation by an admin; the device simulator | [0056](adr/0056-check-in-devices-scanner-and-revocation.md) |
+| D65 | Backups to SeaweedFS with the Barman Cloud plugin | [0055](adr/0055-high-availability-in-the-lab.md) |
+| D66 | The M3 demo and its dry run in the nightly lab workflow | [M3](milestones/m3.md) |

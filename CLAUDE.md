@@ -60,8 +60,10 @@ without review stops. **M2 is built:** instances warm up before they count (D43)
 with T10 measured (DP2) and refuses during an on-sale's rush (DP4, D44), a column renamed by expand and contract
 (DP3, `docs/database-changes.md`), feature flags with `PauseHolds` and `lab flag` (FF1, D45,
 `docs/feature-flags.md`), the M2 demo (`docs/demos/m2.md`) with its dry run `tooling/tests/Lab.SystemTests` in the
-nightly lab workflow (Q7). D43–D45 were decided while building and wait for the owner's review. Decisions continue at
-D46.
+nightly lab workflow (Q7). D43–D45 were decided while building and wait for the owner's review.
+
+**M3 is planned** (`docs/milestones/m3.md`, D46–D66, ADR-0055, ADR-0056), decided overnight with the recommended
+answers: the owner asked for M3 to M5 without approval round-trips. Decisions continue at D67.
 
 ## Commands
 
@@ -103,7 +105,7 @@ run `bash product/src/Frontends/FanSite/generate-client.sh` and `bash tooling/cl
 | `docs/payments.md` | Payment design: Stripe + LocalPay simulator, consistency flow, failure handling |
 | `docs/architecture/overview.md` | Agreed architecture: modules, hosts, key flows, targets, milestones, repository, Scaling Lab |
 | `docs/adr/` | Architecture decision records, one per agreed decision (index in `README.md`) |
-| `docs/milestones/` | Milestone plans: scope, backlog, definition of done, demo script |
+| `docs/milestones/` | Milestone plans (m1a … m3): scope, decisions, backlog, definition of done, demo script |
 | `docs/lab.md` | The lab cluster: commands, addresses, what runs, deploys under load, autoscaling, lessons |
 | `docs/database-changes.md` | Changing the database without downtime: the expand/contract rule and the worked example |
 | `docs/feature-flags.md` | Feature flags: how they work, the flags, adding one |
