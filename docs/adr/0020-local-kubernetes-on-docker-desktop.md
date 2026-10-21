@@ -66,3 +66,9 @@ CI                       kind in GitHub Actions   same engine; full cluster test
   the company ever crosses either limit, switch to the free fallback: **Podman Desktop with
   kind** (same engine as CI; Aspire and Testcontainers support it). This replaces Rancher
   Desktop as the preferred fallback, because kind gives several nodes without extra tooling.
+- **2026-10-21 (D22, D23):** The lab cluster is made by the **`kind` tool**, pinned and downloaded
+  by the lab script, instead of Docker Desktop's built-in Kubernetes. The lab is created and
+  deleted by a script ([0022](0022-disposable-lab-environment.md)); Docker Desktop's cluster is
+  switched on by hand in its settings and needs a Docker sign-in. It is the same engine as CI and
+  as the Podman fallback above. M2 runs **one node**; M3 adds the three zone-labelled nodes for the
+  failover drill. [M2 plan](../milestones/m2.md).

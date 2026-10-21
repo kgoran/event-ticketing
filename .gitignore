@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Pinned CLI tools the lab script downloads (kind, helm)
+.tools/

@@ -47,3 +47,10 @@ lab down    delete the cluster
 - There is nothing to back up or migrate in the lab itself.
 - Startup time must be watched; cached base images keep it within the limits.
 - It teaches reproducible environments built from code: servers are replaced, not repaired.
+
+## Updates
+
+- **2026-10-21 (D24):** The scripts are a **.NET 10 file-based app, `lab.cs`** at the repository
+  root (`dotnet run lab.cs -- up`), the swap listed above. It needs only the .NET SDK on Windows
+  and Linux, while PowerShell 7 isn't on the presenter's laptop. It downloads its pinned tools
+  (kind, Helm) into `.tools/` and checks their checksums. [M2 plan](../milestones/m2.md).

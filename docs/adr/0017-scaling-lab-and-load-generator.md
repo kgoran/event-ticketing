@@ -129,3 +129,8 @@ and presets 1–5 in M5. k6 remains the tool for the pass/fail target tests
     the last rate set. The lab is single-user, as decided above.
   - **Both tools start with the AppHost** (the lab at http://localhost:5300, the generator's API
     at http://localhost:5301); the generator idles at 0 requests/s.
+- **2026-10-21 (D31):** In the cluster, the lab shows each host's instances (wanted, ready, and each
+  one's age, restarts and state) from the Kubernetes API, found by label. It can change
+  PublicApi's instance count, the hand-operated version of M5's autoscaler. Its service account
+  may read the product namespace and change only deployment scale. Under Aspire the panel says
+  instances need the lab cluster.

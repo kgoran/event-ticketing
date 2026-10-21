@@ -48,3 +48,6 @@ frontends, and the identity provider if we host it ourselves.
 
 - **2026-10-18:** From M1a the Migrator also runs under Aspire, before the other hosts start
   ([0016](0016-teaching-milestones.md), update).
+- **2026-10-21 (D32):** The Migrator runs as a **Helm hook Job before every install and upgrade**;
+  the hosts roll out only after it succeeds. One image per host
+  ([0029](0029-container-image-per-host.md)) settled the open question above. [M2 plan](../milestones/m2.md).

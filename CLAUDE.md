@@ -46,7 +46,11 @@ lab01–lab20, offered versus achieved, outcomes, p99 per kind, 1 in 20 requests
 both started by the AppHost. Runbook `docs/demos/scaling-lab.md`; system test `ScalingLabTests`.
 Kubernetes, the pod list, Prometheus, Toxiproxy and autoscaling wait for M2–M5.
 
-**Next: plan M2** (containers, the lab cluster, the deployment pipeline); not started.
+**M2 is in progress** (`docs/milestones/m2.md`, agreed 2026-10-21, decisions D21–D35, ADR-0053):
+the system in a local kind cluster made by `dotnet run lab.cs -- up` (pinned kind and Helm in
+`.tools/`), one image per host built by the SDK, the product's Helm chart, Traefik with Gateway API,
+CloudNativePG, Keycloak, the same localhost ports as Aspire, several instances shown in the Scaling
+Lab. The owner asked for the items up to several instances first (IM1–CI1); the rest waits for review.
 
 ## Commands
 

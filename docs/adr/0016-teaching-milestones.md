@@ -64,3 +64,5 @@ Also part of the plan:
 - **2026-10-20 (D20):** The Scaling Lab's M2 column is brought forward: the load generator, the
   slider and the request, outcome and latency charts run under Aspire now
   ([0017](0017-scaling-lab-and-load-generator.md)). The pod list waits for Kubernetes in M2.
+- **2026-10-21:** M2 is agreed (D21–D35): the plan is [M2](../milestones/m2.md), time-boxed to three
+  weeks. The owner asked for the work up to several instances in the lab first.

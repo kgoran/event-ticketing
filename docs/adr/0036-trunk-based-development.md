@@ -40,3 +40,6 @@ against continuous delivery.
   [github.com/kgoran/event-ticketing](https://github.com/kgoran/event-ticketing). A ruleset on
   `main` (pull request required, checks must pass) is added together with `product-ci` in M1a,
   once there are checks to require.
+- **2026-10-21 (D34):** product-ci builds every container image on every pull request. A `lab`
+  workflow runs `lab up` in kind with a smoke test on pull requests that touch deployment files,
+  and nightly. [M2 plan](../milestones/m2.md).

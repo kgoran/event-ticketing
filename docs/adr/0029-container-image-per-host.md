@@ -36,3 +36,11 @@ deployment pipeline.
   lab's startup limits.
 - Each Kubernetes Deployment names its host's image explicitly.
 - Tooling (Scaling Lab, LoadGenerator, LocalPay) uses the same SDK publishing.
+
+## Updates
+
+- **2026-10-21 (D25):** Verified: images reach the kind cluster with **`kind load`**, without a
+  registry (PublicApi built in 38 s, loaded in 9 s, running as non-root). The base stays the plain
+  **`noble-chiseled`** image: the product needs neither ICU (invariant globalization) nor the
+  system's time zones (NodaTime carries its own). In the lab, images are tagged with the commit,
+  plus `-dirty` and a content hash when there are uncommitted changes. [M2 plan](../milestones/m2.md).
