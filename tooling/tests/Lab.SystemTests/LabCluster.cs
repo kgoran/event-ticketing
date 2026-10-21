@@ -57,7 +57,8 @@ internal static class LabCluster
         return (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("access_token").GetString()!;
     }
 
-    public static async Task<T> EventuallyAsync<T>(Func<Task<T>> probe, Func<T, bool> done, TimeSpan timeout, string what)
+    /// <summary>Probes until done; on timeout, says what didn't happen, and <paramref name="explain"/> what the system showed then.</summary>
+    public static async Task<T> EventuallyAsync<T>(Func<Task<T>> probe, Func<T, bool> done, TimeSpan timeout, string what, Func<Task<string>>? explain = null)
     {
         var clock = Stopwatch.StartNew();
         while (true)
@@ -70,7 +71,7 @@ internal static class LabCluster
 
             if (clock.Elapsed > timeout)
             {
-                throw new TimeoutException($"Not within {timeout.TotalSeconds:0} s: {what}.");
+                throw new TimeoutException($"Not within {timeout.TotalSeconds:0} s: {what}." + (explain is null ? "" : $" {await explain()}"));
             }
 
             await Task.Delay(TimeSpan.FromSeconds(2), Ct);
@@ -114,6 +115,22 @@ internal static class LabCluster
         using var kubernetes = Kubernetes();
         var patch = new V1Patch("{\"spec\":{\"replicas\":" + count.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}}", V1Patch.PatchType.MergePatch);
         await kubernetes.AppsV1.PatchNamespacedDeploymentScaleAsync(patch, "publicapi", Product, cancellationToken: Ct);
+    }
+
+    /// <summary>What PublicApi's autoscaler measures and wants, for a test's message.</summary>
+    public static async Task<string> AutoscalerAsync()
+    {
+        using var kubernetes = Kubernetes();
+        try
+        {
+            var hpa = await kubernetes.AutoscalingV2.ReadNamespacedHorizontalPodAutoscalerAsync("keda-hpa-publicapi", Product, cancellationToken: Ct);
+            var cpu = hpa.Status?.CurrentMetrics?.FirstOrDefault(metric => metric.Resource?.Name == "cpu")?.Resource?.Current?.AverageUtilization;
+            return $"autoscaler: CPU {cpu?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown"}%, {hpa.Status?.CurrentReplicas} instances, wants {hpa.Status?.DesiredReplicas}";
+        }
+        catch (k8s.Autorest.HttpOperationException exception)
+        {
+            return $"autoscaler: {exception.Response.StatusCode}";
+        }
     }
 
     /// <summary>The Auto switch (ADR-0054): off is KEDA's pause.</summary>
