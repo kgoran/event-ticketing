@@ -1,0 +1,61 @@
+name: lab
+
+# The whole system in a kind cluster, as `dotnet run lab.cs -- up` builds it on a laptop (D34):
+# on pull requests that change how it is deployed, nightly, and on demand. Not a required check,
+# so path filters are safe here (see product-ci for why required checks have none).
+on:
+  pull_request:
+    paths:
+      - lab.cs
+      - platform/**
+      - product/deploy/**
+      - tooling/deploy/**
+      - dev/AppHost/Realms/**
+      - .github/workflows/lab.yml
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  lab:
+    name: "lab: up and check"
+    # Pinned: ubuntu-latest moves to Ubuntu 26 from 2026-10-19. Upgrade deliberately, in its own PR.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      # Cluster, platform, nine images from this commit, product, tooling and the demo data.
+      - name: Up
+        run: dotnet run lab.cs -- up
+
+      # Every host ready, every address answering, sign-in, the demo, a burst of load.
+      - name: Check
+        run: dotnet run lab.cs -- check
+
+      - name: What ran (on failure)
+        if: failure()
+        run: |
+          kubectl=.tools/bin/kubectl
+          $kubectl --context kind-eventticketing get pods --all-namespaces -o wide || true
+          $kubectl --context kind-eventticketing get events --all-namespaces --sort-by=.lastTimestamp | tail -40 || true
+          for deployment in publicapi workers webhookingress backofficeapi fansite; do
+            echo "== $deployment"
+            $kubectl --context kind-eventticketing logs -n eventticketing "deployment/$deployment" --tail=60 || true
+          done
+          $kubectl --context kind-eventticketing logs -n eventticketing job/migrator --tail=60 || true
