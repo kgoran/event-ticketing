@@ -391,7 +391,7 @@ decision's reasoning and alternatives are.
 | D22 | The lab cluster is made by the `kind` tool, downloaded by the lab script, not Docker Desktop's built-in Kubernetes | [0020](adr/0020-local-kubernetes-on-docker-desktop.md) (update) |
 | D23 | One node in M2; three zone-labelled nodes in M3 | [0020](adr/0020-local-kubernetes-on-docker-desktop.md) (update) |
 | D24 | The lab script is a .NET 10 file-based app, `lab.cs`, instead of PowerShell 7 | [0022](adr/0022-disposable-lab-environment.md) (update) |
-| D25 | Images reach the cluster with `kind load` (verified), on `noble-chiseled-extra`, tagged with the commit | [0029](adr/0029-container-image-per-host.md) (update) |
+| D25 | Images reach the cluster with `kind load` (verified), on `noble-chiseled`, tagged with the commit | [0029](adr/0029-container-image-per-host.md) (update) |
 | D26 | Helm: the product chart with lab values, a tooling chart, the platform from pinned charts | [M2](milestones/m2.md), [0021](adr/0021-product-tooling-platform-separation.md) |
 | D27 | Platform in M2: Traefik with Gateway API, CloudNativePG (one instance), Keycloak, Mailpit, metrics-server, the Aspire Dashboard | [0053](adr/0053-the-lab-cluster-addresses-identity-and-platform.md) |
 | D28 | The same localhost ports as under Aspire, through the cluster's port mappings | [0053](adr/0053-the-lab-cluster-addresses-identity-and-platform.md) |
