@@ -98,8 +98,11 @@ public sealed class FirstVerticalSliceTests(RunningApp running)
         order.GetProperty("totalMinorUnits").GetInt64().Should().Be(5000);
         order.GetProperty("currency").GetString().Should().Be("EUR");
 
-        var after = await anonymous.GetFromJsonAsync<JsonElement>(new Uri($"/events/{eventId}/availability", UriKind.Relative), cancellationToken);
-        after.GetProperty("availableSeatIds").EnumerateArray().Select(id => id.GetGuid())
-            .Should().NotContain(seatIds, "the two seats are sold");
+        // Availability comes from a snapshot about a second old (D53): the sale shows within moments.
+        await RunningApp.EventuallyAsync(
+            () => anonymous.GetFromJsonAsync<JsonElement>(new Uri($"/events/{eventId}/availability", UriKind.Relative), cancellationToken),
+            current => !current.GetProperty("availableSeatIds").EnumerateArray().Select(id => id.GetGuid()).Intersect(seatIds).Any(),
+            TimeSpan.FromSeconds(10),
+            cancellationToken);
     }
 }
