@@ -12,6 +12,11 @@ spec:
   # The instance count from values at the first install; after that, the count that runs. Someone may
   # have changed it (the Scaling Lab, M5's autoscaler), and a deploy shouldn't undo that.
   replicas: {{ if $running }}{{ $running.spec.replicas }}{{ else }}{{ $host.replicas }}{{ end }}
+  # A rollout (DP2, T10) starts one new instance at a time and stops an old one only once the new
+  # one is ready: never fewer ready instances than wanted, so a deploy under load fails nothing.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
   selector:
     matchLabels:
       {{- include "eventticketing.selector" $context | nindent 6 }}
