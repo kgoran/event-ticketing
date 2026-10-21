@@ -42,5 +42,6 @@ deployment pipeline.
 - **2026-10-21 (D25):** Verified: images reach the kind cluster with **`kind load`**, without a
   registry (PublicApi built in 38 s, loaded in 9 s, running as non-root). The base stays the plain
   **`noble-chiseled`** image: the product needs neither ICU (invariant globalization) nor the
-  system's time zones (NodaTime carries its own). In the lab, images are tagged with the commit,
-  plus `-dirty` and a content hash when there are uncommitted changes. [M2 plan](../milestones/m2.md).
+  system's time zones (NodaTime carries its own). In the lab, images are tagged with a hash of the sources they are
+  built from, committed or not: the same sources get the same tag, and a change to a chart or a
+  document rebuilds nothing. A release (DP2) is tagged with its commit, as decided above. [M2 plan](../milestones/m2.md).

@@ -1,0 +1,36 @@
+# What the Scaling Lab may do in the product's namespace (D31): read its pods and deployments, and
+# change a deployment's instance count, nothing else. Least privilege, as for any operator tool.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: scalinglab
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: scalinglab
+  namespace: {{ .Values.productNamespace }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments/scale]
+    verbs: [get, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: scalinglab
+  namespace: {{ .Values.productNamespace }}
+subjects:
+  - kind: ServiceAccount
+    name: scalinglab
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: scalinglab

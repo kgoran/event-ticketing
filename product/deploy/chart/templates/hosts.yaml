@@ -1,5 +1,6 @@
 {{- range $name, $host := .Values.hosts }}
 {{- $context := dict "name" $name "root" $ "database" $host.database }}
+{{- $running := lookup "apps/v1" "Deployment" $.Release.Namespace $name }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -8,7 +9,9 @@ metadata:
   labels:
     {{- include "eventticketing.labels" $context | nindent 4 }}
 spec:
-  replicas: {{ $host.replicas }}
+  # The instance count from values at the first install; after that, the count that runs. Someone may
+  # have changed it (the Scaling Lab, M5's autoscaler), and a deploy shouldn't undo that.
+  replicas: {{ if $running }}{{ $running.spec.replicas }}{{ else }}{{ $host.replicas }}{{ end }}
   selector:
     matchLabels:
       {{- include "eventticketing.selector" $context | nindent 6 }}
@@ -18,6 +21,8 @@ spec:
         {{- include "eventticketing.labels" $context | nindent 8 }}
     spec:
       {{- include "eventticketing.podSecurity" $context | nindent 6 }}
+      # A stopping instance first waits (preStop), then finishes its requests on SIGTERM.
+      terminationGracePeriodSeconds: 30
       containers:
         - name: {{ $name }}
           image: {{ include "eventticketing.image" $context }}
@@ -28,16 +33,25 @@ spec:
             {{- include "eventticketing.commonEnv" $context | nindent 12 }}
             {{- include "eventticketing.hostEnv" $context | nindent 12 }}
           # /alive: the process works; /health: every check passes, so it may take traffic (ServiceDefaults).
+          # Kubernetes' default 1 s timeout is too short under load: /health checks the database, and a
+          # check that times out takes a healthy instance out of rotation, which loads the others more.
           startupProbe:
             httpGet: { path: /alive, port: http }
             periodSeconds: 2
+            timeoutSeconds: 5
             failureThreshold: 60
           readinessProbe:
             httpGet: { path: /health, port: http }
             periodSeconds: 5
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: { path: /alive, port: http }
             periodSeconds: 10
+            timeoutSeconds: 5
+          # When an instance stops, the gateway takes a moment to learn it: keep answering until it has.
+          lifecycle:
+            preStop:
+              sleep: { seconds: 5 }
           resources:
             {{- toYaml $.Values.resources | nindent 12 }}
           {{- include "eventticketing.containerSecurity" $context | nindent 10 }}

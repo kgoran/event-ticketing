@@ -80,6 +80,20 @@ fan): correct, and counted as refusals.
 
 Then press **Stop**.
 
+## In the lab cluster: instances (M2)
+
+Run the same lab in the cluster with `dotnet run lab.cs -- up` ([the lab](../lab.md)), same
+address. The **Instances** panel then shows every host of the product with its instances, wanted
+and ready: one chip per instance, ✓ ready, ▲ starting, ✕ stopping. **−** and **+** change
+PublicApi's count, 1 to 8, as an operator would; M5's autoscaler will move the same number.
+
+1. **Steady 20/s** (or 100/s), then **+** twice: two instances start, become ready within seconds,
+   and Traefik spreads the requests over all of them. No request fails.
+2. **−** back down: instances stop after a 5-second grace, still without failures.
+3. On one laptop more instances don't add much capacity: they share the same CPU and database.
+   What they show is how scaling works, and what it needs (probe timeouts, a graceful stop, a
+   connection budget: [what the lab taught](../lab.md#three-things-the-lab-taught-on-its-first-day)).
+
 ## If something is off
 
 | Symptom | Cause |

@@ -117,6 +117,33 @@ select { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--axis); 
 .tile.warning .status-icon { color: var(--ink); }
 .tile.critical .status-icon { color: var(--critical); }
 
+/* Instances (D31): one chip per instance; state has a mark and words, not only a colour. */
+
+.instances-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.instances h2 { font-size: 1.1rem; margin: 0; }
+.stepper { display: inline-flex; align-items: center; gap: 0.5rem; }
+.stepper strong { min-width: 1.5rem; text-align: center; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.hosts { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+.hosts th, .hosts td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+.hosts th { width: 9rem; font-weight: 600; }
+.hosts .count { width: 8.5rem; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.chip {
+    display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.6rem; border-radius: 999px;
+    font: 0.85rem ui-monospace, "Cascadia Mono", Consolas, monospace; border: 1px solid var(--border);
+}
+.chip.ready { background: color-mix(in srgb, var(--good) 12%, var(--surface)); border-color: var(--good); }
+.chip.ready .chip-state { color: var(--good-ink); font-weight: 700; }
+.chip.starting { background: color-mix(in srgb, var(--warning) 16%, var(--surface)); border-color: var(--warning); }
+.chip.stopping { color: var(--ink-2); text-decoration: line-through; border-style: dashed; }
+.restarts { color: var(--critical); }
+
+@media (max-width: 40rem) {
+    .hosts th, .hosts .count { width: auto; }
+    .hosts tr { display: grid; grid-template-columns: 1fr auto; }
+    .hosts td:last-child { grid-column: 1 / -1; }
+}
+
 /* Charts */
 
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 34rem), 1fr)); gap: 0.75rem; }

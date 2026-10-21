@@ -9,6 +9,10 @@ image:
 # The CloudNativePG cluster from product/deploy/database: its Service <cluster>-rw and Secret <cluster>-app.
 database:
   cluster: eventticketing
+  # Connections each instance may hold (Npgsql's default is 100). With the lab's caps, at most
+  # 8 PublicApi + 2 Workers + 2 WebhookIngress + 1 BackOfficeApi + the Migrator = 14 pools of 20 =
+  # 280, within the database's 300 (product/deploy/database).
+  maxPoolSize: 20
 
 # OpenTelemetry collector the hosts export to (ServiceDefaults): empty sends nothing.
 telemetry:

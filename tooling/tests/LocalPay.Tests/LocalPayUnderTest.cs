@@ -17,7 +17,7 @@ internal sealed class LocalPayUnderTest : IAsyncDisposable
 
     private readonly WebApplicationFactory<LocalPayEntryPoint> _factory;
 
-    public LocalPayUnderTest(bool headless = false)
+    public LocalPayUnderTest(bool headless = false, string? publicUrl = null)
     {
         _factory = new WebApplicationFactory<LocalPayEntryPoint>().WithWebHostBuilder(host =>
         {
@@ -30,6 +30,11 @@ internal sealed class LocalPayUnderTest : IAsyncDisposable
             host.UseSetting("Headless:MinDelay", "00:00:00.050");
             host.UseSetting("Headless:MaxDelay", "00:00:00.100");
             host.UseSetting("Checkout:ShopName", "Test Shop");
+            if (publicUrl is not null)
+            {
+                host.UseSetting("Checkout:PublicUrl", publicUrl);
+            }
+
             host.ConfigureTestServices(services =>
                 services.AddHttpClient(WebhookDispatcher.ClientName).ConfigurePrimaryHttpMessageHandler(() => Shop));
         });

@@ -1,0 +1,23 @@
+# LocalPay (ADR-0004): webhooks to WebhookIngress inside the cluster, checkout links for the browser.
+{{- $localPay := list
+  (dict "name" "Webhooks__Url" "value" (printf "%s/webhooks/localpay" .Values.webhookIngress))
+  (dict "name" "Webhooks__Secret" "valueFrom" (dict "secretKeyRef" (dict "name" .Values.secrets.name "key" "localpay-webhook-secret")))
+  (dict "name" "Checkout__ShopName" "value" "FanSite")
+  (dict "name" "Checkout__PublicUrl" "value" .Values.localPay.publicUrl)
+}}
+{{ include "tooling.app" (dict "name" "localpay" "root" $ "env" $localPay) }}
+---
+# The load generator (ADR-0017): PublicApi through the gateway, lab fans signed in at Keycloak.
+{{- $loadGenerator := list
+  (dict "name" "PUBLICAPI_URL" "value" .Values.publicApi)
+  (dict "name" "KEYCLOAK_URL" "value" .Values.keycloak)
+}}
+{{ include "tooling.app" (dict "name" "loadgenerator" "root" $ "env" $loadGenerator) }}
+---
+# The Scaling Lab (ADR-0017): the generator's controls and numbers, and PublicApi for events and free places.
+{{- $scalingLab := list
+  (dict "name" "LOADGENERATOR_URL" "value" "http://loadgenerator:8080")
+  (dict "name" "PUBLICAPI_URL" "value" .Values.publicApi)
+  (dict "name" "PRODUCT_NAMESPACE" "value" .Values.productNamespace)
+}}
+{{ include "tooling.app" (dict "name" "scalinglab" "root" $ "env" $scalingLab "serviceAccount" "scalinglab") }}

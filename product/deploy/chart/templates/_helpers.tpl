@@ -33,7 +33,7 @@ instance as a replica), the connection string for hosts that use the database, a
 - name: DATABASE_PASSWORD
   valueFrom: { secretKeyRef: { name: {{ .root.Values.database.cluster }}-app, key: password } }
 - name: ConnectionStrings__eventticketing
-  value: Host={{ .root.Values.database.cluster }}-rw;Database=eventticketing;Username=eventticketing;Password=$(DATABASE_PASSWORD)
+  value: Host={{ .root.Values.database.cluster }}-rw;Database=eventticketing;Username=eventticketing;Password=$(DATABASE_PASSWORD);Maximum Pool Size={{ .root.Values.database.maxPoolSize }}
 {{- end }}
 {{- range $key, $value := .root.Values.env }}
 - name: {{ $key }}

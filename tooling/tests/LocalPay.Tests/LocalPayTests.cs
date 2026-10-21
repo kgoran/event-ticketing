@@ -33,6 +33,17 @@ public sealed class LocalPayTests
     }
 
     [Fact]
+    public async Task Checkout_links_use_the_public_address_when_one_is_set()
+    {
+        // In the lab cluster the shop calls LocalPay by an internal name; the fan's browser can't.
+        await using var localPay = new LocalPayUnderTest(publicUrl: "http://localhost:5201/");
+
+        var payment = await localPay.CreateAsync(2500);
+
+        payment.CheckoutUrl.Should().StartWith("http://localhost:5201/checkout/");
+    }
+
+    [Fact]
     public async Task Declining_fails_the_payment_and_says_so()
     {
         await using var localPay = new LocalPayUnderTest();

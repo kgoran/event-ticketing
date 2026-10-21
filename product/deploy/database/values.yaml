@@ -4,6 +4,10 @@ instances: 1
 # The same PostgreSQL version as under Aspire.
 image: ghcr.io/cloudnative-pg/postgresql:18.3-minimal-trixie
 storage: 2Gi
+# The connection budget: every instance of every host keeps its own pool (product chart:
+# database.maxPoolSize), so the database must allow the most instances times the pool size.
+# PostgreSQL's default of 100 runs out at five PublicApi instances under load.
+maxConnections: 300
 resources:
   requests: { cpu: 100m, memory: 256Mi }
   limits: { memory: 1Gi }

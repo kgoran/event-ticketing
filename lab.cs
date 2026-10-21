@@ -2,7 +2,8 @@
 
 // The lab environment (ADR-0022, M2 plan): a local Kubernetes cluster built from this repository.
 //
-//   dotnet run lab.cs -- up       create the cluster if there is none, install the platform
+//   dotnet run lab.cs -- up       create the cluster if there is none, then build and deploy the current source
+//   dotnet run lab.cs -- reset    keep the cluster and platform; a fresh database, redeployed, reseeded
 //   dotnet run lab.cs -- status   what runs, and where to open it
 //   dotnet run lab.cs -- down     delete the cluster and everything in it
 //
@@ -27,6 +28,7 @@ try
     {
         "up" => await lab.UpAsync(),
         "down" => lab.Down(),
+        "reset" => await lab.ResetAsync(),
         "status" => lab.Status(),
         _ => Lab.Help(),
     };
@@ -63,6 +65,9 @@ sealed class Lab(string root)
         ("workers", "product/src/Hosts/Workers"),
         ("migrator", "product/src/Hosts/Migrator"),
         ("fansite", "product/src/Frontends/FanSite"),
+        ("localpay", "tooling/simulators/LocalPay"),
+        ("loadgenerator", "tooling/lab/LoadGenerator"),
+        ("scalinglab", "tooling/lab/ScalingLab"),
     ];
 
     private readonly Tools _tools = new(Path.Combine(root, ".tools", "bin"));
@@ -86,7 +91,8 @@ sealed class Lab(string root)
         Console.WriteLine("""
             The lab: the system in a local Kubernetes cluster (docs/milestones/m2.md).
 
-              dotnet run lab.cs -- up       create the cluster if there is none, install the platform
+              dotnet run lab.cs -- up       create the cluster if there is none, then build and deploy the current source
+              dotnet run lab.cs -- reset    keep the cluster and platform; a fresh database, redeployed, reseeded
               dotnet run lab.cs -- status   what runs, and where to open it
               dotnet run lab.cs -- down     delete the cluster and everything in it
             """);
@@ -119,6 +125,8 @@ sealed class Lab(string root)
         var tag = ImageTag();
         BuildAndLoadImages(tag);
         InstallProduct(tag);
+        InstallTooling(tag);
+        await SeedAsync();
 
         Step("Ready");
         PrintAddresses();
@@ -126,25 +134,58 @@ sealed class Lab(string root)
     }
 
     /// <summary>
-    /// The images' tag (ADR-0029, D25): the commit, or the commit plus a hash of the working tree when
-    /// something isn't committed. The same source always gets the same tag, so a repeated `up` with
-    /// nothing changed rebuilds nothing and restarts nothing.
+    /// The fast path (ADR-0022): the cluster, platform and images stay; the product and tooling are
+    /// removed with their data, then deployed and seeded again.
+    /// </summary>
+    public async Task<int> ResetAsync()
+    {
+        if (!_tools.Installed || !ClusterExists())
+        {
+            throw new LabException("No lab cluster. Start one with: dotnet run lab.cs -- up");
+        }
+
+        Step("Removing the product, its data and the tooling");
+        foreach (var (release, space) in new[] { ("eventticketing-tooling", "lab"), ("eventticketing", "eventticketing"), ("eventticketing-database", "eventticketing") })
+        {
+            Run(_tools.Helm, ["--kube-context", Context, "uninstall", release, "--namespace", space, "--ignore-not-found", "--wait"]);
+        }
+
+        Kubectl("delete", "pvc", "-n", "eventticketing", "-l", "cnpg.io/cluster=eventticketing", "--ignore-not-found", "--wait");
+
+        var tag = ImageTag();
+        BuildAndLoadImages(tag);
+        InstallProduct(tag);
+        InstallTooling(tag);
+        await SeedAsync();
+
+        Step("Ready");
+        PrintAddresses();
+        return 0;
+    }
+
+    /// <summary>What the images are built from: a change anywhere else (charts, docs, this script) rebuilds nothing.</summary>
+    private static readonly string[] ImageSources =
+    [
+        "product/src", "tooling/lab", "tooling/simulators", "tooling/clients",
+        "global.json", "Directory.Build.props", "Directory.Packages.props", "product/Directory.Build.props", "tooling/Directory.Build.props",
+    ];
+
+    /// <summary>
+    /// The images' tag in the lab (ADR-0029 update, D25): a hash of the sources they are built from,
+    /// committed or not. The same sources always get the same tag, so a repeated `up` rebuilds and
+    /// restarts nothing, and changing only a chart rebuilds no image.
     /// </summary>
     private string ImageTag()
     {
-        var commit = Capture("git", ["-C", root, "rev-parse", "--short=12", "HEAD"]);
-        if (Capture("git", ["-C", root, "status", "--porcelain"]).Length == 0)
-        {
-            return commit;
-        }
-
-        // Every file git would see, committed or not, in a scratch index: its tree is a content hash.
+        // Every file git would see, in a scratch index: the tree's entries are content hashes.
         var index = Path.Combine(Path.GetTempPath(), $"lab-index-{Environment.ProcessId}");
         try
         {
             var environment = new Dictionary<string, string> { ["GIT_INDEX_FILE"] = index };
             Capture("git", ["-C", root, "add", "--all"], environment: environment);
-            return $"{commit}-dirty-{Capture("git", ["-C", root, "write-tree"], environment: environment)[..12]}";
+            var tree = Capture("git", ["-C", root, "write-tree"], environment: environment);
+            var sources = string.Join('\n', ImageSources.Select(path => Capture("git", ["-C", root, "rev-parse", $"{tree}:{path}"])));
+            return "src-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(sources)))[..12];
         }
         finally
         {
@@ -167,8 +208,19 @@ sealed class Lab(string root)
             Run("dotnet", ["publish", PathOf(project), "-c", "Release", "-t:PublishContainer", $"-p:ContainerImageTag={tag}", "-v:quiet", "-nologo"]);
         }
 
+        // Only what the node lacks: kind exports every image it is given before it looks.
         Step("Images: into the cluster");
-        Run(_tools.Kind, ["load", "docker-image", "--name", ClusterName, .. Images.Select(pair => $"eventticketing/{pair.Image}:{tag}")]);
+        var present = Capture("docker", ["exec", $"{ClusterName}-control-plane", "crictl", "images", "-o", "json"]);
+        var missing = Images.Select(pair => $"eventticketing/{pair.Image}:{tag}")
+            .Where(image => !present.Contains($"\"docker.io/{image}\"", StringComparison.Ordinal))
+            .ToList();
+        if (missing.Count == 0)
+        {
+            Console.WriteLine("  The cluster has them all.");
+            return;
+        }
+
+        Run(_tools.Kind, ["load", "docker-image", "--name", ClusterName, .. missing]);
     }
 
     /// <summary>
@@ -185,6 +237,29 @@ sealed class Lab(string root)
         Helm("eventticketing", PathOf("product/deploy/chart"), repo: null, version: null, "eventticketing",
             PathOf("product/deploy/chart/values-lab.yaml"), $"image.tag={tag}");
         Kubectl("get", "deployments", "-n", "eventticketing");
+    }
+
+    /// <summary>LocalPay, the load generator and the Scaling Lab, next to the product (ADR-0021).</summary>
+    private void InstallTooling(string tag)
+    {
+        Step("Tooling: LocalPay, load generator, Scaling Lab");
+        Helm("eventticketing-tooling", PathOf("tooling/deploy/chart"), repo: null, version: null, "lab", values: null, $"image.tag={tag}");
+    }
+
+    /// <summary>The demo data, through the APIs as always (ADR-0022), when nothing is on sale yet.</summary>
+    private async Task SeedAsync()
+    {
+        Step("Demo data");
+        using var http = new HttpClient();
+        var events = await http.GetStringAsync(new Uri("http://localhost:5101/events?pageSize=1"));
+        if (events.Contains("\"eventId\"", StringComparison.Ordinal))
+        {
+            Console.WriteLine("  Events are on sale already.");
+            return;
+        }
+
+        // The seeder's defaults are the usual localhost ports, which the lab serves too (ADR-0053).
+        Run("dotnet", ["run", "--project", PathOf("tooling/seed"), "-c", "Release"]);
     }
 
     public int Down()
@@ -221,9 +296,9 @@ sealed class Lab(string root)
         Kubectl("apply", "--server-side", "--force-conflicts", "-f", gatewayApi);
 
         Step("Platform: Traefik, CloudNativePG, metrics-server");
-        Helm("traefik", "traefik", Pins.TraefikRepo, Pins.TraefikChart, "platform", PathOf("platform/traefik/values.yaml"));
-        Helm("cloudnative-pg", "cloudnative-pg", Pins.CloudNativePgRepo, Pins.CloudNativePgChart, "cnpg-system", values: null);
-        Helm("metrics-server", "metrics-server", Pins.MetricsServerRepo, Pins.MetricsServerChart, "kube-system", PathOf("platform/metrics-server/values.yaml"));
+        Helm("traefik", Chart("traefik", Pins.TraefikRepo, Pins.TraefikChart), repo: null, version: null, "platform", PathOf("platform/traefik/values.yaml"));
+        Helm("cloudnative-pg", Chart("cloudnative-pg", Pins.CloudNativePgRepo, Pins.CloudNativePgChart), repo: null, version: null, "cnpg-system", values: null);
+        Helm("metrics-server", Chart("metrics-server", Pins.MetricsServerRepo, Pins.MetricsServerChart), repo: null, version: null, "kube-system", PathOf("platform/metrics-server/values.yaml"));
         Kubectl("wait", "--for=condition=Programmed", "gateway/lab", "-n", "platform", "--timeout=120s");
 
         Step("Platform: secrets");
@@ -309,6 +384,23 @@ sealed class Lab(string root)
         {
             return true;
         }
+    }
+
+    /// <summary>
+    /// A pinned upstream chart, downloaded once into .tools/charts: fetching a repository's index on
+    /// every `up` is slow (Traefik's is several megabytes), and the cache also lets `up` run offline.
+    /// </summary>
+    private string Chart(string name, string repo, string version)
+    {
+        var directory = Path.Combine(root, ".tools", "charts");
+        var archive = Path.Combine(directory, $"{name}-{version}.tgz");
+        if (!File.Exists(archive))
+        {
+            Directory.CreateDirectory(directory);
+            Run(_tools.Helm, ["pull", name, "--repo", repo, "--version", version, "--destination", directory]);
+        }
+
+        return archive;
     }
 
     /// <summary>Installs or upgrades a release and waits until it is ready: a pinned chart from a repository, or a local one.</summary>
