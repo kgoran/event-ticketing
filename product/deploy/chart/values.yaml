@@ -62,3 +62,13 @@ resources:
 features:
   # An operator's brake: refuse new holds with 503 and Retry-After (D45).
   PauseHolds: false
+
+# Valkey (D51): the shared output cache. Its connection string's options make an outage quick to
+# notice: the hosts don't wait to connect at startup, and a call gives up after half a second.
+valkey:
+  image: valkey/valkey:8.1
+  maxMemory: 256mb
+  connectionString: valkey:6379,abortConnect=false,connectTimeout=2000,syncTimeout=500,asyncTimeout=500
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 320Mi }

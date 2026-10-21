@@ -17,6 +17,7 @@ using EventTicketing.Ticketing.Infrastructure;
 using EventTicketing.WebhookIngress;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -47,6 +48,9 @@ public sealed class TestSystem : IAsyncLifetime
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine")
         .WithCommand("-c", "max_connections=500")
         .Build();
+
+    /// <summary>The output cache every host shares, as they share Valkey in the lab (D52).</summary>
+    private readonly IOutputCacheStore _outputCache = new ServiceCollection().AddOptions().AddLogging().AddOutputCache().BuildServiceProvider().GetRequiredService<IOutputCacheStore>();
 
     private WebApplicationFactory<PublicApiEntryPoint>? _publicApi;
     private WebApplicationFactory<BackOfficeApiEntryPoint>? _backOfficeApi;
@@ -247,6 +251,7 @@ public sealed class TestSystem : IAsyncLifetime
             host.ConfigureTestServices(services =>
             {
                 services.UseTestTokens();
+                services.AddSingleton(_outputCache);
                 services.ConfigureHttpClientDefaults(client => client.ConfigurePrimaryHttpMessageHandler(LocalPay.CreateHandler));
             });
         });

@@ -20,6 +20,10 @@ IResourceBuilder<ProjectResource> WithStripe(IResourceBuilder<ProjectResource> h
 var postgres = builder.AddPostgres("postgres");
 var database = postgres.AddDatabase("eventticketing");
 
+// Valkey (D51): the shared output cache for browsing, never authoritative. No volume: nothing in it
+// has to outlive a run (ADR-0022).
+var valkey = builder.AddValkey("valkey");
+
 // The fan site's client secret at Keycloak (a confidential client, ADR-0049). Generated fresh on every
 // run like every other secret in the disposable lab (ADR-0025); the realm import reads it from the
 // environment (${FANSITE_CLIENT_SECRET} in the realm file).
@@ -91,12 +95,14 @@ var localPay = builder.AddProject<Projects.LocalPay>("localpay")
 
 var publicApi = WithStripe(WithTimings(builder.AddProject<Projects.PublicApi>("publicapi")))
     .WithReference(database)
+    .WithReference(valkey)
     .WithReference(localPay)
     .WithEnvironment("Authentication__Authority", authority)
     .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
     .WithEnvironment("Payments__LocalPay__BaseUrl", "http://localpay")
     .WithHttpHealthCheck("/health")
     .WaitFor(keycloak)
+    .WaitFor(valkey)
     .WaitForCompletion(migrator);
 
 // The fan site (ADR-0049): uses the product only through PublicApi, signs fans in at Keycloak.
