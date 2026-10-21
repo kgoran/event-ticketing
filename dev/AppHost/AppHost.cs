@@ -108,6 +108,7 @@ var publicApi = WithStripe(WithTimings(builder.AddProject<Projects.PublicApi>("p
 // The fan site (ADR-0049): uses the product only through PublicApi, signs fans in at Keycloak.
 // Port 5100 from its launch profile; system tests run it on a random port.
 var fanSite = builder.AddProject<Projects.FanSite>("fansite")
+    .WithReference(valkey)
     .WithReference(publicApi)
     .WithEnvironment("Authentication__Authority", authority)
     .WithEnvironment("Authentication__RequireHttpsMetadata", "false")

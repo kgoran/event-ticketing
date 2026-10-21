@@ -16,7 +16,12 @@
 <body>
     <Routes @rendermode="PageRenderMode" />
     <ReconnectModal />
-    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
+    <script>
+        // A circuit is one WebSocket, opened without SignalR's negotiation (D67): the whole circuit
+        // stays on the instance that took the connection, with no sticky sessions at the gateway.
+        Blazor.start({ circuit: { configureSignalR: builder => builder.withUrl("_blazor", { skipNegotiation: true, transport: 1 }) } });
+    </script>
 </body>
 
 </html>

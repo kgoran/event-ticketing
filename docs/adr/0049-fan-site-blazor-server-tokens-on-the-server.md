@@ -83,3 +83,11 @@ Two things shape it:
   hold, with PublicApi's message). A "my current hold" endpoint would fix it.
 - No browser test yet: system tests check the site over HTTP (pages, sign-in). A Playwright
   test is a separate decision.
+
+## Updates
+- **2026-10-21 (D54, D67):** The fan site runs as two instances in the lab. Fans' tokens and the
+  sign-in cookie's Data Protection keys are in Valkey, so a fan stays signed in on either instance
+  and through a deploy (checked: both instances replaced, the fan still signed in, "My tickets"
+  still loading). No sticky sessions: the Blazor client opens each circuit as one WebSocket without
+  SignalR's negotiation, so a circuit stays on one instance; Traefik's Gateway API provider has no
+  reliable stickiness. A reconnect to another instance reloads the page.

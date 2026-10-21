@@ -441,3 +441,4 @@ M3-M5"), so each decision takes the recommended answer and waits for review. The
 | D60–D64 | CheckIn and CheckInApi; devices as Keycloak clients; the scanner PWA; revocation by an admin; the device simulator | [0056](adr/0056-check-in-devices-scanner-and-revocation.md) |
 | D65 | Backups to SeaweedFS with the Barman Cloud plugin | [0055](adr/0055-high-availability-in-the-lab.md) |
 | D66 | The M3 demo and its dry run in the nightly lab workflow | [M3](milestones/m3.md) |
+| D67 | No sticky sessions for the fan site: one WebSocket per circuit, without negotiation; a fan stays signed in on any instance (decided while building, for review) | [M3](milestones/m3.md), [0049](adr/0049-fan-site-blazor-server-tokens-on-the-server.md) (update) |

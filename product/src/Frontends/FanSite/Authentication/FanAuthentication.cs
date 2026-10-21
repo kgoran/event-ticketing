@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.StackExchangeRedis;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using StackExchange.Redis;
 
 namespace EventTicketing.FanSite.Authentication;
 
@@ -12,6 +16,9 @@ namespace EventTicketing.FanSite.Authentication;
 /// </summary>
 internal static class FanAuthentication
 {
+    /// <summary>Valkey's connection string's name, as the AppHost and the lab's chart give it.</summary>
+    private const string Valkey = "valkey";
+
     public static WebApplicationBuilder AddFanAuthentication(this WebApplicationBuilder builder)
     {
         var settings = builder.Configuration.GetSection("Authentication");
@@ -64,8 +71,21 @@ internal static class FanAuthentication
         builder.Services.AddAuthorization();
         builder.Services.AddCascadingAuthenticationState();
 
-        // In memory while the fan site runs as one instance; Valkey once it runs several (ADR-0049).
-        builder.Services.AddDistributedMemoryCache();
+        // Fans' tokens and the sign-in cookie's keys where every instance finds them (ADR-0049, D54):
+        // in Valkey when the host has it, so a fan stays signed in on any instance and through a
+        // deploy; in memory when the fan site runs alone.
+        if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString(Valkey)))
+        {
+            builder.AddRedisDistributedCache(Valkey);
+            builder.Services.AddDataProtection().SetApplicationName("EventTicketing.FanSite");
+            builder.Services.AddOptions<KeyManagementOptions>().Configure<IConnectionMultiplexer>((options, valkey) =>
+                options.XmlRepository = new RedisXmlRepository(() => valkey.GetDatabase(), "fansite:data-protection-keys"));
+        }
+        else
+        {
+            builder.Services.AddDistributedMemoryCache();
+        }
+
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<FanTokenStore>();
         builder.Services.AddSingleton<FanTokenRefresher>();
