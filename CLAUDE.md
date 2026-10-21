@@ -52,8 +52,9 @@ the system in a local kind cluster made by `dotnet run lab.cs -- up` (pinned kin
 CloudNativePG, Keycloak, the same localhost ports as Aspire, several instances shown in the Scaling
 Lab. The owner asked for the items up to several instances first (IM1–CI1); the rest waits for review.
 Built: images (IM1), `lab.cs` and the platform (LAB1), the product chart with the Migrator Job (DP1),
-tooling in the cluster with seeding and `reset` (LAB2), the Scaling Lab's Instances panel (SL1). How to run
-it and what it taught (probe timeouts, preStop, the connection budget): `docs/lab.md`.
+tooling in the cluster with seeding and `reset` (LAB2), the Scaling Lab's Instances panel (SL1), the `lab`
+workflow running `up` and `check` in kind (CI1). How to run it and what it taught (probe timeouts, preStop, the
+connection budget): `docs/lab.md`. **Stopped there, as the owner asked:** DP2–DP4, FF1 and Q7 wait for review.
 
 ## Commands
 
