@@ -176,10 +176,10 @@ after (D44). It names the events and says until when:
 puts the demo on sale at once, so for an hour after `up` or `reset` a plain `deploy` is refused,
 which is also how the demo and the lab workflow show the gate.
 
-One host loses something in a rollout: the fan site keeps fans' sign-ins and Blazor's circuits in
-memory, and it runs once until its token store moves to Valkey in M3
-([ADR-0049](adr/0049-fan-site-blazor-server-tokens-on-the-server.md)). A fan who is on the site
-during a deploy is asked to reload and sign in again. T10 is measured on PublicApi.
+Since M3 the fan site keeps fans' tokens and its cookie's keys in Valkey and runs twice (D54, D67):
+a rollout no longer signs fans out. A fan whose circuit was on a stopped instance sees the page
+reload, still signed in. A chart's change to an instance count reaches a running lab with `reset`
+(a deploy keeps the counts that run).
 
 ## Autoscaling
 

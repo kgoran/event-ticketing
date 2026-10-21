@@ -57,9 +57,9 @@ instance as a replica), the connection string for hosts that use the database, a
 - name: Authentication__RequireHttpsMetadata
   value: {{ $values.identity.requireHttpsMetadata | quote }}
 {{- end }}
-{{- if and $values.valkey (or (eq .name "publicapi") (eq .name "backofficeapi") (eq .name "workers")) }}
-# Valkey (D51–D53): PublicApi caches browsing and reads availability snapshots, BackOfficeApi evicts
-# browsing's answers on changes, Workers rebuilds the snapshots.
+{{- if and $values.valkey (or (eq .name "publicapi") (eq .name "backofficeapi") (eq .name "workers") (eq .name "fansite")) }}
+# Valkey (D51–D54): PublicApi caches browsing and reads availability snapshots, BackOfficeApi evicts
+# browsing's answers on changes, Workers rebuilds the snapshots, the fan site keeps fans' tokens.
 - name: ConnectionStrings__valkey
   value: {{ $values.valkey.connectionString | quote }}
 {{- end }}
