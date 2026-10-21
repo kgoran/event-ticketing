@@ -23,6 +23,9 @@ spec:
     synchronous:
       method: any
       number: 1
+  # A planned stop (a node drained, an upgrade) gives clients 10 s to finish, then ends their
+  # sessions: the pools keep connections open, and the default 180 s held a failover up.
+  smartShutdownTimeout: 10
   # One instance per zone; after a zone failure the cluster runs on two until the zone is back.
   affinity:
     enablePodAntiAffinity: true

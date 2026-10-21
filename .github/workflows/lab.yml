@@ -34,7 +34,7 @@ jobs:
     name: "lab: up and check"
     # Pinned: ubuntu-latest moves to Ubuntu 26 from 2026-10-19. Upgrade deliberately, in its own PR.
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v5
 
@@ -74,6 +74,14 @@ jobs:
         env:
           LAB_SYSTEM_TESTS: "1"
         run: dotnet test --project tooling/tests/Lab.SystemTests
+
+      # T10's other half (D59): the primary crashes under load: under 60 s of errors, T2 holds.
+      - name: Failover drill
+        run: dotnet run lab.cs -- drill failover
+
+      # A zone's node stops under load; the database fails over, the hosts move, the node comes back.
+      - name: Zone drill
+        run: dotnet run lab.cs -- drill zone
 
       # T2 (D58): after everything above, purchases, scaling and a rollout, every invariant still holds.
       - name: Invariants

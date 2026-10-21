@@ -1,0 +1,2 @@
+# KEDA for the lab (ADR-0054): in zone-a with the other operators, which no drill stops (D59).
+nodeSelector: { topology.kubernetes.io/zone: zone-a }

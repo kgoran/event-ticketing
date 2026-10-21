@@ -23,6 +23,8 @@ spec:
         # file changes this value and restarts it.
         lab.eventticketing/realm: "REALM_HASH"
     spec:
+      # The lab's outside world lives in zone-a, the way in, which no drill stops (D59).
+      nodeSelector: { topology.kubernetes.io/zone: zone-a }
       containers:
         - name: keycloak
           image: quay.io/keycloak/keycloak:26.6

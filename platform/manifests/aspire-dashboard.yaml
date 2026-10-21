@@ -19,6 +19,8 @@ spec:
       labels:
         app.kubernetes.io/name: aspire-dashboard
     spec:
+      # The lab's outside world lives in zone-a, the way in, which no drill stops (D59).
+      nodeSelector: { topology.kubernetes.io/zone: zone-a }
       containers:
         - name: dashboard
           image: mcr.microsoft.com/dotnet/aspire-dashboard:13.6.1

@@ -1,0 +1,3 @@
+# CloudNativePG's operator for the lab. In zone-a, which no drill stops (D59): an operator lost with
+# its zone couldn't promote a standby until Kubernetes moved it, minutes later.
+nodeSelector: { topology.kubernetes.io/zone: zone-a }

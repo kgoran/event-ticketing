@@ -8,6 +8,7 @@
 //   dotnet run lab.cs -- check    does it work: hosts ready, addresses answering, sign-in, a burst of load
 //   dotnet run lab.cs -- deploy   roll the product out from the current source; --load 100 measures T10 under load
 //   dotnet run lab.cs -- flag     the feature flags; `flag PauseHolds on` switches one in the running system
+//   dotnet run lab.cs -- drill    a failure under load: `drill failover` (the primary), `drill zone` (a node)
 //   dotnet run lab.cs -- down     delete the cluster and everything in it
 //
 // A .NET file-based app (D24), so it needs only the .NET SDK and Docker. The tools it drives
@@ -37,6 +38,7 @@ try
         "check" => await lab.CheckAsync(args[1..]),
         "deploy" => await lab.DeployAsync(args[1..]),
         "flag" => lab.Flag(args[1..]),
+        "drill" => await lab.DrillAsync(args[1..]),
         _ => Lab.Help(),
     };
 }
@@ -108,6 +110,8 @@ sealed class Lab(string root)
                   --during-on-sale "<why>"  deploy although an on-sale's rush is on (the gate refuses otherwise)
               dotnet run lab.cs -- flag     the feature flags, and whether each is on
               dotnet run lab.cs -- flag <name> on|off   switch one in the running system, without a deploy
+              dotnet run lab.cs -- drill failover       the database's primary deleted under load; T10 and T2 checked
+              dotnet run lab.cs -- drill zone [zone-b|zone-c]   a zone's node stopped under load
               dotnet run lab.cs -- down     delete the cluster and everything in it
             """);
         return 0;
@@ -619,12 +623,122 @@ sealed class Lab(string root)
         return violations.Count == 0;
     }
 
-    /// <summary>A ready database instance in the given role (primary or replica), if there is one.</summary>
-    private string? DatabasePod(string role) =>
-        Capture(_tools.Kubectl, ["--context", Context, "get", "pods", "-n", "eventticketing", "-l", $"cnpg.io/cluster=eventticketing,cnpg.io/instanceRole={role}",
-            "-o", "jsonpath={range .items[?(@.status.containerStatuses[0].ready==true)]}{.metadata.name}{\"\\n\"}{end}"])
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .FirstOrDefault();
+    /// <summary>
+    /// The drills (D59, T10): a failure under constant load, timed from outside. `failover` deletes
+    /// the database's primary; `zone` stops a worker node (zone-b or zone-c: zone-a is the lab's
+    /// way in, and holds the gateway, the identity provider and the tooling, as the outside world
+    /// would). Prints when the failure began, when the database had a new primary, when requests
+    /// failed, and then checks T2's invariants. T10 allows under 60 s of errors for a failover.
+    /// </summary>
+    public async Task<int> DrillAsync(string[] options)
+    {
+        if (!_tools.Installed || !ClusterExists())
+        {
+            throw new LabException("No lab cluster. Start one with: dotnet run lab.cs -- up");
+        }
+
+        var (kind, node) = options switch
+        {
+            ["failover"] => ("failover", null),
+            ["zone"] => ("zone", $"{ClusterName}-worker"),
+            ["zone", "zone-b"] => ("zone", $"{ClusterName}-worker"),
+            ["zone", "zone-c"] => ("zone", $"{ClusterName}-worker2"),
+            _ => throw new LabException("Use: drill failover, or drill zone [zone-b|zone-c]."),
+        };
+
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        var previous = await http.GetStringAsync(GeneratorSettings);
+        var primary = DatabasePod("primary") ?? throw new LabException("No database primary is running.");
+
+        Step("Load: 100 requests/s through the gateway, 20% holds");
+        await SetLoadAsync(http, """{"requestsPerSecond":100,"holdShare":0.2}""");
+        await Task.Delay(TimeSpan.FromSeconds(15)); // steady before anything breaks
+
+        var clock = Stopwatch.StartNew();
+        TimeSpan? promoted = null;
+        try
+        {
+            if (kind == "failover")
+            {
+                // A crash, not a shutdown: no time to finish anything. A graceful delete waits for
+                // PostgreSQL's smart shutdown, which waits for the pools' connections to close.
+                Step($"Failover: the primary, {primary}, crashes");
+                Kubectl("delete", "pod", primary, "-n", "eventticketing", "--grace-period=0", "--force", "--wait=false");
+            }
+            else
+            {
+                Step($"Zone: the node {node} stops");
+                Run("docker", ["stop", node!]);
+            }
+
+            // Until the database has a primary again (CloudNativePG promotes a standby), then a minute
+            // more under load, so the drill shows the way back as well as the break.
+            while (clock.Elapsed < TimeSpan.FromMinutes(5))
+            {
+                if (promoted is null && DatabasePod("primary") is { } now && now != primary)
+                {
+                    promoted = clock.Elapsed;
+                    Console.WriteLine($"  {now} is the primary after {promoted.Value.TotalSeconds:0} s");
+                }
+
+                if (promoted is { } at && clock.Elapsed > at + TimeSpan.FromSeconds(60))
+                {
+                    break;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(2));
+            }
+        }
+        finally
+        {
+            await SetLoadAsync(http, previous);
+        }
+
+        // Second by second, from the generator: which seconds failed requests.
+        var seconds = (int)Math.Ceiling(clock.Elapsed.TotalSeconds);
+        using var stats = JsonDocument.Parse(await http.GetStringAsync(new Uri($"http://localhost:5301/stats?seconds={Math.Min(seconds, 300)}")));
+        var window = stats.RootElement.GetProperty("seconds").EnumerateArray().ToList();
+        var failing = window.Select((second, index) => (index, failed: second.GetProperty("failed").GetInt32() + second.GetProperty("clientErrors").GetInt32()))
+            .Where(second => second.failed > 0).ToList();
+        var completed = window.Sum(second => second.GetProperty("completed").GetInt32());
+        var errorSeconds = failing.Count == 0 ? 0 : failing[^1].index - failing[0].index + 1;
+
+        Step("T10: requests that failed during the drill");
+        Console.WriteLine(promoted is { } p ? $"  A new primary after {p.TotalSeconds:0} s." : "  No new primary within 5 minutes.");
+        Console.WriteLine(failing.Count == 0
+            ? $"  {completed} answered, none failed."
+            : $"  {completed} answered, {failing.Sum(second => second.failed)} failed, within {errorSeconds} s (from {failing[0].index - (window.Count - seconds)} s to {failing[^1].index - (window.Count - seconds)} s after the failure).");
+        Console.WriteLine(kind == "failover"
+            ? (errorSeconds < 60 ? "  Within T10 (under 60 s of errors)." : "  Over T10: 60 s of errors or more.")
+            : "  A zone may take minutes to recover (§10); its database instance waits for the node, the hosts move.");
+
+        var invariants = InvariantsHold();
+        if (node is not null)
+        {
+            Step($"Zone: the node {node} starts again");
+            Run("docker", ["start", node]);
+            Kubectl("wait", "node", node, "--for=condition=Ready", "--timeout=180s");
+            Kubectl("wait", "--for=condition=Ready", "cluster/eventticketing", "-n", "eventticketing", "--timeout=300s");
+        }
+        return promoted is not null && invariants && (kind != "failover" || errorSeconds < 60) ? 0 : 1;
+    }
+
+    /// <summary>
+    /// A healthy database instance in the given role (primary or replica), if there is one, as
+    /// CloudNativePG sees them: a pod on a lost node can still look ready to the API for a while.
+    /// </summary>
+    private string? DatabasePod(string role)
+    {
+        using var cluster = JsonDocument.Parse(Capture(_tools.Kubectl, ["--context", Context, "get", "cluster", "eventticketing", "-n", "eventticketing", "-o", "json"]));
+        var status = cluster.RootElement.GetProperty("status");
+        var primary = status.TryGetProperty("currentPrimary", out var current) ? current.GetString() : null;
+        var healthy = status.TryGetProperty("instancesStatus", out var instances) && instances.TryGetProperty("healthy", out var list)
+            ? list.EnumerateArray().Select(name => name.GetString()!).ToList()
+            : [];
+        return role == "primary"
+            ? healthy.Contains(primary ?? "") ? primary : null
+            : healthy.FirstOrDefault(name => name != primary);
+    }
 
     /// <summary>
     /// The feature flags (FF1, docs/feature-flags.md): each one and whether it is on, or one switched
@@ -696,10 +810,10 @@ sealed class Lab(string root)
 
         Step("Platform: Traefik, CloudNativePG, metrics-server, KEDA");
         Helm("traefik", Chart("traefik", Pins.TraefikRepo, Pins.TraefikChart), repo: null, version: null, "platform", PathOf("platform/traefik/values.yaml"));
-        Helm("cloudnative-pg", Chart("cloudnative-pg", Pins.CloudNativePgRepo, Pins.CloudNativePgChart), repo: null, version: null, "cnpg-system", values: null);
+        Helm("cloudnative-pg", Chart("cloudnative-pg", Pins.CloudNativePgRepo, Pins.CloudNativePgChart), repo: null, version: null, "cnpg-system", PathOf("platform/cloudnative-pg/values.yaml"));
         Helm("metrics-server", Chart("metrics-server", Pins.MetricsServerRepo, Pins.MetricsServerChart), repo: null, version: null, "kube-system", PathOf("platform/metrics-server/values.yaml"));
         // Before the product: its chart has a ScaledObject for PublicApi's Auto switch (ADR-0054).
-        Helm("keda", Chart("keda", Pins.KedaRepo, Pins.KedaChart), repo: null, version: null, "keda", values: null);
+        Helm("keda", Chart("keda", Pins.KedaRepo, Pins.KedaChart), repo: null, version: null, "keda", PathOf("platform/keda/values.yaml"));
         Kubectl("wait", "--for=condition=Programmed", "gateway/lab", "-n", "platform", "--timeout=120s");
 
         Step("Platform: secrets");

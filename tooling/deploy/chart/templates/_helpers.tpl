@@ -31,6 +31,9 @@ spec:
       {{- with .serviceAccount }}
       serviceAccountName: {{ . }}
       {{- end }}
+      # The tools stand for the outside world, in zone-a, which no drill stops (D59): the load
+      # generator must keep measuring while a zone fails.
+      nodeSelector: { topology.kubernetes.io/zone: zone-a }
       securityContext:
         runAsNonRoot: true
         seccompProfile: { type: RuntimeDefault }
