@@ -113,11 +113,13 @@ public sealed class M2DemoDryRunTests
             await EventuallyAsync(PublicApiAsync, state => state.Wanted == 2 && state.Ready == 2, TimeSpan.FromSeconds(120), "two instances to start from");
             var clock = Stopwatch.StartNew();
 
+            // 150 requests/s, well past what two instances carry at the CPU target on any machine: how
+            // much CPU a request costs differs between the laptop and CI's runners (the demo uses 84).
             await AutoAsync(on: true);
-            await LoadAsync(84);
-            await EventuallyAsync(PublicApiAsync, state => state.Ready >= 4, TimeSpan.FromSeconds(180), "the autoscaler adds instances for 84 requests/s");
+            await LoadAsync(150);
+            await EventuallyAsync(PublicApiAsync, state => state.Ready >= 4, TimeSpan.FromSeconds(240), "the autoscaler adds instances for 150 requests/s", AutoscalerAsync);
             await LoadAsync(0);
-            await EventuallyAsync(PublicApiAsync, state => state.Wanted <= 2, TimeSpan.FromSeconds(180), "the autoscaler gives them back (demo speed: 30 s)");
+            await EventuallyAsync(PublicApiAsync, state => state.Wanted <= 2, TimeSpan.FromSeconds(180), "the autoscaler gives them back, demo speed: 30 s", AutoscalerAsync);
 
             var totals = await TotalsAsync(Math.Min(300, (int)Math.Ceiling(clock.Elapsed.TotalSeconds)));
             totals.Failed.Should().Be(0, "scaling out and in fails no request");
