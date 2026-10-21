@@ -80,7 +80,7 @@ namespace EventTicketing.Catalog.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
-                        .HasColumnName("time_zone");
+                        .HasColumnName("venue_time_zone");
 
                     b.Property<Guid>("VenueId")
                         .HasColumnType("uuid")
