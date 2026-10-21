@@ -3,6 +3,8 @@
        it to finish (ADR-0016 update); from M2 it runs as a Kubernetes Job per release (ADR-0031). -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <!-- A console app: its image is opted in, unlike the web hosts' (ADR-0029). -->
+    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
   </PropertyGroup>
 
   <ItemGroup>

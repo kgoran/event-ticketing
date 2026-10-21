@@ -61,3 +61,11 @@ jobs:
 
       - name: Test
         run: dotnet test --solution tooling/Tooling.slnx --no-build -c Release
+
+      # The tools the lab runs in the cluster, as images (ADR-0029, D34); nothing is pushed.
+      - name: Container images
+        run: |
+          for project in simulators/LocalPay lab/LoadGenerator lab/ScalingLab; do
+            dotnet publish "tooling/$project" --no-restore -c Release -t:PublishContainer
+          done
+          docker image ls 'eventticketing/*'

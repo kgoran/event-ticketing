@@ -5,5 +5,7 @@
   <PropertyGroup>
     <AssemblyName>EventTicketing.$(MSBuildProjectName)</AssemblyName>
     <RootNamespace>EventTicketing.$(MSBuildProjectName)</RootNamespace>
+    <!-- One image per host (ADR-0029): eventticketing/publicapi, eventticketing/workers, … -->
+    <ContainerRepository>eventticketing/$(MSBuildProjectName.ToLowerInvariant())</ContainerRepository>
   </PropertyGroup>
 </Project>

@@ -6,5 +6,7 @@
   <PropertyGroup>
     <AssemblyName>EventTicketing.Tooling.$(MSBuildProjectName)</AssemblyName>
     <RootNamespace>EventTicketing.Tooling.$(MSBuildProjectName)</RootNamespace>
+    <!-- Tools publish images like the product's hosts (ADR-0029): eventticketing/localpay, … -->
+    <ContainerRepository>eventticketing/$(MSBuildProjectName.ToLowerInvariant())</ContainerRepository>
   </PropertyGroup>
 </Project>
