@@ -15,6 +15,10 @@ pinned versions of kind, kubectl and Helm into `.tools/` and checks their checks
 dotnet run lab.cs -- up       create the cluster if there is none, then build and deploy the current source
 dotnet run lab.cs -- reset    keep the cluster and platform; a fresh database, redeployed, reseeded
 dotnet run lab.cs -- status   what runs, and where to open it
+dotnet run lab.cs -- check    does it work: hosts ready, addresses answering, sign-in, a burst of load
+dotnet run lab.cs -- deploy   roll the product out from the current source, as a release would
+                   --load 100  … with 100 requests/s running, and count the failed ones (T10)
+                   --restart   … every host again, even if nothing changed
 dotnet run lab.cs -- down     delete the cluster and everything in it
 ```
 
@@ -55,6 +59,31 @@ The Migrator runs as a Job before each deploy of the product. A deploy keeps the
 that run (someone may have changed them in the Scaling Lab, or the autoscaler did), and the Auto
 switch and its speed as they are; `reset` restores what `product/deploy/chart/values-lab.yaml` says:
 Auto off, PublicApi at 3.
+
+## Deploys under load (T10)
+
+`lab deploy` is a release: it builds the images of the current source, runs the Migrator, and
+rolls out each host whose image or settings changed. The database and the tooling stay as they
+are, so the load generator keeps running and measuring. With `--load 100` it sends 100
+requests/s through the gateway from 10 s before the rollout until 10 s after, and counts the
+requests that failed against T10: under 0.1% ([ADR-0015](adr/0015-performance-targets.md)).
+`--restart` rolls every host out again with the same images, to measure without a change.
+
+What makes a rollout fail nothing, each part in the chart:
+
+- **One new instance at a time, never one fewer** (`maxSurge: 1`, `maxUnavailable: 0`): an old
+  instance stops only once its replacement passes readiness.
+- **Readiness means warm** (D43): a new instance takes traffic only after its warm-up.
+- **A stopping instance keeps answering for 5 s** (`preStop`), while Traefik removes it, then
+  finishes its requests in flight after SIGTERM, within the 30-second grace period.
+
+Measured on 2026-10-21, every host rolled out again (`deploy --restart --load 100`): **0 of 8,030
+requests failed** with PublicApi at 3 instances, and **0 of 7,096** with the autoscaler on.
+
+One host loses something in a rollout: the fan site keeps fans' sign-ins and Blazor's circuits in
+memory, and it runs once until its token store moves to Valkey in M3
+([ADR-0049](adr/0049-fan-site-blazor-server-tokens-on-the-server.md)). A fan who is on the site
+during a deploy is asked to reload and sign in again. T10 is measured on PublicApi.
 
 ## Autoscaling
 

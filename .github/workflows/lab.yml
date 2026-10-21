@@ -48,6 +48,10 @@ jobs:
       - name: Check
         run: dotnet run lab.cs -- check
 
+      # T10 (DP2): every host rolled out again under constant load; fails above 0.1% failed requests.
+      - name: Deploy under load
+        run: dotnet run lab.cs -- deploy --restart --load 50
+
       - name: What ran (on failure)
         if: failure()
         run: |

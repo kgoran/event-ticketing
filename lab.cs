@@ -6,6 +6,7 @@
 //   dotnet run lab.cs -- reset    keep the cluster and platform; a fresh database, redeployed, reseeded
 //   dotnet run lab.cs -- status   what runs, and where to open it
 //   dotnet run lab.cs -- check    does it work: hosts ready, addresses answering, sign-in, a burst of load
+//   dotnet run lab.cs -- deploy   roll the product out from the current source; --load 100 measures T10 under load
 //   dotnet run lab.cs -- down     delete the cluster and everything in it
 //
 // A .NET file-based app (D24), so it needs only the .NET SDK and Docker. The tools it drives
@@ -32,6 +33,7 @@ try
         "reset" => await lab.ResetAsync(),
         "status" => lab.Status(),
         "check" => await lab.CheckAsync(),
+        "deploy" => await lab.DeployAsync(args[1..]),
         _ => Lab.Help(),
     };
 }
@@ -97,6 +99,9 @@ sealed class Lab(string root)
               dotnet run lab.cs -- reset    keep the cluster and platform; a fresh database, redeployed, reseeded
               dotnet run lab.cs -- status   what runs, and where to open it
               dotnet run lab.cs -- check    does it work: hosts ready, addresses answering, sign-in, a burst of load
+              dotnet run lab.cs -- deploy   roll the product out from the current source, as a release would
+                  --load <requests/s>       with the load generator running, and say how many requests failed (T10)
+                  --restart                 roll every host out again even if nothing changed
               dotnet run lab.cs -- down     delete the cluster and everything in it
             """);
         return 0;
@@ -236,10 +241,127 @@ sealed class Lab(string root)
         Helm("eventticketing-database", PathOf("product/deploy/database"), repo: null, version: null, "eventticketing", values: null);
         Kubectl("wait", "--for=condition=Ready", "cluster/eventticketing", "-n", "eventticketing", "--timeout=300s");
 
+        DeployProduct(tag);
+    }
+
+    /// <summary>The product's release: the Migrator first, then each host rolls out what changed (D32, DP2).</summary>
+    private void DeployProduct(string tag)
+    {
         Step("Product: migrations and hosts");
         Helm("eventticketing", PathOf("product/deploy/chart"), repo: null, version: null, "eventticketing",
             PathOf("product/deploy/chart/values-lab.yaml"), $"image.tag={tag}");
         Kubectl("get", "deployments", "-n", "eventticketing");
+    }
+
+    private static readonly Uri GeneratorSettings = new("http://localhost:5301/settings");
+
+    /// <summary>
+    /// A release (DP2): the current source's images rolled out to the product while it serves. With
+    /// --load, the load generator runs at that rate before, during and after the rollout, and the
+    /// requests that failed are counted against T10: under 0.1%. The tooling isn't redeployed, so
+    /// the generator keeps measuring (`up` updates it); the database stays as it is.
+    /// </summary>
+    public async Task<int> DeployAsync(string[] options)
+    {
+        if (!_tools.Installed || !ClusterExists())
+        {
+            throw new LabException("No lab cluster. Start one with: dotnet run lab.cs -- up");
+        }
+
+        var (load, restart) = DeployOptions(options);
+        var tag = ImageTag();
+        BuildAndLoadImages(tag);
+
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        string? previous = null;
+        if (load > 0)
+        {
+            Step($"Load: {load} requests/s through the gateway, 20% holds");
+            previous = await http.GetStringAsync(GeneratorSettings);
+            await SetLoadAsync(http, $"{{\"requestsPerSecond\":{load.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"holdShare\":0.2}}");
+            await Task.Delay(TimeSpan.FromSeconds(10)); // steady before anything moves
+        }
+
+        var rollout = Stopwatch.StartNew();
+        try
+        {
+            DeployProduct(tag);
+            if (restart)
+            {
+                Step("Product: every host again, with the same images");
+                Kubectl("rollout", "restart", "deployment", "-n", "eventticketing", "-l", "app.kubernetes.io/part-of=eventticketing");
+                foreach (var deployment in Capture(_tools.Kubectl, ["--context", Context, "get", "deployments", "-n", "eventticketing", "-l", "app.kubernetes.io/part-of=eventticketing", "-o", "name"]).Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    Kubectl("rollout", "status", deployment.Trim(), "-n", "eventticketing", "--timeout=300s");
+                }
+            }
+
+            if (load > 0)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10)); // the last old instances finish their requests
+            }
+        }
+        finally
+        {
+            if (previous is not null)
+            {
+                await SetLoadAsync(http, previous);
+            }
+        }
+
+        if (load <= 0)
+        {
+            Step("Deployed");
+            return 0;
+        }
+
+        // T10 (ADR-0015): a rolling deploy under load causes under 0.1% errors.
+        var seconds = (int)Math.Ceiling(rollout.Elapsed.TotalSeconds);
+        using var stats = JsonDocument.Parse(await http.GetStringAsync(new Uri($"http://localhost:5301/stats?seconds={seconds}")));
+        var window = stats.RootElement.GetProperty("seconds").EnumerateArray().ToList();
+        int Sum(string property) => window.Sum(second => second.GetProperty(property).GetInt32());
+        var completed = Sum("completed");
+        var failed = Sum("failed") + Sum("clientErrors");
+        var share = completed == 0 ? 1 : failed / (double)completed;
+
+        Step("T10: requests that failed during the rollout");
+        Console.WriteLine($"  {completed} answered in {seconds} s, {failed} failed ({share:P3}), {Sum("skipped")} skipped. T10 allows under 0.1%.");
+        if (seconds > 300)
+        {
+            Console.WriteLine("  The generator keeps 300 seconds; only the last 300 are counted.");
+        }
+
+        Console.WriteLine(share < 0.001 ? "  Within T10." : "  Over T10: see the failed requests' traces in the Aspire Dashboard.");
+        return share < 0.001 ? 0 : 1;
+    }
+
+    private static (double Load, bool Restart) DeployOptions(string[] options)
+    {
+        double load = 0;
+        var restart = false;
+        for (var i = 0; i < options.Length; i++)
+        {
+            switch (options[i])
+            {
+                case "--load" when i + 1 < options.Length && double.TryParse(options[i + 1], System.Globalization.CultureInfo.InvariantCulture, out load) && load is > 0 and <= 1000:
+                    i++;
+                    break;
+                case "--restart":
+                    restart = true;
+                    break;
+                default:
+                    throw new LabException($"deploy doesn't know '{options[i]}'. Options: --load <requests/s, 1 to 1000>, --restart.");
+            }
+        }
+
+        return (load, restart);
+    }
+
+    private static async Task SetLoadAsync(HttpClient http, string settings)
+    {
+        using var content = new StringContent(settings, Encoding.UTF8, "application/json");
+        using var response = await http.PutAsync(GeneratorSettings, content);
+        response.EnsureSuccessStatusCode();
     }
 
     /// <summary>LocalPay, the load generator and the Scaling Lab, next to the product (ADR-0021).</summary>
