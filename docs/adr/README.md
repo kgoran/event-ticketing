@@ -62,6 +62,7 @@ entry under **Updates** that settles something the ADR explicitly left open.
 | [0050](0050-stripe-adapter-without-an-account.md) | The Stripe adapter, built and tested without a Stripe account |
 | [0051](0051-signed-tickets-and-their-keys.md) | Signed tickets: JWS QR codes, a key per event, envelope encryption |
 | [0052](0052-email-through-mailpit.md) | Email: SMTP with MailKit, Mailpit locally, Razor templates, a delivery log |
+| [0053](0053-the-lab-cluster-addresses-identity-and-platform.md) | The lab cluster: addresses, identity and platform in M2 |
 
 ## Template
 

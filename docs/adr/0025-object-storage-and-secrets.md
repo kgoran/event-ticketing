@@ -55,3 +55,6 @@ mode in December 2025 and is distributed as source only, without published image
 
 - **2026-10-18:** SeaweedFS confirmed by the project owner. The M3 spike now only verifies that
   CloudNativePG backups and restores work against it; RustFS remains the fallback.
+- **2026-10-21 (D33):** In M2, `lab up` generates every secret into Kubernetes Secrets: the database
+  password (by CloudNativePG), the client secrets, the webhook secret and the ticketing master key.
+  Stripe stays off in the lab until someone provides the untracked keys file.
