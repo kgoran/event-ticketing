@@ -397,10 +397,12 @@ sealed class Lab(string root)
         var gatewayApi = await _tools.DownloadVerifiedAsync(Pins.GatewayApiCrds, Pins.GatewayApiCrdsSha256, "gateway-api-standard-install.yaml");
         Kubectl("apply", "--server-side", "--force-conflicts", "-f", gatewayApi);
 
-        Step("Platform: Traefik, CloudNativePG, metrics-server");
+        Step("Platform: Traefik, CloudNativePG, metrics-server, KEDA");
         Helm("traefik", Chart("traefik", Pins.TraefikRepo, Pins.TraefikChart), repo: null, version: null, "platform", PathOf("platform/traefik/values.yaml"));
         Helm("cloudnative-pg", Chart("cloudnative-pg", Pins.CloudNativePgRepo, Pins.CloudNativePgChart), repo: null, version: null, "cnpg-system", values: null);
         Helm("metrics-server", Chart("metrics-server", Pins.MetricsServerRepo, Pins.MetricsServerChart), repo: null, version: null, "kube-system", PathOf("platform/metrics-server/values.yaml"));
+        // Before the product: its chart has a ScaledObject for PublicApi's Auto switch (ADR-0054).
+        Helm("keda", Chart("keda", Pins.KedaRepo, Pins.KedaChart), repo: null, version: null, "keda", values: null);
         Kubectl("wait", "--for=condition=Programmed", "gateway/lab", "-n", "platform", "--timeout=120s");
 
         Step("Platform: secrets");
@@ -659,6 +661,8 @@ static class Pins
     public const string CloudNativePgChart = "0.29.1";
     public const string MetricsServerRepo = "https://kubernetes-sigs.github.io/metrics-server/";
     public const string MetricsServerChart = "3.14.0";
+    public const string KedaRepo = "https://kedacore.github.io/charts";
+    public const string KedaChart = "2.21.0";
 }
 
 /// <summary>kind, kubectl and Helm in .tools/bin, downloaded at their pinned versions and verified.</summary>

@@ -19,7 +19,20 @@ urls:
   smtpHost: mailpit.platform.svc.cluster.local
 
 hosts:
-  publicapi: { replicas: 3 }
+  publicapi:
+    replicas: 3
+    # The CPU each instance asks for: KEDA aims for 70% of it, which one instance reaches at about
+    # 20 requests/s of the lab's default mix: about 105m of CPU (D40, measured 2026-10-21).
+    resources:
+      requests: { cpu: 150m, memory: 160Mi }
+      limits: { memory: 512Mi }
+    # The Scaling Lab's Auto switch (ADR-0054): off after `lab up`, 1 to 8 instances, demo speed.
+    autoscaling:
+      pausedAtInstall: true
+      minReplicas: 1
+      maxReplicas: 8
+      cpuUtilization: 70
+      scaleDownSeconds: 30
   webhookingress: { replicas: 2 }
   # Two Workers compete for the outbox and the schedule; rows are claimed with SKIP LOCKED (ADR-0014).
   workers: { replicas: 2 }

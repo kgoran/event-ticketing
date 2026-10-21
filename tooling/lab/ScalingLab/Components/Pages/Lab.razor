@@ -91,11 +91,24 @@
         <div class="heading"><h2>Instances</h2><Help Topic="HelpTopic.Instances" /></div>
         @if (PublicApiHost is { } publicApi)
         {
-            <div class="stepper" role="group" aria-label="PublicApi instances">
-                <span>PublicApi instances</span>
-                <button type="button" class="button small" disabled="@(publicApi.Wanted <= 1 || _scaling)" @onclick="() => ScaleAsync(publicApi.Wanted - 1)" aria-label="One fewer">−</button>
-                <strong>@publicApi.Wanted</strong>
-                <button type="button" class="button small" disabled="@(publicApi.Wanted >= Instances.MaxCount || _scaling)" @onclick="() => ScaleAsync(publicApi.Wanted + 1)" aria-label="One more">+</button>
+            <div class="instance-controls">
+                @if (_autoscaler is { } autoscaler)
+                {
+                    <div class="autoscale" role="group" aria-label="PublicApi autoscaling">
+                        <label class="check"><input type="checkbox" checked="@autoscaler.On" disabled="@_scaling" @onchange="AutoChangedAsync" /> Auto</label>
+                        <select aria-label="How soon instances are given back" value="@autoscaler.Profile" disabled="@_scaling" @onchange="ProfileChosenAsync">
+                            <option value="@ScalingProfile.Demo">Demo speed</option>
+                            <option value="@ScalingProfile.Realistic">Realistic</option>
+                        </select>
+                        <Help Topic="HelpTopic.Autoscaling" />
+                    </div>
+                }
+                <div class="stepper" role="group" aria-label="PublicApi instances">
+                    <span>PublicApi instances</span>
+                    <button type="button" class="button small" disabled="@(publicApi.Wanted <= 1 || _scaling || AutoOn)" @onclick="() => ScaleAsync(publicApi.Wanted - 1)" aria-label="One fewer">−</button>
+                    <strong>@publicApi.Wanted</strong>
+                    <button type="button" class="button small" disabled="@(publicApi.Wanted >= Instances.MaxCount || _scaling || AutoOn)" @onclick="() => ScaleAsync(publicApi.Wanted + 1)" aria-label="One more">+</button>
+                </div>
             </div>
         }
     </div>
@@ -136,9 +149,13 @@
                 }
             </tbody>
         </table>
+        @if (_autoscaler is { } autoscaler)
+        {
+            <p class="autoscaler @(autoscaler.On ? "on" : null)" aria-live="polite">@AutoscalerText(autoscaler)</p>
+        }
         <p class="muted small">
             Each chip is one instance: ✓ ready for traffic, ▲ starting, ✕ stopping. Traefik balances requests across the ready
-            ones. In M5 an autoscaler moves the count; here you do.
+            ones. With <strong>Auto</strong> off, − and + set PublicApi's count; on, KEDA's autoscaler does.
         </p>
     }
 </section>
@@ -205,6 +222,7 @@
     private StatsSnapshot? _stats;
     private Availability? _availability;
     private IReadOnlyList<HostInstances> _hosts = [];
+    private Autoscaler? _autoscaler;
     private string? _instanceError;
     private bool _scaling;
     private List<EventSummary> _events = [];
@@ -307,6 +325,7 @@
         try
         {
             _hosts = await InstanceView.ListAsync(_stop.Token);
+            _autoscaler = await InstanceView.AutoscalerAsync("publicapi", _stop.Token);
             _instanceError = null;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -316,12 +335,21 @@
     }
 
     /// <summary>Changes PublicApi's instance count; the next refresh shows instances starting or stopping.</summary>
-    private async Task ScaleAsync(int count)
+    private Task ScaleAsync(int count) => ChangeInstancesAsync(token => InstanceView.ScaleAsync("publicapi", count, token));
+
+    /// <summary>Switches PublicApi's autoscaler on or off (ADR-0054); off keeps the count where it is.</summary>
+    private Task AutoChangedAsync(ChangeEventArgs change) =>
+        ChangeInstancesAsync(token => InstanceView.SetAutoAsync("publicapi", change.Value is true, token));
+
+    private Task ProfileChosenAsync(ChangeEventArgs change) =>
+        ChangeInstancesAsync(token => InstanceView.SetProfileAsync("publicapi", Enum.Parse<ScalingProfile>((string)change.Value!), token));
+
+    private async Task ChangeInstancesAsync(Func<CancellationToken, Task> change)
     {
         _scaling = true;
         try
         {
-            await InstanceView.ScaleAsync("publicapi", count, _stop.Token);
+            await change(_stop.Token);
             await RefreshInstancesAsync();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -335,6 +363,37 @@
     }
 
     private HostInstances? PublicApiHost => _hosts.FirstOrDefault(host => host.Name == "publicapi");
+
+    private bool AutoOn => _autoscaler?.On == true;
+
+    /// <summary>What the autoscaler measures and wants, as Kubernetes computes it: ⌈instances × CPU ÷ target⌉.</summary>
+    private string AutoscalerText(Autoscaler autoscaler)
+    {
+        var limits = $"between {autoscaler.Min} and {autoscaler.Max}";
+        var giveBack = autoscaler.Profile == ScalingProfile.Demo ? "30 s" : "5 minutes";
+        if (!autoscaler.On)
+        {
+            return $"Auto is off: − and + set the count. On, KEDA's autoscaler aims for {autoscaler.TargetCpuPercent}% CPU per instance, {limits} instances.";
+        }
+
+        if (autoscaler is not { CpuPercent: { } cpu, Current: { } current, Wanted: { } wanted })
+        {
+            return "Auto is on: the autoscaler is waiting for its first measurement (up to 30 s).";
+        }
+
+        var exact = current * cpu / (double)autoscaler.TargetCpuPercent;
+        var changed = autoscaler.LastScaled is { } at ? $" Last change {Ago(at)}." : "";
+        return $"Auto is on. CPU {cpu}% of what each instance requests, target {autoscaler.TargetCpuPercent}%: "
+            + $"{current} × {cpu}% ÷ {autoscaler.TargetCpuPercent}% = {exact:0.0} → wants {wanted} ({limits}). "
+            + $"It adds instances at once and gives them back after {giveBack} below target.{changed}";
+    }
+
+    private string Ago(DateTimeOffset at) => (Time.GetUtcNow() - at) switch
+    {
+        var ago when ago < TimeSpan.FromMinutes(1) => $"{Math.Max(0, (int)ago.TotalSeconds)} s ago",
+        var ago when ago < TimeSpan.FromHours(1) => $"{(int)ago.TotalMinutes} min ago",
+        _ => "over an hour ago",
+    };
 
     private static string StateMark(string state) => state switch
     {

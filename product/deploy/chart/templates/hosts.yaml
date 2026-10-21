@@ -53,7 +53,7 @@ spec:
             preStop:
               sleep: { seconds: 5 }
           resources:
-            {{- toYaml $.Values.resources | nindent 12 }}
+            {{- toYaml ($host.resources | default $.Values.resources) | nindent 12 }}
           {{- include "eventticketing.containerSecurity" $context | nindent 10 }}
       {{- include "eventticketing.scratchVolumes" $context | nindent 6 }}
 ---
