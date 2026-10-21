@@ -1,0 +1,15 @@
+# The lab's namespaces (ADR-0021): shared services, the product, and the tooling that drives it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eventticketing
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab

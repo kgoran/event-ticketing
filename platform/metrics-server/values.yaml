@@ -1,0 +1,4 @@
+# metrics-server for the lab: `kubectl top`, and KEDA's resource metrics from M5.
+# kind's kubelets serve self-signed certificates.
+args:
+  - --kubelet-insecure-tls
