@@ -1,0 +1,8 @@
+apiVersion: v2
+name: eventticketing-database
+description: >-
+  The product's PostgreSQL cluster, run by the CloudNativePG operator (ADR-0003). Its own release,
+  installed before the product's: the Migrator runs before the hosts roll out (D32), so the
+  database must already exist, and removing the application must never remove its data.
+type: application
+version: 0.1.0

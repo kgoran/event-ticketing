@@ -1,0 +1,33 @@
+{{- $context := dict "name" "migrator" "root" $ "database" true }}
+# The Migrator (ADR-0008, D32): every module's migrations, once per install and upgrade, before the
+# hosts roll out. Several instances migrating at their own start would race. A failed run stays
+# until the next one, for its logs.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrator
+  labels:
+    {{- include "eventticketing.labels" $context | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        {{- include "eventticketing.labels" $context | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- include "eventticketing.podSecurity" $context | nindent 6 }}
+      containers:
+        - name: migrator
+          image: {{ include "eventticketing.image" $context }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- include "eventticketing.commonEnv" $context | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- include "eventticketing.containerSecurity" $context | nindent 10 }}
+      {{- include "eventticketing.scratchVolumes" $context | nindent 6 }}
