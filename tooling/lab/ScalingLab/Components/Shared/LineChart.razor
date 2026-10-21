@@ -4,7 +4,13 @@
 
 <figure class="chart">
     <figcaption>
-        <span class="chart-title">@Title</span>
+        <span class="heading">
+            <span class="chart-title">@Title</span>
+            @if (Help is { } topic)
+            {
+                <Help Topic="topic" />
+            }
+        </span>
         @if (Series.Count > 1)
         {
             <span class="legend">
@@ -65,6 +71,9 @@
 
     /// <summary>The top of the scale when every value is lower, so an idle chart isn't all noise.</summary>
     [Parameter] public double MinimumTop { get; set; } = 10;
+
+    /// <summary>The explanation behind the ⓘ next to the title, if any.</summary>
+    [Parameter] public HelpTopic? Help { get; set; }
 
     private int Seconds => Math.Max(1, Series.Select(series => series.Values.Count).DefaultIfEmpty(0).Max());
 

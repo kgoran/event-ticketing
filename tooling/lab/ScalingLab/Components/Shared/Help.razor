@@ -1,0 +1,446 @@
+@* An ⓘ button that opens an explanation of one part of the page: what it shows, how it is measured and
+   how to read it. The browser's Popover API opens and closes it (Esc, a click outside or ×), so it
+   needs no script and no round trip, and stays open while Blazor redraws the page every second. *@
+
+<button type="button" class="help-button" popovertarget="@Id" aria-label="About @Title" title="What this shows">i</button>
+<div id="@Id" popover class="help" role="dialog" aria-labelledby="@(Id)-title">
+    <div class="help-head">
+        <h3 id="@(Id)-title">@Title</h3>
+        <button type="button" class="help-close" popovertarget="@Id" popovertargetaction="hide" aria-label="Close">×</button>
+    </div>
+    @switch (Topic)
+    {
+        case HelpTopic.Rate:
+            <p>
+                How many requests per second the load generator starts: 0 to 400 on the slider. Browsing and holds both count.
+                A hold and its release count once here, though they are two HTTP requests.
+            </p>
+            <h4>How it is sent</h4>
+            <p>
+                The generator follows a fixed schedule (an <em>open model</em>, ADR-0017). After you set the rate, request
+                <em>n</em> is due at <em>n</em> ÷ rate seconds, whether or not earlier answers came back. Real fans don't wait
+                for each other either. With a fixed number of users who each wait for their answer, the load would slow down
+                together with the system and hide the overload.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    Raise the rate in steps and wait about 20 s at each. Whichever of these happens first marks this machine's
+                    capacity for this mix: <strong>Achieved</strong> falls behind what was sent, <strong>In flight</strong> keeps
+                    climbing, a <strong>p99</strong> passes its target, or <strong>Failed</strong> goes above 0.
+                </li>
+                <li>On the owner's machine, one instance of each host carried about 200–250 requests/s of the default mix (20% holds).</li>
+                <li>
+                    There is one generator. Every open lab page shows and changes the same settings, and closing the page
+                    doesn't stop the load: press <strong>Stop</strong>.
+                </li>
+            </ul>
+            break;
+
+        case HelpTopic.Holds:
+            <p>The share of the scheduled requests that are holds. The rest browse.</p>
+            <ul>
+                <li>
+                    <strong>A hold:</strong> a lab fan (<code>lab01</code> to <code>lab20</code>) asks PublicApi for the best free
+                    place in a section and lets go of it straight away. That is two requests: the hold
+                    (<code>POST /events/{id}/holds</code>) and the release (<code>DELETE /holds/{id}</code>). Nothing is sold, so
+                    the places keep cycling. The fan signs in at Keycloak before the hold, and that time isn't counted.
+                </li>
+                <li>
+                    <strong>Browsing:</strong> anonymous. Each request is one of three, picked at random: the event list, the
+                    event page or availability.
+                </li>
+            </ul>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    Holds write to the database, and browsing only reads. The more holds in the mix, the lower the rate the system
+                    can carry.
+                </li>
+                <li>
+                    <strong>The generator's limit:</strong> a fan has at most one hold at a time (one hold per fan per event,
+                    ADR-0024). Twenty fans can manage about 20 ÷ (hold time + release time) holds a second: around 150 when each
+                    takes 60–70 ms. Holds beyond that are <em>skipped</em> (see Offered). To push the system harder, lower this
+                    slider: browsing has no such limit.
+                </li>
+            </ul>
+            break;
+
+        case HelpTopic.Event:
+            <p>
+                The on-sale event that gets the load. <em>The first event on sale</em> is the first one in PublicApi's list, Demo
+                Concert after seeding. The <strong>Free places</strong> panel follows the event chosen here.
+            </p>
+            <p>
+                Choosing another event resets <strong>Holds go for</strong>, because each event has its own sections. Nothing on
+                sale? Run the seeder: <code>dotnet run --project tooling/seed</code>. In the lab cluster, <code>lab up</code> and
+                <code>lab reset</code> seed it for you.
+            </p>
+            break;
+
+        case HelpTopic.Section:
+            <ul>
+                <li>
+                    <strong>Any section:</strong> each hold picks one of the event's sections at random. Fans spread out and
+                    rarely compete.
+                </li>
+                <li>
+                    <strong>One section only:</strong> every hold goes to the same section, a <em>hot section</em>, as at an
+                    on-sale. All fans want the same best places.
+                </li>
+            </ul>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    Inventory claims places in a single SQL statement that skips any place another fan is claiming at that moment
+                    (ADR-0011). So nobody waits on a lock: a fan who loses a race gets the next-best place, or a 409 straight away
+                    if none is left. Expect more <strong>Refused</strong> answers and the same latency.
+                </li>
+                <li>
+                    <strong>Failed</strong> must stay at 0. One place never goes to two fans at once, and the T2 concurrency test
+                    proves that in CI.
+                </li>
+                <li>With <strong>Holds</strong> at 100% and one section, this is the lab's contention test.</li>
+            </ul>
+            break;
+
+        case HelpTopic.Scenarios:
+            <p>
+                Scripts that move the <strong>Rate</strong> for you. Holds, Event and Section stay as you set them. Hover over a
+                button to see its steps.
+            </p>
+            <ul>
+                <li><strong>Steady 20/s:</strong> a quiet baseline. Everything should be flat, with no failures.</li>
+                <li>
+                    <strong>Step 28 → 84:</strong> 30 s at 28, then 84. This is the step T11 measures in M5: an autoscaler must
+                    have three times the instances ready within 60 s.
+                </li>
+                <li>
+                    <strong>On-sale spike:</strong> 20 → 200 within 10 s, held for 30 s, then back to 20. It arrives faster than
+                    any autoscaler could react.
+                </li>
+                <li>
+                    <strong>Past capacity:</strong> 400 for 20 s, then back to 20. It shows overload and the way back: T7 asks for
+                    normal again within 60 s. Run it last.
+                </li>
+            </ul>
+            <p class="muted">
+                A scenario runs in this page. Moving the slider or pressing <strong>Stop</strong> ends it. If you close the page,
+                the generator stays at the rate of the step it was on.
+            </p>
+            break;
+
+        case HelpTopic.Offered:
+            <p>
+                The requests per second the schedule asked for, which is the <strong>Rate</strong> slider, averaged over the last
+                5 complete seconds.
+            </p>
+            <h4>Skipped</h4>
+            <p>Asked for, but never sent, because the generator held back:</p>
+            <ul>
+                <li>every lab fan was busy with a hold (the usual reason when <strong>Holds</strong> is high);</li>
+                <li>
+                    500 requests were already waiting for an answer. The system is far past overload, and the generator protects
+                    itself;
+                </li>
+                <li>nothing was on sale yet.</li>
+            </ul>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    <strong>Sent</strong> = Offered − skipped. That is what PublicApi actually received, and what
+                    <strong>Achieved</strong> is compared with.
+                </li>
+                <li>
+                    Any skipped requests (▲) mean the test isn't what you asked for, and the limit is the generator, not the
+                    system.
+                </li>
+                <li>
+                    Example: 400/s with 90% holds asks for about 40 browsing requests and 360 holds a second. The 20 fans manage
+                    about 110 holds a second, so about 150 are sent and 250 skipped. If PublicApi still shows no failures and a p99
+                    under target, it is fine. Lower <strong>Holds</strong> to load it harder.
+                </li>
+            </ul>
+            break;
+
+        case HelpTopic.Achieved:
+            <p>
+                The scheduled requests (browsing and holds, not the releases after them) that finished each second, averaged over
+                the last 5 seconds. Every outcome counts: OK, refused or failed.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    Compare it with what was <strong>sent</strong>, Offered minus skipped. If they are about equal, the system keeps
+                    up.
+                </li>
+                <li>
+                    Below 90% of what was sent (▲), requests are queueing somewhere: in PublicApi, in its database connection pool,
+                    or in the database. <strong>In flight</strong> and latency climb at the same time.
+                </li>
+                <li>
+                    After a slow patch it can briefly go above what was sent, because queued answers arrive together.
+                </li>
+                <li>
+                    Failures count as finished, so a system that fails fast "keeps up". Always read this tile together with
+                    <strong>Failed</strong>.
+                </li>
+            </ul>
+            break;
+
+        case HelpTopic.Ok:
+            <p>
+                HTTP answers with a 2xx status each second, averaged over the last 5 seconds. Unlike Achieved, this counts every
+                request: browsing, holds <em>and</em> the releases after them.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    <strong>Why it can be higher than Achieved:</strong> each hold brings a release. When everything succeeds,
+                    OK ≈ browsing + 2 × holds. For example, 40 browsing requests and 111 holds a second give about 40 + 111 + 111 =
+                    262 OK, while Achieved shows 151.
+                </li>
+                <li>OK, Refused and Failed together are every answer the generator got.</li>
+            </ul>
+            break;
+
+        case HelpTopic.Refused:
+            <p>
+                Answers each second with <strong>409 Conflict</strong> or <strong>429 Too Many Requests</strong>, averaged over the
+                last 5 seconds. These are the system saying no on purpose, so they are correct behaviour, not errors.
+            </p>
+            <ul>
+                <li>
+                    <strong>409:</strong> the place was just taken by another fan (common in a hot section), or the fan already
+                    holds a place at this event. That second case follows an overload: a release that timed out leaves its hold
+                    until the hold expires after 8 minutes (1 minute in demo mode).
+                </li>
+                <li>
+                    <strong>429:</strong> a rate or capacity limit. Nothing sets one in the lab yet. M5's capacity settings will
+                    turn excess load away quickly instead of letting it queue (T7).
+                </li>
+            </ul>
+            <p>Under contention, refusals with no failures are exactly what you want to see.</p>
+            break;
+
+        case HelpTopic.Failed:
+            <p>
+                Requests each second that the system couldn't serve, averaged over the last 5 seconds: 5xx answers, timeouts (no
+                answer within 5 s), and broken or refused connections. Any other 4xx counts here too, and the note says so: that
+                means a bug in the generator or a change in PublicApi's contract.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    It should be 0 at any rate the system can carry, and also while instances are added or removed and during a
+                    rolling deploy (T10: under 0.1%). The tile turns red (⚠) if anything failed in the last 5 seconds.
+                </li>
+                <li>
+                    The first failures under overload are usually timeouts: requests that waited in a queue for more than 5 s.
+                </li>
+                <li>
+                    To find out why, open <strong>Traces</strong> in the Aspire Dashboard and filter by error, or read PublicApi's
+                    logs there. The dashboard is at <code>http://localhost:18888</code> in the lab cluster; under Aspire, use the
+                    address the AppHost prints.
+                </li>
+            </ul>
+            break;
+
+        case HelpTopic.HoldP99:
+            <p>
+                The slowest 1% of the answered holds (OK or refused) in the latest second: 99% were faster than this. It is
+                measured by the generator, from sending a request to getting its answer, through Traefik, PublicApi and the
+                database. The fan's sign-in isn't included.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>The target is T1: under 200 ms. Above it, the tile shows ▲.</li>
+                <li>It shows the 99th percentile rather than the average, because an average hides the slow tail that fans feel.</li>
+                <li>
+                    At low rates it jumps around. At 20/s with 20% holds there are only 4 holds a second, so the p99 is simply the
+                    slowest of 4.
+                </li>
+                <li>Timeouts have no latency, so they aren't in it. Look at <strong>Failed</strong> for those.</li>
+            </ul>
+            break;
+
+        case HelpTopic.BrowseP99:
+            <p>
+                The slowest 1% of the answered browsing requests in the latest second: the event list, the event page and
+                availability. It is measured the same way as Hold p99.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>The target is T4: under 100 ms. Above it, the tile shows ▲.</li>
+                <li>
+                    Browsing only reads. If it gets slower as you add holds, reads and writes are competing for the same CPU and
+                    database. M3 adds a cache and read replicas to take reads off the primary database.
+                </li>
+            </ul>
+            break;
+
+        case HelpTopic.InFlight:
+            <p>
+                The requests sent and not yet finished, at this moment. Unlike the other tiles, it isn't an average.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    In flight ≈ throughput × latency (Little's law). At 150 requests/s and about 100 ms each, that is about 15.
+                </li>
+                <li>Steady and close to that product: fine.</li>
+                <li>
+                    Rising every second: requests are queueing, and the system finishes fewer than it is sent. It will reach the
+                    generator's limit of 500, then requests are skipped and p99 approaches the 5 s timeout.
+                </li>
+                <li>
+                    A high <strong>Holds</strong> share keeps this number low: with one hold per lab fan, at most 20
+                    hold-and-release pairs can be in flight.
+                </li>
+            </ul>
+            break;
+
+        case HelpTopic.Instances:
+            <p>
+                Every host of the product as Kubernetes runs it, read from the Kubernetes API every second.
+                <strong>R of W ready</strong>: W instances wanted, R of them ready. Each chip is one instance (a pod):
+            </p>
+            <ul>
+                <li>
+                    <strong>✓ ready:</strong> it passes its readiness check (<code>/health</code>, which includes the database),
+                    and Traefik sends it requests.
+                </li>
+                <li>
+                    <strong>▲ starting:</strong> not ready (yet). It has just started, or it is failing its readiness check under
+                    load and has been taken out of rotation.
+                </li>
+                <li>
+                    <strong>✕ stopping:</strong> its shutdown has begun. It keeps answering for 5 s while Traefik notices, then
+                    finishes its requests and stops.
+                </li>
+                <li>
+                    <strong>↻N:</strong> the container restarted N times, after a crash or a failed liveness check. Hover over a
+                    chip to see its full name.
+                </li>
+            </ul>
+            <h4>− and +</h4>
+            <p>
+                These set PublicApi's count, from 1 to 8, as <code>kubectl scale</code> would, and Kubernetes starts or stops
+                instances to match. The limit is 8 because of the database's connection budget: each instance may hold 20
+                connections, and the database allows 300 (ADR-0019).
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    After +, a new chip shows ▲ and turns ✓ within seconds. Failed stays at 0, both when adding instances and when
+                    removing them.
+                </li>
+                <li>
+                    On one laptop, more instances share the same CPU and one database. They show how scaling works rather than
+                    adding much capacity.
+                </li>
+                <li>
+                    This panel appears only in the lab cluster (<code>dotnet run lab.cs -- up</code>). Under Aspire every host runs
+                    once. In M5 an autoscaler moves this number.
+                </li>
+            </ul>
+            break;
+
+        case HelpTopic.RequestsChart:
+            <p>
+                The last 2 minutes, one point per second: <strong>Offered</strong> (dashed) is what the schedule asked for, and
+                <strong>Achieved</strong> is the scheduled requests that finished. Hover to see a second's values.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>The two lines on top of each other: the load is carried.</li>
+                <li>
+                    Achieved below Offered: if the <strong>Offered</strong> tile shows skipped requests, the gap is the
+                    generator's limit. Otherwise the system is saturated.
+                </li>
+                <li>
+                    A spike in Achieved just after a dip: queued requests being answered all at once.
+                </li>
+            </ul>
+            break;
+
+        case HelpTopic.OutcomesChart:
+            <p>
+                Every answer of the last 2 minutes by outcome, one point per second: <strong>OK</strong> (2xx),
+                <strong>Refused</strong> (409, 429) and <strong>Failed</strong> (5xx, timeouts, broken connections, other 4xx).
+                Releases are included, so OK is higher than Achieved whenever there are holds.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>Failed should stay flat at zero, through rate changes, scaling and deploys.</li>
+                <li>Refused rises with contention (one hot section). That is expected.</li>
+                <li>OK flattening while the rate still rises: the system's ceiling for this mix.</li>
+            </ul>
+            break;
+
+        case HelpTopic.LatencyChart:
+            <p>
+                How long answered requests took, per second, over the last 2 minutes. <strong>p50</strong> is the typical
+                request, <strong>p95</strong> and <strong>p99</strong> the slow tail. Browsing, holds and releases are mixed here;
+                the p99 tiles show holds and browsing separately.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>Flat lines close together: healthy.</li>
+                <li>
+                    The p99 pulling away from the p50 is the first sign of queueing. A few requests are waiting, and the typical
+                    one isn't yet.
+                </li>
+                <li>All three climbing: the queue is everyone's.</li>
+                <li>A p99 near 5,000 ms: requests close to the generator's timeout. Expect Failed next.</li>
+            </ul>
+            break;
+
+        case HelpTopic.FreePlaces:
+            <p>
+                The availability of the event under load, per section (free / total), as fans see it. It is read from PublicApi
+                every 2 seconds. Availability is rebuilt about once a second, so it can lag a little (ADR-0011).
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    Holds are let go of straight away, so the bars stay near full. The load cycles through the places and nothing
+                    is sold.
+                </li>
+                <li>
+                    Places that stay missing after an overload are holds whose release timed out. They expire after 8 minutes (1
+                    minute in demo mode). Until then those lab fans get 409s.
+                </li>
+            </ul>
+            break;
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public HelpTopic Topic { get; set; }
+
+    private string Id => $"help-{Topic.ToString().ToLowerInvariant()}";
+
+    private string Title => Topic switch
+    {
+        HelpTopic.Rate => "Rate",
+        HelpTopic.Holds => "Holds",
+        HelpTopic.Event => "Event",
+        HelpTopic.Section => "Holds go for",
+        HelpTopic.Scenarios => "Scenarios",
+        HelpTopic.Offered => "Offered",
+        HelpTopic.Achieved => "Achieved",
+        HelpTopic.Ok => "OK",
+        HelpTopic.Refused => "Refused",
+        HelpTopic.Failed => "Failed",
+        HelpTopic.HoldP99 => "Hold p99",
+        HelpTopic.BrowseP99 => "Browse p99",
+        HelpTopic.InFlight => "In flight",
+        HelpTopic.Instances => "Instances",
+        HelpTopic.RequestsChart => "Requests per second",
+        HelpTopic.OutcomesChart => "Answers per second, by outcome",
+        HelpTopic.LatencyChart => "Latency",
+        HelpTopic.FreePlaces => "Free places",
+        _ => Topic.ToString(),
+    };
+}
