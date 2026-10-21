@@ -1,0 +1,49 @@
+{{/*
+Autoscaling (ADR-0054): a KEDA ScaledObject for each host with `autoscaling` in the values. KEDA's
+`paused` annotation switches it off; then the count is whoever sets the Deployment's scale (the
+Scaling Lab's − and +). Both the switch and the scale-down wait belong to whoever operates the
+lab once installed, so a deploy renders what runs, and the values only at the first install.
+*/}}
+{{- range $name, $host := .Values.hosts }}
+{{- with $host.autoscaling }}
+{{- if not ($.Capabilities.APIVersions.Has "keda.sh/v1alpha1/ScaledObject") }}
+{{- fail (printf "%s autoscales, which needs KEDA in the cluster (ADR-0054)" $name) }}
+{{- end }}
+{{- $context := dict "name" $name "root" $ }}
+{{- $running := lookup "keda.sh/v1alpha1" "ScaledObject" $.Release.Namespace $name }}
+{{- $paused := .pausedAtInstall }}
+{{- $scaleDown := .scaleDownSeconds }}
+{{- if $running }}
+{{- $paused = eq (dig "metadata" "annotations" "autoscaling.keda.sh/paused" "false" $running) "true" }}
+{{- $scaleDown = dig "spec" "advanced" "horizontalPodAutoscalerConfig" "behavior" "scaleDown" "stabilizationWindowSeconds" $scaleDown $running }}
+{{- end }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "eventticketing.labels" $context | nindent 4 }}
+  {{- if $paused }}
+  annotations:
+    autoscaling.keda.sh/paused: "true"
+  {{- end }}
+spec:
+  scaleTargetRef:
+    name: {{ $name }}
+  # Every autoscaled host has a maximum (ADR-0019): the database's connection budget.
+  minReplicaCount: {{ .minReplicas }}
+  maxReplicaCount: {{ .maxReplicas }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: {{ int $scaleDown }}
+  triggers:
+    # CPU until Prometheus arrives in M3, then requests in progress per instance (ADR-0019, D40).
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: {{ .cpuUtilization | quote }}
+{{- end }}
+{{- end }}

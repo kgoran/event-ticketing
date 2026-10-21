@@ -328,7 +328,8 @@
             <p>
                 These set PublicApi's count, from 1 to 8, as <code>kubectl scale</code> would, and Kubernetes starts or stops
                 instances to match. The limit is 8 because of the database's connection budget: each instance may hold 20
-                connections, and the database allows 300 (ADR-0019).
+                connections, and the database allows 300 (ADR-0019). With <strong>Auto</strong> on, the autoscaler sets the
+                count instead, and − and + are disabled.
             </p>
             <h4>How to read it</h4>
             <ul>
@@ -342,7 +343,56 @@
                 </li>
                 <li>
                     This panel appears only in the lab cluster (<code>dotnet run lab.cs -- up</code>). Under Aspire every host runs
-                    once. In M5 an autoscaler moves this number.
+                    once.
+                </li>
+            </ul>
+            break;
+
+        case HelpTopic.Autoscaling:
+            <p>
+                With <strong>Auto</strong> on, KEDA's autoscaler sets PublicApi's count, between 1 and 8 (ADR-0054). Underneath it
+                is Kubernetes' own autoscaler: it measures the average CPU of the ready instances, as a share of the CPU each one
+                requests, and aims for 70%. The line under the instances shows its sum:
+            </p>
+            <p class="formula">wanted = ⌈ instances × CPU ÷ target ⌉, between the minimum and the maximum</p>
+            <p>
+                For example, 3 instances at 140% want 3 × 140 ÷ 70 = 6. Within 10% of the target it changes nothing, so the
+                count doesn't twitch.
+            </p>
+            <h4>How fast</h4>
+            <ul>
+                <li>
+                    metrics-server samples CPU every 15 s, and the autoscaler looks every 15 s. So the count moves 15–45 s after
+                    the load does, and a new instance needs a few more seconds to become ready. Part of "scaling is slow" is
+                    "measuring is slow" (ADR-0019).
+                </li>
+                <li>It adds instances at once.</li>
+                <li>
+                    It gives them back only after the load has stayed lower for a while. <strong>Demo speed</strong> waits 30 s,
+                    <strong>Realistic</strong> 5 minutes, Kubernetes' default, so that a short dip doesn't remove instances
+                    needed again a minute later.
+                </li>
+            </ul>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    Try <strong>Step 28 → 84</strong> with Auto on: the step needs about three times the instances, and T11 asks
+                    for them to be ready within 60 s. Then press Stop and watch them go after the wait. Failed should stay at 0
+                    both ways.
+                </li>
+                <li>
+                    CPU is a stand-in until Prometheus arrives in M3. Holds spend most of their time waiting for the database,
+                    which costs PublicApi little CPU, so a hold-heavy load can queue before CPU reaches its target. Browsing costs
+                    more CPU per request and scales sooner. In M3 the signal becomes requests in progress per instance
+                    (ADR-0019).
+                </li>
+                <li>
+                    On one laptop the instances share the same CPU and database. Past what the machine can do, more instances
+                    don't help, and the autoscaler keeps adding them until the maximum. That is why every autoscaler has one.
+                </li>
+                <li>
+                    Off is KEDA's pause: the count stays where it was, and − and + work again. Every open lab page shows the
+                    same switch, because it lives in the cluster. A deploy keeps it as it is.
                 </li>
             </ul>
             break;
@@ -438,6 +488,7 @@
         HelpTopic.BrowseP99 => "Browse p99",
         HelpTopic.InFlight => "In flight",
         HelpTopic.Instances => "Instances",
+        HelpTopic.Autoscaling => "Auto",
         HelpTopic.RequestsChart => "Requests per second",
         HelpTopic.OutcomesChart => "Answers per second, by outcome",
         HelpTopic.LatencyChart => "Latency",

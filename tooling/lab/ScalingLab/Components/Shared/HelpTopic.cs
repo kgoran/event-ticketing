@@ -17,6 +17,7 @@ public enum HelpTopic
     BrowseP99,
     InFlight,
     Instances,
+    Autoscaling,
     RequestsChart,
     OutcomesChart,
     LatencyChart,

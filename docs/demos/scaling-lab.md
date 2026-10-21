@@ -89,7 +89,9 @@ Then press **Stop**.
 Run the same lab in the cluster with `dotnet run lab.cs -- up` ([the lab](../lab.md)), same
 address. The **Instances** panel then shows every host of the product with its instances, wanted
 and ready: one chip per instance, ✓ ready, ▲ starting, ✕ stopping. **−** and **+** change
-PublicApi's count, 1 to 8, as an operator would; M5's autoscaler will move the same number.
+PublicApi's count, 1 to 8, as an operator would. **Auto** hands the same number to KEDA's
+autoscaler ([ADR-0054](../adr/0054-publicapi-autoscaling-switch-in-the-lab.md)); the line under the
+instances shows what it measures and wants.
 
 1. **Steady 20/s** (or 100/s), then **+** twice: two instances start, become ready within seconds,
    and Traefik spreads the requests over all of them. No request fails.
@@ -97,6 +99,14 @@ PublicApi's count, 1 to 8, as an operator would; M5's autoscaler will move the s
 3. On one laptop more instances don't add much capacity: they share the same CPU and database.
    What they show is how scaling works, and what it needs (probe timeouts, a graceful stop, a
    connection budget: [what the lab taught](../lab.md#three-things-the-lab-taught-on-its-first-day)).
+4. **Auto** on, at rest: within a minute the autoscaler gives instances back, down to one.
+5. **Step 28 → 84**: at 28/s one or two instances are enough; after the step the line shows CPU
+   climbing past its 70% target and the count it wants, and new instances start. Count how long
+   the step takes to be served by enough ready instances: T11 asks for 60 s. No request fails.
+6. **Stop**: after 30 s below target (demo speed) the instances go again; **Realistic** waits 5
+   minutes. Switch Auto off and − / + work again, from the count the autoscaler left.
+7. Try the same with **Holds** at 90%: holds wait on the database more than they use PublicApi's
+   CPU, so latency can climb before CPU does. That is why CPU is only the stand-in until M3.
 
 ## If something is off
 

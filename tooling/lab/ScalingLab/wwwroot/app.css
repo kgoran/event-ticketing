@@ -104,7 +104,11 @@ select { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--axis); 
 
 /* Tiles */
 
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: 0.75rem; }
+/* Eight tiles: two rows of four, or four rows of two on narrower screens; never a row with one left over. */
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
+@media (max-width: 56rem) {
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 0.75rem 0.9rem; display: grid; gap: 0.2rem; }
 .tile.critical { border-color: var(--critical); box-shadow: inset 4px 0 0 var(--critical); }
 .tile.warning { border-color: var(--warning); box-shadow: inset 4px 0 0 var(--warning); }
@@ -121,6 +125,14 @@ select { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--axis); 
 
 .instances-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
 .instances h2 { font-size: 1.1rem; margin: 0; }
+.instance-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem; }
+.autoscale { display: inline-flex; align-items: center; gap: 0.5rem; }
+.check { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600; cursor: pointer; }
+.check input { width: 1rem; height: 1rem; accent-color: var(--accent); }
+.autoscale select { padding: 0.3rem 0.5rem; }
+.autoscaler { margin: 0.75rem 0 0; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.autoscaler.on { color: var(--ink); padding-left: 0.6rem; border-left: 3px solid var(--accent); }
+.help .formula { font: 0.95rem ui-monospace, "Cascadia Mono", Consolas, monospace; background: var(--grid); padding: 0.4rem 0.6rem; border-radius: 0.4rem; }
 .stepper { display: inline-flex; align-items: center; gap: 0.5rem; }
 .stepper strong { min-width: 1.5rem; text-align: center; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
 .hosts { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }

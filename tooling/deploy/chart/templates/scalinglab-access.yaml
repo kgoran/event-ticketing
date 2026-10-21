@@ -1,5 +1,6 @@
-# What the Scaling Lab may do in the product's namespace (D31): read its pods and deployments, and
-# change a deployment's instance count, nothing else. Least privilege, as for any operator tool.
+# What the Scaling Lab may do in the product's namespace (D31, D39): read its pods and deployments,
+# change a deployment's instance count, switch KEDA's autoscaling on and off (and its scale-down
+# wait), and read what the autoscaler measures, nothing else. Least privilege, as for any operator tool.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -20,6 +21,12 @@ rules:
   - apiGroups: [apps]
     resources: [deployments/scale]
     verbs: [get, patch, update]
+  - apiGroups: [keda.sh]
+    resources: [scaledobjects]
+    verbs: [get, list, watch, patch]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

@@ -46,12 +46,44 @@ The usual ports, as under Aspire:
 |---|---|
 | `platform` | Traefik (the gateway), Keycloak, Mailpit, the Aspire Dashboard |
 | `cnpg-system` | the CloudNativePG operator |
+| `keda` | KEDA, which runs PublicApi's autoscaler when the Scaling Lab's **Auto** is on ([ADR-0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md)) |
+| `kube-system` | metrics-server, which measures each pod's CPU for `kubectl top` and the autoscaler |
 | `eventticketing` | the database (release `eventticketing-database`) and the product (release `eventticketing`): PublicApi ×3, WebhookIngress ×2, Workers ×2, BackOfficeApi, the fan site |
 | `lab` | LocalPay, the load generator, the Scaling Lab (release `eventticketing-tooling`) |
 
 The Migrator runs as a Job before each deploy of the product. A deploy keeps the instance counts
-that run (someone may have changed them in the Scaling Lab); `reset` restores the counts in
-`product/deploy/chart/values-lab.yaml`.
+that run (someone may have changed them in the Scaling Lab, or the autoscaler did), and the Auto
+switch and its speed as they are; `reset` restores what `product/deploy/chart/values-lab.yaml` says:
+Auto off, PublicApi at 3.
+
+## Autoscaling
+
+The Scaling Lab's **Auto** checkbox hands PublicApi's count to KEDA's autoscaler: between 1 and 8
+instances, aiming for 70% of the CPU each instance requests (150m, which one instance reaches at
+about 20 requests/s of the default mix). Off is KEDA's pause, and − / + set the count again. The
+switch is the `autoscaling.keda.sh/paused` annotation on the `ScaledObject`, so the same thing
+works from a terminal:
+
+```
+kubectl --context kind-eventticketing -n eventticketing annotate scaledobject publicapi autoscaling.keda.sh/paused-     # Auto on
+kubectl --context kind-eventticketing -n eventticketing annotate scaledobject publicapi autoscaling.keda.sh/paused=true # Auto off
+kubectl --context kind-eventticketing -n eventticketing get hpa    # what the autoscaler measures and wants, while on
+```
+
+CPU is the signal until Prometheus arrives in M3 ([ADR-0019](adr/0019-autoscaling-signals.md)
+update); then it becomes requests in progress per instance.
+
+What the first runs showed (2026-10-21, default mix, demo speed):
+
+- **Warm instances scale as calculated.** At 84 requests/s the count settled at 5 (84 ÷ 20 =
+  4.2) at 56–70% CPU, and 30 s after the load stopped it was back to 1. Not one of 16,784
+  requests failed, and p99 stayed under 100 ms.
+- **Cold instances fool a CPU autoscaler.** An instance that has just started does its first-time
+  work while it serves its first requests: compiling code, building EF Core's queries. At only
+  28 requests/s a fresh instance used several times its CPU request, the autoscaler read that as
+  load and went to the maximum of 8, and every instance it added was cold too. Precompiled images
+  (ReadyToRun) helped a little, not enough. The fix is to let an instance warm up before it says
+  it is ready, because the autoscaler ignores instances that aren't ready (D43, next).
 
 ## Three things the lab taught on its first day
 

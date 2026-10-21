@@ -13,7 +13,7 @@
 
 <footer class="footer">
     Under Aspire every host runs once; in the lab cluster (<code>dotnet run lab.cs -- up</code>) PublicApi runs as several
-    instances. Autoscaling and the lab's presets for it come in M5 (ADR-0017).
+    instances, set by hand or by its autoscaler on CPU (ADR-0054). Autoscaling on utilization, and its presets, come in M5.
 </footer>
 
 <div id="blazor-error-ui" data-nosnippet>
