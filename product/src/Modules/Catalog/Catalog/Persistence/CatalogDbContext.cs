@@ -67,7 +67,7 @@ internal sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> option
             entity.Property(e => e.Name).HasMaxLength(200);
             entity.Property(e => e.VenueName).HasMaxLength(200);
             // The venue's time zone, copied when the event is created: named for that since DP3's worked
-            // example (docs/database-changes.md). Until release 2, a trigger keeps the old time_zone in step.
+            // example of expand and contract (docs/database-changes.md).
             entity.Property(e => e.TimeZone).HasColumnName("venue_time_zone").HasMaxLength(64);
             entity.Property(e => e.Currency).HasMaxLength(3);
             entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
