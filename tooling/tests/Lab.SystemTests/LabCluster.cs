@@ -146,6 +146,53 @@ internal static class LabCluster
         await FlagAsync("PauseHolds", on: false);
     }
 
+    // The lab script and the database, as an operator reaches them
+
+    /// <summary>The repository's root, where lab.cs is.</summary>
+    public static string RepositoryRoot { get; } = FindRoot();
+
+    /// <summary>Runs `dotnet run lab.cs -- …` and returns its exit code and what it printed.</summary>
+    public static Task<(int ExitCode, string Output)> LabAsync(params string[] arguments) =>
+        RunAsync("dotnet", ["run", Path.Combine(RepositoryRoot, "lab.cs"), "--", .. arguments]);
+
+    /// <summary>SQL as the database's owner on the primary, through kubectl, as `lab check` reads it.</summary>
+    public static async Task<string> SqlAsync(string sql)
+    {
+        var kubectl = Path.Combine(RepositoryRoot, ".tools", "bin", OperatingSystem.IsWindows() ? "kubectl.exe" : "kubectl");
+        var (_, primary) = await RunAsync(kubectl, ["--context", "kind-eventticketing", "get", "pods", "-n", Product, "-l", "cnpg.io/cluster=eventticketing,cnpg.io/instanceRole=primary", "-o", "jsonpath={.items[0].metadata.name}"]);
+        var (exitCode, output) = await RunAsync(kubectl, ["--context", "kind-eventticketing", "exec", "-n", Product, primary.Trim(), "-c", "postgres", "--", "psql", "-U", "postgres", "-d", "eventticketing", "-v", "ON_ERROR_STOP=1", "-q", "-A", "-t", "-c", sql]);
+        exitCode.Should().Be(0, output);
+        return output.Trim();
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunAsync(string file, IEnumerable<string> arguments)
+    {
+        var start = new ProcessStartInfo(file) { RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = RepositoryRoot };
+        foreach (var argument in arguments)
+        {
+            start.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync(Ct);
+        var errors = process.StandardError.ReadToEndAsync(Ct);
+        await process.WaitForExitAsync(Ct);
+        return (process.ExitCode, await output + await errors);
+    }
+
+    private static string FindRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "lab.cs")))
+            {
+                return directory.FullName;
+            }
+        }
+
+        throw new InvalidOperationException("lab.cs isn't above the test's folder.");
+    }
+
     public static async Task<HttpResponseMessage> PostJsonAsync(this HttpClient client, string path, object body) =>
         await client.PostAsync(new Uri(path, UriKind.Relative), new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"), Ct);
 

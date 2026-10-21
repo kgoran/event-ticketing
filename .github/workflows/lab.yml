@@ -12,6 +12,7 @@ on:
       - tooling/deploy/**
       - dev/AppHost/Realms/**
       - tooling/tests/Lab.SystemTests/**
+      - tooling/checks/**
       - .github/workflows/lab.yml
   schedule:
     - cron: "17 2 * * *"
@@ -73,6 +74,10 @@ jobs:
         env:
           LAB_SYSTEM_TESTS: "1"
         run: dotnet test --project tooling/tests/Lab.SystemTests
+
+      # T2 (D58): after everything above, purchases, scaling and a rollout, every invariant still holds.
+      - name: Invariants
+        run: dotnet run lab.cs -- check --invariants
 
       # The definition of done: `reset` in under 3 minutes (a slower runner gets a warning up to 5).
       - name: Reset

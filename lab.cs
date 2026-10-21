@@ -34,7 +34,7 @@ try
         "down" => lab.Down(),
         "reset" => await lab.ResetAsync(),
         "status" => lab.Status(),
-        "check" => await lab.CheckAsync(),
+        "check" => await lab.CheckAsync(args[1..]),
         "deploy" => await lab.DeployAsync(args[1..]),
         "flag" => lab.Flag(args[1..]),
         _ => Lab.Help(),
@@ -482,11 +482,21 @@ sealed class Lab(string root)
     /// every address answering, a token from Keycloak accepted by PublicApi, the demo on sale, and a
     /// few seconds of load through the gateway without a failed request.
     /// </summary>
-    public async Task<int> CheckAsync()
+    public async Task<int> CheckAsync(string[] options)
     {
         if (!_tools.Installed || !ClusterExists())
         {
             throw new LabException("No lab cluster. Start one with: dotnet run lab.cs -- up");
+        }
+
+        if (options is ["--invariants"])
+        {
+            return InvariantsHold() ? 0 : 1;
+        }
+
+        if (options.Length > 0)
+        {
+            throw new LabException("check takes no options but --invariants.");
         }
 
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
@@ -571,10 +581,50 @@ sealed class Lab(string root)
             }
         });
 
+        if (!InvariantsHold())
+        {
+            failures.Add("T2's invariants");
+        }
+
         Console.WriteLine();
         Console.WriteLine(failures.Count == 0 ? "The lab works." : $"{failures.Count} check(s) failed.");
         return failures.Count == 0 ? 0 : 1;
     }
+
+    /// <summary>
+    /// T2's invariants (D58): tooling/checks/invariants.sql in one read-only transaction, so all the
+    /// modules' schemas are read at the same moment and nothing is written; on a replica, since a
+    /// check decides nothing (the primary if no replica is ready). Each violation is printed.
+    /// </summary>
+    private bool InvariantsHold()
+    {
+        Step("T2's invariants (tooling/checks)");
+        var pod = DatabasePod("replica") ?? DatabasePod("primary") ?? throw new LabException("No database instance is running.");
+        var sql = "BEGIN TRANSACTION READ ONLY;\n" + File.ReadAllText(PathOf("tooling/checks/invariants.sql")) + "\nCOMMIT;\n";
+        var violations = Capture(
+                _tools.Kubectl,
+                ["--context", Context, "exec", "-i", "-n", "eventticketing", pod, "-c", "postgres", "--",
+                 "psql", "-U", "postgres", "-d", "eventticketing", "-v", "ON_ERROR_STOP=1", "-q", "-A", "-t", "-F", " | "],
+                stdin: sql)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => line is not ("BEGIN" or "COMMIT"))
+            .ToList();
+
+        Console.WriteLine(violations.Count == 0 ? $"  ok    every rule holds (read on {pod})" : $"  FAIL  {violations.Count} violation(s), read on {pod}:");
+        foreach (var violation in violations)
+        {
+            Console.WriteLine($"        {violation}");
+        }
+
+        return violations.Count == 0;
+    }
+
+    /// <summary>A ready database instance in the given role (primary or replica), if there is one.</summary>
+    private string? DatabasePod(string role) =>
+        Capture(_tools.Kubectl, ["--context", Context, "get", "pods", "-n", "eventticketing", "-l", $"cnpg.io/cluster=eventticketing,cnpg.io/instanceRole={role}",
+            "-o", "jsonpath={range .items[?(@.status.containerStatuses[0].ready==true)]}{.metadata.name}{\"\\n\"}{end}"])
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
 
     /// <summary>
     /// The feature flags (FF1, docs/feature-flags.md): each one and whether it is on, or one switched
@@ -833,9 +883,9 @@ sealed class Lab(string root)
     }
 
     /// <summary>Runs a command and returns what it printed.</summary>
-    private static string Capture(string file, IEnumerable<string> arguments, string? failure = null, Dictionary<string, string>? environment = null)
+    private static string Capture(string file, IEnumerable<string> arguments, string? failure = null, Dictionary<string, string>? environment = null, string? stdin = null)
     {
-        var start = new ProcessStartInfo(file) { RedirectStandardOutput = true, RedirectStandardError = true };
+        var start = new ProcessStartInfo(file) { RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = stdin is not null };
         foreach (var argument in arguments)
         {
             start.ArgumentList.Add(argument);
@@ -854,6 +904,12 @@ sealed class Lab(string root)
         catch (System.ComponentModel.Win32Exception)
         {
             throw new LabException(failure ?? $"{file} isn't installed.");
+        }
+
+        if (stdin is not null)
+        {
+            process.StandardInput.Write(stdin);
+            process.StandardInput.Close();
         }
 
         using (process)
