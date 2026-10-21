@@ -41,7 +41,7 @@ the per-fan ticket limit, Organizers keeping Keycloak's groups in step, T2 with 
 
 **The Scaling Lab's basics are built (D20, brought forward from M2; ADR-0017 update):**
 `tooling/lab/LoadGenerator` (open-model load on PublicApi: browsing and hold-and-release by lab fans
-lab01–lab20, offered versus achieved, outcomes, p99 per kind, 1 in 20 requests traced) and
+lab01–lab200, offered versus achieved, outcomes, p99 per kind, 1 in 20 requests traced) and
 `tooling/lab/ScalingLab` (Blazor Server at http://localhost:5300: slider, tiles, charts, presets),
 both started by the AppHost. Runbook `docs/demos/scaling-lab.md`; system test `ScalingLabTests`.
 Kubernetes, the pod list, Prometheus, Toxiproxy and autoscaling wait for M2–M5.

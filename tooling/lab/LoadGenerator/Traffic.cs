@@ -208,13 +208,13 @@ internal sealed class TargetEvents(TimeProvider time)
 }
 
 /// <summary>
-/// The realm's lab fans, lab01 to lab20 (their passwords equal their names), each busy with at most
+/// The realm's lab fans, lab01 to lab200 (their passwords equal their names), each busy with at most
 /// one hold at a time. Tokens come from the development client's password grant, as for the seeder,
 /// and are reused until shortly before they expire.
 /// </summary>
 internal sealed class LabFans(LabUrls urls, HttpClient http, TimeProvider time)
 {
-    public const int Count = 20;
+    public const int Count = 200;
 
     private readonly ConcurrentQueue<string> _free = new(Enumerable.Range(1, Count).Select(i => $"lab{i:00}"));
     private readonly ConcurrentDictionary<string, (string Token, DateTimeOffset ExpiresAt)> _tokens = new();

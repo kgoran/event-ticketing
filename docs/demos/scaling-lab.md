@@ -30,8 +30,9 @@ AppHost and the next run starts clean.
 | **Holds go for** | Any section, or one section only: a hot section where the lab fans compete for the same places |
 | **Scenarios** | *Steady 20/s*; *Step 28 → 84* (the step T11 measures in M5); *On-sale spike* (20, up to 200 within 10 s, 30 s there, back to 20); *Past capacity* (400 for 20 s, then back to 20). Moving the slider or **Stop** ends a scenario |
 
-Holds are placed by twenty lab fans, `lab01` to `lab20` (each password is the name). Each has at
-most one hold at a time, as every fan does.
+Holds are placed by two hundred lab fans, `lab01` to `lab200` (each password is the name). Each has
+at most one hold at a time, as every fan does, so they manage about 200 ÷ (hold time + release
+time) holds a second: over 1,000 while the system is fast, far fewer once it slows down.
 
 ## What you see
 
@@ -41,7 +42,7 @@ shows, how it is measured and how to read it.
 | Tile or chart | Meaning |
 |---|---|
 | **Offered** | What the slider asks for. *Skipped* below it (a warning) means the generator held back: 500 requests already unanswered, or every lab fan busy with a hold. Then the generator is the limit, not the system. What was *sent* is Offered minus skipped |
-| **Achieved** | Scheduled requests answered, whatever the answer. Falling behind what was sent (a warning) means the system can't keep up. With 90% holds at 400/s, for example, about 250/s are skipped (twenty lab fans manage about 110 holds a second), and Achieved keeping up with the 150/s sent is a healthy system |
+| **Achieved** | Scheduled requests answered, whatever the answer. Falling behind what was sent (a warning) means the system can't keep up. Skipped requests with normal latency mean the generator is the limit; with latency climbing, they are a symptom of the system's slowness (the fans stay busy longer) |
 | **OK / Refused / Failed** | Every HTTP answer, releases included. *Refused* is a 409 (the place was just taken) or a 429: the system saying no on purpose, not an error. *Failed* is a 5xx, a timeout (5 s) or a broken connection; a 4xx other than those means a bug in the generator |
 | **Hold p99 / Browse p99** | The slowest 1% of answered holds and page reads in the last second, against the targets: holds under 200 ms (T1), browsing under 100 ms (T4) |
 | **In flight** | Sent and not answered yet. It climbs when the system queues |
@@ -104,4 +105,4 @@ PublicApi's count, 1 to 8, as an operator would; M5's autoscaler will move the s
 | "The load generator doesn't answer" | The AppHost isn't running, or `loadgenerator` is still starting: see the dashboard |
 | "Nothing on sale yet" | Start `seed` in the dashboard |
 | Failed rises at a low rate | The dashboard's logs for `publicapi`; the trace of a failed request (filter by status) |
-| Skipped rises before anything else | The generator's own limit: raise the rate more slowly, or give fewer requests to holds |
+| Skipped rises before anything else | The generator held back: all 200 fans busy, or 500 requests in flight. With latency normal it is the generator's limit; with latency climbing, the system's slowness is the cause |
