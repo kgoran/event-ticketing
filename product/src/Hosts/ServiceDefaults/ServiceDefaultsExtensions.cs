@@ -17,6 +17,9 @@ public static class ServiceDefaultsExtensions
     // Every product source and meter is named "EventTicketing.<area>", e.g. EventTicketing.Commands.
     private const string ProductTelemetry = "EventTicketing.*";
 
+    /// <summary>How long an outgoing HTTP connection is reused before a new one is opened.</summary>
+    public static readonly TimeSpan PooledConnectionLifetime = TimeSpan.FromMinutes(1);
+
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
     {
@@ -26,6 +29,9 @@ public static class ServiceDefaultsExtensions
         builder.Services.AddServiceDiscovery();
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
+            // A Kubernetes Service balances per connection, not per request: kept connections would
+            // send everything to the instances reached first and none to new ones (D36, ADR-0019).
+            http.UseSocketsHttpHandler((handler, _) => handler.PooledConnectionLifetime = PooledConnectionLifetime);
             http.AddStandardResilienceHandler();
             http.AddServiceDiscovery();
         });
