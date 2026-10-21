@@ -42,6 +42,7 @@ namespace EventTicketing.Tooling.Clients.Public.Events.Item.Holds
         /// <param name="requestConfiguration">Configuration for the request such as headers, query parameters, and middleware options.</param>
         /// <exception cref="global::EventTicketing.Tooling.Clients.Public.Models.HttpValidationProblemDetails">When receiving a 400 status code</exception>
         /// <exception cref="global::EventTicketing.Tooling.Clients.Public.Models.ProblemDetails">When receiving a 409 status code</exception>
+        /// <exception cref="global::EventTicketing.Tooling.Clients.Public.Models.ProblemDetails">When receiving a 503 status code</exception>
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
 #nullable enable
         public async Task<global::EventTicketing.Tooling.Clients.Public.Models.HoldPlaced?> PostAsync(global::EventTicketing.Tooling.Clients.Public.Models.PlaceHoldRequest body, Action<RequestConfiguration<DefaultQueryParameters>>? requestConfiguration = default, CancellationToken cancellationToken = default)
@@ -57,6 +58,7 @@ namespace EventTicketing.Tooling.Clients.Public.Events.Item.Holds
             {
                 { "400", global::EventTicketing.Tooling.Clients.Public.Models.HttpValidationProblemDetails.CreateFromDiscriminatorValue },
                 { "409", global::EventTicketing.Tooling.Clients.Public.Models.ProblemDetails.CreateFromDiscriminatorValue },
+                { "503", global::EventTicketing.Tooling.Clients.Public.Models.ProblemDetails.CreateFromDiscriminatorValue },
             };
             return await RequestAdapter.SendAsync<global::EventTicketing.Tooling.Clients.Public.Models.HoldPlaced>(requestInfo, global::EventTicketing.Tooling.Clients.Public.Models.HoldPlaced.CreateFromDiscriminatorValue, errorMapping, cancellationToken).ConfigureAwait(false);
         }

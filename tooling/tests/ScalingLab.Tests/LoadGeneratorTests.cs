@@ -40,6 +40,13 @@ public sealed class LoadGeneratorTests
         Traffic.Classify(statusCode).Should().Be(expected);
 
     [Fact]
+    public void A_503_with_retry_after_is_the_system_saying_not_now_on_purpose()
+    {
+        Traffic.Classify(503, retryAfter: true).Should().Be(Outcome.Refused, "a paused feature (FF1) or, later, shed load");
+        Traffic.Classify(503, retryAfter: false).Should().Be(Outcome.Failed, "the gateway with no instance to send it to");
+    }
+
+    [Fact]
     public void Percentiles_are_nearest_rank()
     {
         double[] sorted = [.. Enumerable.Range(1, 100).Select(value => (double)value)];

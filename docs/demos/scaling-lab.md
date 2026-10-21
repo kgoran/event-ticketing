@@ -43,7 +43,7 @@ shows, how it is measured and how to read it.
 |---|---|
 | **Offered** | What the slider asks for. *Skipped* below it (a warning) means the generator held back: 500 requests already unanswered, or every lab fan busy with a hold. Then the generator is the limit, not the system. What was *sent* is Offered minus skipped |
 | **Achieved** | Scheduled requests answered, whatever the answer. Falling behind what was sent (a warning) means the system can't keep up. Skipped requests with normal latency mean the generator is the limit; with latency climbing, they are a symptom of the system's slowness (the fans stay busy longer) |
-| **OK / Refused / Failed** | Every HTTP answer, releases included. *Refused* is a 409 (the place was just taken) or a 429: the system saying no on purpose, not an error. *Failed* is a 5xx, a timeout (5 s) or a broken connection; a 4xx other than those means a bug in the generator |
+| **OK / Refused / Failed** | Every HTTP answer, releases included. *Refused* is a 409 (the place was just taken), a 429, or a 503 with Retry-After (new holds paused by the `PauseHolds` flag): the system saying no on purpose, not an error. *Failed* is a 5xx, a timeout (5 s) or a broken connection; a 4xx other than those means a bug in the generator |
 | **Hold p99 / Browse p99** | The slowest 1% of answered holds and page reads in the last second, against the targets: holds under 200 ms (T1), browsing under 100 ms (T4) |
 | **In flight** | Sent and not answered yet. It climbs when the system queues |
 | Charts | The last 2 minutes. Hover for a second's values; *The last 10 seconds as a table* lists them |

@@ -7,6 +7,7 @@
 //   dotnet run lab.cs -- status   what runs, and where to open it
 //   dotnet run lab.cs -- check    does it work: hosts ready, addresses answering, sign-in, a burst of load
 //   dotnet run lab.cs -- deploy   roll the product out from the current source; --load 100 measures T10 under load
+//   dotnet run lab.cs -- flag     the feature flags; `flag PauseHolds on` switches one in the running system
 //   dotnet run lab.cs -- down     delete the cluster and everything in it
 //
 // A .NET file-based app (D24), so it needs only the .NET SDK and Docker. The tools it drives
@@ -22,6 +23,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 var lab = new Lab(Lab.FindRoot());
 try
@@ -34,6 +36,7 @@ try
         "status" => lab.Status(),
         "check" => await lab.CheckAsync(),
         "deploy" => await lab.DeployAsync(args[1..]),
+        "flag" => lab.Flag(args[1..]),
         _ => Lab.Help(),
     };
 }
@@ -103,6 +106,8 @@ sealed class Lab(string root)
                   --load <requests/s>       with the load generator running, and say how many requests failed (T10)
                   --restart                 roll every host out again even if nothing changed
                   --during-on-sale "<why>"  deploy although an on-sale's rush is on (the gate refuses otherwise)
+              dotnet run lab.cs -- flag     the feature flags, and whether each is on
+              dotnet run lab.cs -- flag <name> on|off   switch one in the running system, without a deploy
               dotnet run lab.cs -- down     delete the cluster and everything in it
             """);
         return 0;
@@ -562,6 +567,47 @@ sealed class Lab(string root)
         return failures.Count == 0 ? 0 : 1;
     }
 
+    /// <summary>
+    /// The feature flags (FF1, docs/feature-flags.md): each one and whether it is on, or one switched
+    /// in the running system. Every instance re-reads the ConfigMap's file: Kubernetes updates the
+    /// file within about a minute, and .NET notices within seconds. No deploy, no restart.
+    /// </summary>
+    public int Flag(string[] options)
+    {
+        if (!_tools.Installed || !ClusterExists())
+        {
+            throw new LabException("No lab cluster. Start one with: dotnet run lab.cs -- up");
+        }
+
+        var file = JsonNode.Parse(Capture(_tools.Kubectl, ["--context", Context, "get", "configmap", "eventticketing-features", "-n", "eventticketing", "-o", @"jsonpath={.data.features\.json}"]))!;
+        var flags = file["FeatureManagement"]!.AsObject();
+        if (options.Length == 0)
+        {
+            foreach (var (name, value) in flags)
+            {
+                Console.WriteLine($"  {name,-24} {(value?.GetValue<bool>() == true ? "on" : "off")}");
+            }
+
+            return 0;
+        }
+
+        if (options is not [var flag, "on" or "off"])
+        {
+            throw new LabException("Use: flag <name> on|off, or flag alone for the list.");
+        }
+
+        if (!flags.ContainsKey(flag))
+        {
+            throw new LabException($"There is no flag '{flag}'. The flags: {string.Join(", ", flags.Select(pair => pair.Key))}.");
+        }
+
+        flags[flag] = options[1] == "on";
+        var patch = new JsonObject { ["data"] = new JsonObject { ["features.json"] = file.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) } };
+        Kubectl("patch", "configmap", "eventticketing-features", "-n", "eventticketing", "--type", "merge", "-p", patch.ToJsonString());
+        Console.WriteLine($"{flag} is {options[1]}. Every instance reads it within about a minute, without a deploy or a restart.");
+        return 0;
+    }
+
     public int Status()
     {
         if (!_tools.Installed || !ClusterExists())
@@ -696,10 +742,13 @@ sealed class Lab(string root)
     /// <summary>Installs or upgrades a release and waits until it is ready: a pinned chart from a repository, or a local one.</summary>
     private void Helm(string release, string chart, string? repo, string? version, string space, string? values, params string[] settings)
     {
+        // Helm 4 applies server-side. The lab's operators (the Scaling Lab, `lab flag`) change fields
+        // the charts set too; the charts render what runs (lookup), so a conflict can only be a
+        // flag a release adds, and forcing takes the field back without changing a value that runs.
         List<string> arguments =
         [
             "--kube-context", Context, "upgrade", "--install", release, chart,
-            "--namespace", space, "--create-namespace", "--wait", "--timeout", "10m",
+            "--namespace", space, "--create-namespace", "--wait", "--timeout", "10m", "--force-conflicts",
         ];
         if (repo is not null && version is not null)
         {

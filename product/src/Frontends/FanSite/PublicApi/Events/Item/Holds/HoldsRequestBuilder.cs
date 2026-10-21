@@ -42,6 +42,7 @@ namespace EventTicketing.FanSite.PublicApi.Events.Item.Holds
         /// <param name="requestConfiguration">Configuration for the request such as headers, query parameters, and middleware options.</param>
         /// <exception cref="global::EventTicketing.FanSite.PublicApi.Models.HttpValidationProblemDetails">When receiving a 400 status code</exception>
         /// <exception cref="global::EventTicketing.FanSite.PublicApi.Models.ProblemDetails">When receiving a 409 status code</exception>
+        /// <exception cref="global::EventTicketing.FanSite.PublicApi.Models.ProblemDetails">When receiving a 503 status code</exception>
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
 #nullable enable
         public async Task<global::EventTicketing.FanSite.PublicApi.Models.HoldPlaced?> PostAsync(global::EventTicketing.FanSite.PublicApi.Models.PlaceHoldRequest body, Action<RequestConfiguration<DefaultQueryParameters>>? requestConfiguration = default, CancellationToken cancellationToken = default)
@@ -57,6 +58,7 @@ namespace EventTicketing.FanSite.PublicApi.Events.Item.Holds
             {
                 { "400", global::EventTicketing.FanSite.PublicApi.Models.HttpValidationProblemDetails.CreateFromDiscriminatorValue },
                 { "409", global::EventTicketing.FanSite.PublicApi.Models.ProblemDetails.CreateFromDiscriminatorValue },
+                { "503", global::EventTicketing.FanSite.PublicApi.Models.ProblemDetails.CreateFromDiscriminatorValue },
             };
             return await RequestAdapter.SendAsync<global::EventTicketing.FanSite.PublicApi.Models.HoldPlaced>(requestInfo, global::EventTicketing.FanSite.PublicApi.Models.HoldPlaced.CreateFromDiscriminatorValue, errorMapping, cancellationToken).ConfigureAwait(false);
         }

@@ -77,7 +77,7 @@
         status: FallingBehind ? Status.Warning : null,
         note: FallingBehind ? "falling behind what was sent" : Skipped > 0 ? $"keeps up with the {Charts.Format(Sent)}/s sent" : "answered, whatever the answer")
     @Tile("OK", HelpTopic.Ok, Recent(second => second.Ok), "answers/s", note: "2xx, releases included")
-    @Tile("Refused", HelpTopic.Refused, Recent(second => second.Refused), "answers/s", note: "409 seat taken, 429: correct, not errors")
+    @Tile("Refused", HelpTopic.Refused, Recent(second => second.Refused), "answers/s", note: "409 seat taken, 429, paused: correct, not errors")
     @Tile("Failed", HelpTopic.Failed, Recent(second => second.Failed + second.ClientErrors), "answers/s",
         status: Failing ? Status.Critical : Status.Good,
         note: Failing ? FailedNote : "no 5xx, timeouts or broken connections")

@@ -29,6 +29,12 @@ instance as a replica), the connection string for hosts that use the database, a
   value: {{ .name }}
 - name: OTEL_RESOURCE_ATTRIBUTES
   value: service.instance.id=$(POD_NAME)
+# Feature flags (FF1): the ConfigMap's file, re-read while running. Kubernetes swaps a ConfigMap's
+# files by a symbolic link, which file watchers miss, so .NET polls (every 4 s).
+- name: FeatureFlags__File
+  value: /config/features/features.json
+- name: DOTNET_USE_POLLING_FILE_WATCHER
+  value: "true"
 {{- if .database }}
 - name: DATABASE_PASSWORD
   valueFrom: { secretKeyRef: { name: {{ .root.Values.database.cluster }}-app, key: password } }
@@ -100,10 +106,13 @@ securityContext:
 volumeMounts:
   - { name: tmp, mountPath: /tmp }
   - { name: home, mountPath: /home/app }
+  - { name: features, mountPath: /config/features, readOnly: true }
 {{- end }}
 
 {{- define "eventticketing.scratchVolumes" -}}
 volumes:
   - { name: tmp, emptyDir: {} }
   - { name: home, emptyDir: {} }
+  # Optional: the Migrator, a hook, runs before the ConfigMap exists on a first install.
+  - { name: features, configMap: { name: eventticketing-features, optional: true } }
 {{- end }}

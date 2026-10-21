@@ -111,7 +111,7 @@ internal sealed class Traffic(LabUrls urls, LabFans fans, TargetEvents events, L
         }
         catch (ApiException exception)
         {
-            outcome = Classify(exception.ResponseStatusCode);
+            outcome = Classify(exception.ResponseStatusCode, exception.ResponseHeaders.ContainsKey("Retry-After"));
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
@@ -121,9 +121,15 @@ internal sealed class Traffic(LabUrls urls, LabFans fans, TargetEvents events, L
         stats.Completed(kind, outcome, Stopwatch.GetElapsedTime(started));
     }
 
-    internal static Outcome Classify(int statusCode) => statusCode switch
+    /// <summary>
+    /// 409 and 429 are refusals. So is a 503 that says when to come back (Retry-After): the system
+    /// turning work away on purpose, as a paused feature does (FF1). A 503 without it is a failure,
+    /// such as the gateway with no instance to send the request to.
+    /// </summary>
+    internal static Outcome Classify(int statusCode, bool retryAfter = false) => statusCode switch
     {
         (int)HttpStatusCode.Conflict or (int)HttpStatusCode.TooManyRequests => Outcome.Refused,
+        (int)HttpStatusCode.ServiceUnavailable when retryAfter => Outcome.Refused,
         >= 400 and < 500 => Outcome.ClientError,
         _ => Outcome.Failed,
     };

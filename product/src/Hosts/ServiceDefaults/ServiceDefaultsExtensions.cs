@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.FeatureManagement;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -25,6 +27,7 @@ public static class ServiceDefaultsExtensions
     {
         builder.ConfigureOpenTelemetry();
         builder.AddDefaultHealthChecks();
+        builder.AddFeatureFlags();
 
         builder.Services.AddServiceDiscovery();
         builder.Services.ConfigureHttpClientDefaults(http =>
@@ -70,6 +73,24 @@ public static class ServiceDefaultsExtensions
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
 
+        return builder;
+    }
+
+    /// <summary>
+    /// Feature flags (FF1, ADR-0036): the "FeatureManagement" section of the configuration, through
+    /// Microsoft.FeatureManagement. Where FeatureFlags:File names a file (in Kubernetes, a ConfigMap
+    /// mounted into every instance), it is read too and re-read when it changes, so a flag switches
+    /// in a running system without a deploy.
+    /// </summary>
+    public static TBuilder AddFeatureFlags<TBuilder>(this TBuilder builder)
+        where TBuilder : IHostApplicationBuilder
+    {
+        if (builder.Configuration["FeatureFlags:File"] is { Length: > 0 } file)
+        {
+            builder.Configuration.AddJsonFile(file, optional: true, reloadOnChange: true);
+        }
+
+        builder.Services.AddFeatureManagement();
         return builder;
     }
 

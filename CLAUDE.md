@@ -65,7 +65,7 @@ dotnet build product/EventTicketing.slnx            # product only (CI builds to
 dotnet test --solution product/EventTicketing.slnx  # unit + architecture tests (Microsoft.Testing.Platform)
 dotnet test --project dev/AppHost.Tests             # whole system under Aspire; needs Docker
 dotnet run --project dev/AppHost                    # local development
-dotnet run lab.cs -- up | reset | status | check | deploy | down   # the lab cluster (kind); docs/lab.md
+dotnet run lab.cs -- up | reset | status | check | deploy | flag | down   # the lab cluster (kind); docs/lab.md
 ```
 
 Package versions live in `Directory.Packages.props`; warnings are errors. EF Core migrations:
@@ -101,6 +101,7 @@ run `bash product/src/Frontends/FanSite/generate-client.sh` and `bash tooling/cl
 | `docs/milestones/` | Milestone plans: scope, backlog, definition of done, demo script |
 | `docs/lab.md` | The lab cluster: commands, addresses, what runs, deploys under load, autoscaling, lessons |
 | `docs/database-changes.md` | Changing the database without downtime: the expand/contract rule and the worked example |
+| `docs/feature-flags.md` | Feature flags: how they work, the flags, adding one |
 
 ## Background
 

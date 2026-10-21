@@ -102,6 +102,23 @@ public sealed class TestSystem : IAsyncLifetime
 
     public HttpClient PublicApi(string? token = null) => WithToken(Started(_publicApi).CreateClient(), token);
 
+    /// <summary>
+    /// A PublicApi of its own, on the same database, with extra settings (a feature flag switched on):
+    /// a test that changes how the host behaves doesn't change it for the tests running beside it.
+    /// </summary>
+    public WebApplicationFactory<PublicApiEntryPoint> PublicApiWith(params (string Key, string Value)[] settings) =>
+        InMemory(new WebApplicationFactory<PublicApiEntryPoint>()).WithWebHostBuilder(host =>
+        {
+            foreach (var (key, value) in settings)
+            {
+                host.UseSetting(key, value);
+            }
+        });
+
+    public static HttpClient Client<TEntryPoint>(WebApplicationFactory<TEntryPoint> factory, string? token = null)
+        where TEntryPoint : class =>
+        WithToken(factory.CreateClient(), token);
+
     public HttpClient BackOfficeApi(string? token = null) => WithToken(Started(_backOfficeApi).CreateClient(), token);
 
     public HttpClient WebhookIngress() => Started(_webhookIngress).CreateClient();
