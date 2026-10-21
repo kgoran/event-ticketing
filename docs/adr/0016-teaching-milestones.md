@@ -70,3 +70,6 @@ Also part of the plan:
   until M3's Prometheus ([0054](0054-publicapi-autoscaling-switch-in-the-lab.md)). M5 keeps the
   rest: utilization as the signal, Workers on their backlog, capacity settings, the cron scaler
   and the scaling timeline. The owner then asked for the rest of M2 without further review stops.
+- **2026-10-21:** M2 is built ([M2](../milestones/m2.md)): with the rest of the plan, the Auto switch
+  (D37–D41), and three decisions made while building that wait for the owner's review (D43–D45).
+  Its demo runs as a dry run in the nightly lab workflow.
