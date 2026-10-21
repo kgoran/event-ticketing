@@ -105,7 +105,7 @@ internal static class BrowseEndpoints
 
     /// <param name="q">Words to search for in the event and venue names (web search syntax: "quoted phrases", -excluded).</param>
     private static async Task<IResult> ListAsync(
-        CatalogDbContext db,
+        CatalogReplicaDbContext db,
         TimeProvider time,
         HttpResponse response,
         string? q,
@@ -180,7 +180,7 @@ internal static class BrowseEndpoints
         return Results.Ok(new EventListPage(items, pageNumber, size, rows.Count > size));
     }
 
-    private static async Task<IResult> GetAsync(Guid eventId, CatalogDbContext db, TimeProvider time, HttpResponse response, CancellationToken cancellationToken)
+    private static async Task<IResult> GetAsync(Guid eventId, CatalogReplicaDbContext db, TimeProvider time, HttpResponse response, CancellationToken cancellationToken)
     {
         var @event = await db.Events
             .AsNoTracking()
@@ -226,7 +226,7 @@ internal static class BrowseEndpoints
         }
     }
 
-    private static async Task<IResult> GetSeatMapAsync(Guid eventId, string version, CatalogDbContext db, HttpResponse response, CancellationToken cancellationToken)
+    private static async Task<IResult> GetSeatMapAsync(Guid eventId, string version, CatalogReplicaDbContext db, HttpResponse response, CancellationToken cancellationToken)
     {
         var @event = await db.Events
             .AsNoTracking()

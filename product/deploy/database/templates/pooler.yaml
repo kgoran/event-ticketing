@@ -1,0 +1,44 @@
+{{/*
+PgBouncer in transaction mode in front of the primary (D49, ADR-0055): the hosts' connections end
+here, and PgBouncer keeps a bounded number to PostgreSQL however many instances run. A connection
+is a server's only for one transaction, so nothing may rely on a session: no session-level SET,
+LISTEN or advisory lock (transaction-level ones are fine). The Migrator connects to the primary
+itself. CloudNativePG serves it as the Service {{ .Values.name }}-pooler-rw.
+*/}}
+{{- with .Values.pooler }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: {{ $.Values.name }}-pooler-rw
+spec:
+  cluster:
+    name: {{ $.Values.name }}
+  instances: {{ .instances }}
+  type: rw
+  pgbouncer:
+    poolMode: transaction
+    parameters:
+      max_client_conn: {{ .maxClientConnections | quote }}
+      default_pool_size: {{ .poolSize | quote }}
+      # Tuned for a failover, measured in the lab's drill: by default PgBouncer waits 15 s before
+      # trying a server again, waits 15 s for a connection to a primary that is gone, and lets
+      # clients queue for 2 minutes. Errors lasted 42 s that way, against 25 s without PgBouncer.
+      server_login_retry: "1"
+      server_connect_timeout: "3"
+      query_wait_timeout: "10"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pooler
+    spec:
+      # One per zone, as a preference (D47); replaced 30 s after its node is lost (D59).
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: { matchLabels: { cnpg.io/poolerName: {{ $.Values.name }}-pooler-rw } }
+      tolerations:
+        - { key: node.kubernetes.io/unreachable, operator: Exists, effect: NoExecute, tolerationSeconds: 30 }
+        - { key: node.kubernetes.io/not-ready, operator: Exists, effect: NoExecute, tolerationSeconds: 30 }
+      containers: []
+{{- end }}

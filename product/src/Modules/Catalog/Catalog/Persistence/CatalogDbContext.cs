@@ -7,8 +7,19 @@ using NpgsqlTypes;
 
 namespace EventTicketing.Catalog.Persistence;
 
-internal sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : ModuleDbContext(options)
+internal class CatalogDbContext : ModuleDbContext
 {
+    public CatalogDbContext(DbContextOptions<CatalogDbContext> options)
+        : base(options)
+    {
+    }
+
+    /// <summary>For <see cref="CatalogReplicaDbContext"/>: the same model, another database.</summary>
+    protected CatalogDbContext(DbContextOptions options)
+        : base(options)
+    {
+    }
+
     public const string SchemaName = "catalog";
 
     /// <summary>
@@ -105,3 +116,9 @@ internal sealed class CatalogDesignTimeFactory : IDesignTimeDbContextFactory<Cat
     public CatalogDbContext CreateDbContext(string[] args) =>
         new(ModuleDesignTime.Options<CatalogDbContext>(CatalogDbContext.SchemaName));
 }
+
+/// <summary>
+/// Catalog on a replica, for browsing only (D50): read-only, and possibly a moment behind the
+/// primary. Everything that changes Catalog uses <see cref="CatalogDbContext"/>.
+/// </summary>
+internal sealed class CatalogReplicaDbContext(DbContextOptions<CatalogReplicaDbContext> options) : CatalogDbContext(options);

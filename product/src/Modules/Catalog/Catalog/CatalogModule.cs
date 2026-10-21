@@ -20,6 +20,10 @@ public sealed class CatalogModule : IModule
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.AddModuleDatabase<CatalogDbContext>(host, CatalogDbContext.SchemaName);
+        if (host == HostKind.PublicApi)
+        {
+            builder.AddModuleReplicaDatabase<CatalogReplicaDbContext>(CatalogDbContext.SchemaName);
+        }
         builder.Services.AddCommandHandlers(typeof(CatalogModule).Assembly);
         builder.Services.AddMessageHandlers(typeof(CatalogModule).Assembly);
     }
