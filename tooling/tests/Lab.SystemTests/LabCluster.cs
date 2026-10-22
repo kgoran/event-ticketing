@@ -9,7 +9,7 @@ using k8s.Models;
 
 // One lab cluster for every test: one that sets the load, slows the database or changes the instance
 // count would change what another measures, so they run one at a time.
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
+[assembly: CollectionBehavior(CollectionBehavior.CollectionPerAssembly)]
 
 namespace EventTicketing.Tooling.Lab.SystemTests;
 
