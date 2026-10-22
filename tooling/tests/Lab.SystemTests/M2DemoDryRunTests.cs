@@ -113,12 +113,12 @@ public sealed class M2DemoDryRunTests
             await EventuallyAsync(PublicApiAsync, state => state.Wanted == 1 && state.Ready == 1, TimeSpan.FromSeconds(120), "one instance to start from");
             var clock = Stopwatch.StartNew();
 
-            // 200 requests/s: at least 3 instances at the target of 0.5 requests in progress each (the
-            // laptop has about 2 in progress at 200 requests/s and wants 4 or 5). A slower machine's
-            // requests take longer, so there are more in progress, and it wants more (D56).
+            // 200 requests/s on one instance: more requests in progress than the target of 0.5 on any
+            // machine. How many instances it wants depends on how long requests take there (D56): the
+            // laptop's want 4 or 5, CI's runners, whose requests are about twice as fast, 2.
             await AutoAsync(on: true);
             await LoadAsync(200);
-            await EventuallyAsync(PublicApiAsync, state => state.Ready >= 3, TimeSpan.FromSeconds(240), "the autoscaler adds instances for 200 requests/s", AutoscalerAsync);
+            await EventuallyAsync(PublicApiAsync, state => state.Ready >= 2, TimeSpan.FromSeconds(240), "the autoscaler adds instances for 200 requests/s", AutoscalerAsync);
             await LoadAsync(0);
             await EventuallyAsync(PublicApiAsync, state => state.Wanted <= 1, TimeSpan.FromSeconds(180), "the autoscaler gives them back, demo speed: 30 s", AutoscalerAsync);
 
