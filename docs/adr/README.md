@@ -66,6 +66,8 @@ entry under **Updates** that settles something the ADR explicitly left open.
 | [0054](0054-publicapi-autoscaling-switch-in-the-lab.md) | PublicApi's autoscaling switch in the lab, from M2: KEDA, paused when off, CPU until Prometheus |
 | [0055](0055-high-availability-in-the-lab.md) | High availability in the lab: zones, the database, Valkey, observability, drills (M3) |
 | [0056](0056-check-in-devices-scanner-and-revocation.md) | Check-in: devices as Keycloak clients, the scanner as a PWA, revocation by an admin (M3) |
+| [0057](0057-kafka-transport-topics-keys-and-schemas.md) | The Kafka transport: Redpanda brokers, a topic per module, keys, Protobuf code-first, dead letters (M4) |
+| [0058](0058-event-cancellation-refunds-at-volume-and-chargebacks.md) | Event cancellation, refunds at the provider's rate, chargebacks, T6 and T9 (M4) |
 
 ## Template
 

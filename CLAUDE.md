@@ -73,7 +73,11 @@ devices as Keycloak clients), the scanner (SC1: a Blazor WebAssembly PWA at http
 offline), T8 measured with 200 simulated door devices (DS1: `tooling/lab/DeviceSimulator`), and backups (BK1: the Barman Cloud plugin to
 SeaweedFS; `lab backup`, `lab restore-check`), and the demo (Q8: runbook `docs/demos/m3.md`, dry run `M3DemoDryRunTests`;
 readiness without shared dependencies, D74; availability from a replica without a snapshot, D75). D67–D75 were decided
-while building. Decisions continue at D76.
+while building.
+
+**M4 is planned** (`docs/milestones/m4.md`, D76–D90, ADR-0057, ADR-0058), decided overnight: Kafka (Redpanda) as the
+transport with Protobuf code-first, dead letters, Workers split by configuration, Reporting, event cancellation with refunds
+at the provider's rate, chargebacks, T6 and T9. Decisions continue at D91.
 
 ## Commands
 
@@ -115,7 +119,7 @@ run `bash product/src/Frontends/FanSite/generate-client.sh` and `bash tooling/cl
 | `docs/payments.md` | Payment design: Stripe + LocalPay simulator, consistency flow, failure handling |
 | `docs/architecture/overview.md` | Agreed architecture: modules, hosts, key flows, targets, milestones, repository, Scaling Lab |
 | `docs/adr/` | Architecture decision records, one per agreed decision (index in `README.md`) |
-| `docs/milestones/` | Milestone plans (m1a … m3): scope, decisions, backlog, definition of done, demo script |
+| `docs/milestones/` | Milestone plans (m1a … m4): scope, decisions, backlog, definition of done, demo script |
 | `docs/lab.md` | The lab cluster: commands, addresses, what runs, deploys under load, autoscaling, lessons |
 | `docs/database-changes.md` | Changing the database without downtime: the expand/contract rule and the worked example |
 | `docs/feature-flags.md` | Feature flags: how they work, the flags, adding one |
