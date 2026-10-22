@@ -14,6 +14,10 @@
     <ProjectReference Include="..\..\src\Modules\Inventory\Inventory.Domain\Inventory.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Modules\Notifications\Notifications\Notifications.csproj" />
+    <ProjectReference Include="..\..\src\Modules\CheckIn\CheckIn.Domain\CheckIn.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\CheckIn\CheckIn.Application\CheckIn.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\CheckIn\CheckIn.Contracts\CheckIn.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\CheckIn\CheckIn.Infrastructure\CheckIn.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Modules\Orders\Orders.Application\Orders.Application.csproj" />
     <ProjectReference Include="..\..\src\Modules\Orders\Orders.Contracts\Orders.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Orders\Orders.Domain\Orders.Domain.csproj" />

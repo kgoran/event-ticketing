@@ -19,6 +19,13 @@ internal static class Callers
 
     public static string Admin() =>
         TestTokens.Create("admin-" + Guid.NewGuid().ToString("N"), [Roles.Admin]);
+
+    /// <summary>A door device's token, as its Keycloak client gives it: fixed claims for the role, the event and the device (D61).</summary>
+    public static string Device(Guid eventId, Guid deviceId) =>
+        TestTokens.Create(
+            "service-account-device-" + deviceId.ToString("N"),
+            [Roles.DoorStaff],
+            claims: new Dictionary<string, object> { ["event_id"] = eventId.ToString(), ["device_id"] = deviceId.ToString() });
 }
 
 internal static class Venues

@@ -67,8 +67,9 @@ answers: the owner asked for M3 to M5 without approval round-trips. Built: three
 (PL3, DB3), the invariant checker and the failover and zone drills (IC1, FO1), Valkey with browsing's cache (VK1), the
 fan site twice (FS2), PgBouncer and browsing from the replica (PG1, RR1), the observability stack (OB1: Grafana at
 http://localhost:3000, dashboards in `product/deploy/chart/dashboards`), PublicApi's autoscaler on requests in
-progress (AS2, 0.5 per instance), Toxiproxy with the Scaling Lab's slow database scenario (TX1), and the Scaling Lab's Database panel with
-the failover drill (SL3). D67–D69 were decided while building. Decisions continue at D70.
+progress (AS2, 0.5 per instance), Toxiproxy with the Scaling Lab's slow database scenario (TX1), the Scaling Lab's Database panel with
+the failover drill (SL3), and check-in (CI3: ticket revocation; the CheckIn module and CheckInApi at http://localhost:5104;
+devices as Keycloak clients). D67–D71 were decided while building. Decisions continue at D72.
 
 ## Commands
 

@@ -1,0 +1,57 @@
+@keycloak = http://localhost:8180
+@backOffice = http://localhost:5102
+@checkIn = http://localhost:5104
+
+### Sign in as olga, the demo organizer (password grant, development client only)
+# @name olga
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=olga&password=olga
+
+### The demo event's ID (PublicApi's search)
+# @name events
+GET http://localhost:5101/events?q=%22Demo%20Concert%22
+
+### olga registers a door device (D61): a Keycloak client of its own; the secret is shown this once
+# @name device
+POST {{backOffice}}/events/{{events.response.body.$.items[0].eventId}}/devices
+Authorization: Bearer {{olga.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "name": "North gate 1" }
+
+### The device signs in with client credentials: its token says door-staff, the event and the device
+# @name deviceToken
+POST {{device.response.body.$.tokenEndpoint}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id={{device.response.body.$.clientId}}&client_secret={{device.response.body.$.clientSecret}}
+
+### The whole door list (ADR-0013): ticket IDs, revocations, admissions elsewhere, and the keys
+# @name doorList
+GET {{checkIn}}/events/{{events.response.body.$.items[0].eventId}}/door-list
+Authorization: Bearer {{deviceToken.response.body.$.access_token}}
+
+### Only what changed since then
+GET {{checkIn}}/events/{{events.response.body.$.items[0].eventId}}/door-list?since={{doorList.response.body.$.cursor}}
+Authorization: Bearer {{deviceToken.response.body.$.access_token}}
+
+### A scan decided at the door; send it again and nothing changes (the scan's ID)
+POST {{checkIn}}/events/{{events.response.body.$.items[0].eventId}}/scans
+Authorization: Bearer {{deviceToken.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "scans": [
+    { "scanId": "0199f2a0-1111-7000-8000-000000000001", "ticketId": "0199f2a0-2222-7000-8000-000000000001", "scannedAt": "2026-11-20T20:00:00Z", "admitted": true }
+  ]
+}
+
+### The event's devices, with when each last uploaded
+GET {{backOffice}}/events/{{events.response.body.$.items[0].eventId}}/devices
+Authorization: Bearer {{olga.response.body.$.access_token}}
+
+### Revoke the device: refused at once, and its client is deleted from Keycloak
+DELETE {{backOffice}}/events/{{events.response.body.$.items[0].eventId}}/devices/{{device.response.body.$.deviceId}}
+Authorization: Bearer {{olga.response.body.$.access_token}}

@@ -21,6 +21,7 @@ urls:
   fanSite: http://localhost:5100
   localPay: http://localpay.lab.svc.cluster.local:8080
   keycloak: http://keycloak.platform.svc.cluster.local:8080
+  keycloakPublic: http://localhost:8180
   smtpHost: mailpit.platform.svc.cluster.local
 
 hosts:
@@ -43,6 +44,8 @@ hosts:
       scaleUpSeconds: 20
       scaleDownSeconds: 30
   webhookingress: { replicas: 2 }
+  # Two, like the doors' other hosts: devices keep scanning offline if both are gone (ADR-0013).
+  checkinapi: { replicas: 2 }
   # Two Workers compete for the outbox and the schedule; rows are claimed with SKIP LOCKED (ADR-0014).
   workers: { replicas: 2 }
   # Two, now that fans' tokens and the cookie's keys are in Valkey (D54).

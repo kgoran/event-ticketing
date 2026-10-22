@@ -60,7 +60,7 @@ sealed class Lab(string root)
     /// <summary>The usual localhost ports (ADR-0053): the cluster maps each one to Traefik.</summary>
     private static readonly (int Port, string What)[] Addresses =
     [
-        (5100, "fan site"), (5101, "PublicApi"), (5102, "BackOfficeApi"), (5103, "WebhookIngress"),
+        (5100, "fan site"), (5101, "PublicApi"), (5102, "BackOfficeApi"), (5103, "WebhookIngress"), (5104, "CheckInApi"),
         (5201, "LocalPay"), (5300, "Scaling Lab"), (5301, "load generator"),
         (8025, "Mailpit"), (8180, "Keycloak"), (3000, "Grafana"),
     ];
@@ -70,7 +70,7 @@ sealed class Lab(string root)
     [
         ("publicapi", "product/src/Hosts/PublicApi"),
         ("backofficeapi", "product/src/Hosts/BackOfficeApi"),
-        ("webhookingress", "product/src/Hosts/WebhookIngress"),
+        ("webhookingress", "product/src/Hosts/WebhookIngress"), ("checkinapi", "product/src/Hosts/CheckInApi"),
         ("workers", "product/src/Hosts/Workers"),
         ("migrator", "product/src/Hosts/Migrator"),
         ("fansite", "product/src/Frontends/FanSite"),
@@ -909,6 +909,7 @@ sealed class Lab(string root)
             ("keycloak-admin-password", () => Secret(24)),
             ("fansite-client-secret", () => Secret(32)),
             ("organizers-client-secret", () => Secret(32)),
+            ("checkin-client-secret", () => Secret(32)),
             ("localpay-webhook-secret", () => Secret(32)),
             ("ticketing-master-key", () => Secret(48)),
             ("grafana-admin-user", () => "admin"),

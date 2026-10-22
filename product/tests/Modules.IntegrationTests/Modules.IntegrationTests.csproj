@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Hosts\BackOfficeApi\BackOfficeApi.csproj" />
+    <ProjectReference Include="..\..\src\Hosts\CheckInApi\CheckInApi.csproj" />
     <ProjectReference Include="..\..\src\Hosts\PublicApi\PublicApi.csproj" />
     <ProjectReference Include="..\..\src\Hosts\WebhookIngress\WebhookIngress.csproj" />
     <ProjectReference Include="..\Testing\Testing.csproj" />

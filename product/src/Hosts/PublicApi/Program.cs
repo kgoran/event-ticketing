@@ -1,4 +1,5 @@
 using EventTicketing.Catalog;
+using EventTicketing.CheckIn.Infrastructure;
 using EventTicketing.Inventory.Infrastructure;
 using EventTicketing.Notifications;
 using EventTicketing.Orders.Infrastructure;
@@ -18,7 +19,7 @@ builder.AddServiceDefaults();
 builder.AddWarmUp(PublicApiWarmUp.RunAsync);
 builder.AddApiAuthentication();
 builder.AddSharedOutputCache();
-builder.AddModules(HostKind.PublicApi, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule());
+builder.AddModules(HostKind.PublicApi, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule(), new CheckInModule());
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 

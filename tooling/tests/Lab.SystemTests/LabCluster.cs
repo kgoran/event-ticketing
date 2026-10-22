@@ -20,6 +20,8 @@ namespace EventTicketing.Tooling.Lab.SystemTests;
 internal static class LabCluster
 {
     public const string PublicApi = "http://localhost:5101";
+    public const string BackOfficeApi = "http://localhost:5102";
+    public const string CheckInApi = "http://localhost:5104";
     public const string Keycloak = "http://localhost:8180";
     public const string Generator = "http://localhost:5301";
     public const string Mailpit = "http://localhost:8025";

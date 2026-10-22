@@ -1,4 +1,5 @@
 using EventTicketing.Catalog;
+using EventTicketing.CheckIn.Infrastructure;
 using EventTicketing.Inventory.Infrastructure;
 using EventTicketing.Notifications;
 using EventTicketing.Orders.Infrastructure;
@@ -16,7 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddApiAuthentication();
 builder.AddSharedOutputCache(); // only to evict browsing's answers when Catalog changes (D52)
-builder.AddModules(HostKind.BackOfficeApi, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule());
+builder.AddModules(HostKind.BackOfficeApi, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule(), new CheckInModule());
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 

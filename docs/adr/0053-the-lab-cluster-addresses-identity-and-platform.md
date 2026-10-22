@@ -71,3 +71,5 @@ dashboards. KEDA comes in M5, Valkey and SeaweedFS in M3.
 - When M3 adds the observability stack, the Aspire Dashboard can stay as the quick view or go.
   **Update (M3, D55, D68):** it went. Grafana answers at http://localhost:3000 instead of 18888,
   fed by the OpenTelemetry Collector ([docs/lab.md](../lab.md#seeing-it-grafana-d55)).
+- **Update (M3 CI3):** CheckInApi answers at http://localhost:5104, the port kind already mapped
+  for it; under Aspire, Workers moved from 5104 to 5106 (it has no public address).

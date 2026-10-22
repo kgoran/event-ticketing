@@ -36,10 +36,10 @@
         },
         "query": {
           "qryType": 1,
-          "query": "label_values(http_server_request_duration_seconds_count{job=~\"publicapi|backofficeapi|webhookingress|workers|fansite\"}, job)",
+          "query": "label_values(http_server_request_duration_seconds_count{job=~\"publicapi|backofficeapi|checkinapi|webhookingress|workers|fansite\"}, job)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
-        "definition": "label_values(http_server_request_duration_seconds_count{job=~\"publicapi|backofficeapi|webhookingress|workers|fansite\"}, job)",
+        "definition": "label_values(http_server_request_duration_seconds_count{job=~\"publicapi|backofficeapi|checkinapi|webhookingress|workers|fansite\"}, job)",
         "refresh": 2,
         "sort": 1,
         "multi": false,

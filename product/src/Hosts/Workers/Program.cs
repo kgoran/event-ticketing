@@ -1,4 +1,5 @@
 using EventTicketing.Catalog;
+using EventTicketing.CheckIn.Infrastructure;
 using EventTicketing.Inventory.Infrastructure;
 using EventTicketing.Notifications;
 using EventTicketing.Orders.Infrastructure;
@@ -11,7 +12,7 @@ using EventTicketing.Ticketing.Infrastructure;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-builder.AddModules(HostKind.Workers, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule());
+builder.AddModules(HostKind.Workers, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule(), new CheckInModule());
 
 var app = builder.Build();
 

@@ -68,7 +68,7 @@ instance as a replica), the connection string for hosts that use the database, a
 {{- define "eventticketing.hostEnv" -}}
 {{- $values := .root.Values -}}
 {{- $secrets := $values.secrets.name -}}
-{{- if or (eq .name "publicapi") (eq .name "backofficeapi") (eq .name "fansite") }}
+{{- if or (eq .name "publicapi") (eq .name "backofficeapi") (eq .name "checkinapi") (eq .name "fansite") }}
 - name: Authentication__Authority
   value: {{ $values.identity.authority | quote }}
 - name: Authentication__RequireHttpsMetadata
@@ -87,6 +87,15 @@ instance as a replica), the connection string for hosts that use the database, a
 {{- if or (eq .name "webhookingress") (eq .name "workers") }}
 - name: Payments__LocalPay__WebhookSecret
   valueFrom: { secretKeyRef: { name: {{ $secrets }}, key: localpay-webhook-secret } }
+{{- end }}
+{{- if eq .name "backofficeapi" }}
+# Registering a door device creates its Keycloak client (D61, D70); devices sign in at the public address.
+- name: CheckIn__Keycloak__BaseUrl
+  value: {{ $values.urls.keycloak | quote }}
+- name: CheckIn__Keycloak__PublicUrl
+  value: {{ $values.urls.keycloakPublic | default $values.urls.keycloak | quote }}
+- name: CheckIn__Keycloak__ClientSecret
+  valueFrom: { secretKeyRef: { name: {{ $secrets }}, key: checkin-client-secret } }
 {{- end }}
 {{- if eq .name "publicapi" }}
 - name: Checkout__ReturnUrlTemplate

@@ -41,6 +41,7 @@ The usual ports, as under Aspire:
 |---|---|
 | http://localhost:5100 | fan site (ana, ben, cid, …; password = name) |
 | http://localhost:5101 · 5102 · 5103 | PublicApi · BackOfficeApi · WebhookIngress (the `.http` files work unchanged) |
+| http://localhost:5104 | CheckInApi: the doors' door lists and scans (`CheckInApi.http` registers a device and plays one) |
 | http://localhost:5201 | LocalPay |
 | http://localhost:5300 | Scaling Lab, with the **Instances** panel |
 | http://localhost:8025 | Mailpit |
@@ -62,7 +63,7 @@ which database instance is the primary. A cluster made before M3 had one node: `
 | `cnpg-system` | the CloudNativePG operator |
 | `keda` | KEDA, which runs PublicApi's autoscaler when the Scaling Lab's **Auto** is on ([ADR-0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md)) |
 | `kube-system` | metrics-server, which measures each pod's CPU for `kubectl top` and the autoscaler |
-| `eventticketing` | the database (release `eventticketing-database`: a primary and two standbys, one per zone) and the product (release `eventticketing`): PublicApi ×3, WebhookIngress ×2, Workers ×2, BackOfficeApi, the fan site, and Valkey (browsing's shared cache, D51) |
+| `eventticketing` | the database (release `eventticketing-database`: a primary and two standbys, one per zone) and the product (release `eventticketing`): PublicApi ×3, WebhookIngress ×2, Workers ×2, CheckInApi ×2, BackOfficeApi, the fan site, and Valkey (browsing's shared cache, D51) |
 | `lab` | LocalPay, the load generator, the Scaling Lab (release `eventticketing-tooling`) |
 
 The Migrator runs as a Job before each deploy of the product. A deploy keeps the instance counts
@@ -393,3 +394,8 @@ failed request.
 9. **A CPU limit below a core is a trap for .NET.** It sees one processor, sizes its thread pool
    for it, and a burst queues work while threads are added one by one: a minute of failures on a
    new instance. Requests, not limits, for .NET services ([Autoscaling](#autoscaling), D69).
+10. **A module added later doesn't see what happened before it.** CheckIn arrived after the demo
+    event had been published and its first tickets issued: the outbox had delivered those messages
+    to the consumers of the time, so CheckIn knew neither the event's organizer nor its tickets.
+    A fresh system or `reset` doesn't notice; a running one needs a backfill: the publisher sends
+    its events again, or, with M4's Kafka, the new consumer reads the topic from the start.

@@ -5,6 +5,7 @@
   </Folder>
   <Folder Name="/src/Hosts/">
     <Project Path="src/Hosts/BackOfficeApi/BackOfficeApi.csproj" />
+    <Project Path="src/Hosts/CheckInApi/CheckInApi.csproj" />
     <Project Path="src/Hosts/Migrator/Migrator.csproj" />
     <Project Path="src/Hosts/PublicApi/PublicApi.csproj" />
     <Project Path="src/Hosts/ServiceDefaults/ServiceDefaults.csproj" />
@@ -15,6 +16,12 @@
   <Folder Name="/src/Modules/Catalog/">
     <Project Path="src/Modules/Catalog/Catalog.Contracts/Catalog.Contracts.csproj" />
     <Project Path="src/Modules/Catalog/Catalog/Catalog.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/CheckIn/">
+    <Project Path="src/Modules/CheckIn/CheckIn.Application/CheckIn.Application.csproj" />
+    <Project Path="src/Modules/CheckIn/CheckIn.Contracts/CheckIn.Contracts.csproj" />
+    <Project Path="src/Modules/CheckIn/CheckIn.Domain/CheckIn.Domain.csproj" />
+    <Project Path="src/Modules/CheckIn/CheckIn.Infrastructure/CheckIn.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Inventory/">
     <Project Path="src/Modules/Inventory/Inventory.Application/Inventory.Application.csproj" />

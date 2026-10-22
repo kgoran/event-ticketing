@@ -111,7 +111,7 @@ jobs:
           kubectl=.tools/bin/kubectl
           $kubectl --context kind-eventticketing get pods --all-namespaces -o wide || true
           $kubectl --context kind-eventticketing get events --all-namespaces --sort-by=.lastTimestamp | tail -40 || true
-          for deployment in publicapi workers webhookingress backofficeapi fansite; do
+          for deployment in publicapi workers webhookingress backofficeapi checkinapi fansite; do
             echo "== $deployment"
             $kubectl --context kind-eventticketing logs -n eventticketing "deployment/$deployment" --tail=60 || true
           done
