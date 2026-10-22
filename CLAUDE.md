@@ -69,8 +69,8 @@ fan site twice (FS2), PgBouncer and browsing from the replica (PG1, RR1), the ob
 http://localhost:3000, dashboards in `product/deploy/chart/dashboards`), PublicApi's autoscaler on requests in
 progress (AS2, 0.5 per instance), Toxiproxy with the Scaling Lab's slow database scenario (TX1), the Scaling Lab's Database panel with
 the failover drill (SL3), and check-in (CI3: ticket revocation; the CheckIn module and CheckInApi at http://localhost:5104;
-devices as Keycloak clients), and the scanner (SC1: a Blazor WebAssembly PWA at http://localhost:5104/scanner/, deciding
-offline). D67–D72 were decided while building. Decisions continue at D73.
+devices as Keycloak clients), the scanner (SC1: a Blazor WebAssembly PWA at http://localhost:5104/scanner/, deciding
+offline), and T8 measured with 200 simulated door devices (DS1: `tooling/lab/DeviceSimulator`). D67–D72 were decided while building. Decisions continue at D73.
 
 ## Commands
 

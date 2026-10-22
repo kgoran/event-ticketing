@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\lab\LoadGenerator\LoadGenerator.csproj" />
+    <ProjectReference Include="..\..\lab\DeviceSimulator\DeviceSimulator.csproj" />
     <ProjectReference Include="..\..\lab\ScalingLab\ScalingLab.csproj" />
   </ItemGroup>
 

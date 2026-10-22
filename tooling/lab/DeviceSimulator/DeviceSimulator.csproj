@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- T8's door devices (D64): N devices registered for an event, each syncing with CheckInApi
+       every few seconds, and a revocation timed until every device has it. It runs where the
+       doors would be, outside the system: on the host, against the usual localhost ports, the same
+       under Aspire and in the lab cluster. Tooling: it uses the product only through its APIs. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+</Project>

@@ -3,6 +3,7 @@
     <Project Path="clients/Clients.csproj" />
   </Folder>
   <Folder Name="/lab/">
+    <Project Path="lab/DeviceSimulator/DeviceSimulator.csproj" />
     <Project Path="lab/LoadGenerator/LoadGenerator.csproj" />
     <Project Path="lab/ScalingLab/ScalingLab.csproj" />
   </Folder>
