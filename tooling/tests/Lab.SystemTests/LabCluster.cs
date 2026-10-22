@@ -19,6 +19,7 @@ internal static class LabCluster
     public const string Keycloak = "http://localhost:8180";
     public const string Generator = "http://localhost:5301";
     public const string Mailpit = "http://localhost:8025";
+    public const string ScalingLab = "http://localhost:5300";
 
     private const string Product = "eventticketing";
 
@@ -99,6 +100,32 @@ internal static class LabCluster
 
     public sealed record Totals(int Completed, int Ok, int Refused, int Failed);
 
+    /// <summary>The median of the generator's per-second p99s over the last <paramref name="seconds"/> seconds, per kind, in ms.</summary>
+    public static async Task<(double Hold, double Browse)> P99Async(int seconds)
+    {
+        using var generator = Client(Generator);
+        var stats = await generator.GetFromJsonAsync<JsonElement>(new Uri($"/stats?seconds={seconds}", UriKind.Relative), Ct);
+        double Median(string kind)
+        {
+            var values = stats.GetProperty("seconds").EnumerateArray()
+                .Select(second => second.GetProperty("latencyP99MsByKind"))
+                .Where(byKind => byKind.ValueKind == JsonValueKind.Object && byKind.TryGetProperty(kind, out var value) && value.ValueKind == JsonValueKind.Number)
+                .Select(byKind => byKind.GetProperty(kind).GetDouble())
+                .Order()
+                .ToList();
+            return values.Count == 0 ? 0 : values[values.Count / 2];
+        }
+
+        return (Median("Hold"), Median("Browse"));
+    }
+
+    /// <summary>The database's added delay (D57), as the Scaling Lab's slow database scenario sets it.</summary>
+    public static async Task DatabaseDelayAsync(int milliseconds)
+    {
+        using var lab = Client(ScalingLab);
+        (await lab.PutAsJsonAsync(new Uri("/database/delay", UriKind.Relative), new { milliseconds }, Ct)).EnsureSuccessStatusCode();
+    }
+
     // The cluster (D31, D39, D45): what the Scaling Lab and `lab flag` change
 
     private static Kubernetes Kubernetes() => new(KubernetesClientConfiguration.BuildConfigFromConfigFile(currentContext: "kind-eventticketing"));
@@ -154,10 +181,11 @@ internal static class LabCluster
         await kubernetes.CoreV1.ReplaceNamespacedConfigMapAsync(map, "eventticketing-features", Product, cancellationToken: Ct);
     }
 
-    /// <summary>The lab as `lab up` leaves it: no load, Auto off, PublicApi at 3, every flag off.</summary>
+    /// <summary>The lab as `lab up` leaves it: no load, nothing slowing the database, Auto off, PublicApi at 3, every flag off.</summary>
     public static async Task RestoreAsync()
     {
         await LoadAsync(0);
+        await DatabaseDelayAsync(0);
         await AutoAsync(on: false);
         await ScalePublicApiAsync(3);
         await FlagAsync("PauseHolds", on: false);
