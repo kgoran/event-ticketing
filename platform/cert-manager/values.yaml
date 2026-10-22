@@ -1,0 +1,13 @@
+# cert-manager for the lab (D65): the Barman Cloud plugin talks to CloudNativePG's operator over
+# TLS, with certificates cert-manager issues. Its CRDs come with the chart. In zone-a (D59).
+crds:
+  enabled: true
+nodeSelector: { topology.kubernetes.io/zone: zone-a }
+resources:
+  requests: { cpu: 10m, memory: 48Mi }
+webhook:
+  nodeSelector: { topology.kubernetes.io/zone: zone-a }
+cainjector:
+  nodeSelector: { topology.kubernetes.io/zone: zone-a }
+startupapicheck:
+  nodeSelector: { topology.kubernetes.io/zone: zone-a }

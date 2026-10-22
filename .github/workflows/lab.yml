@@ -51,6 +51,11 @@ jobs:
       - name: Check
         run: dotnet run lab.cs -- check
 
+      # D65: a base backup before the purchases and the drills below, so the restore check at the
+      # end replays their WAL, across the new timelines the failovers make.
+      - name: Backup
+        run: dotnet run lab.cs -- backup
+
       # DP4: `up` has just put the demo on sale, so its rush is on and a release must be refused.
       - name: Deploy gate refuses during an on-sale
         run: |
@@ -93,6 +98,11 @@ jobs:
       - name: Invariants
         run: dotnet run lab.cs -- check --invariants
 
+      # D65: the latest base backup and the WAL restored into a new cluster, with the same orders
+      # and tickets as the running database at a point marked just before.
+      - name: Restore check
+        run: dotnet run lab.cs -- restore-check
+
       # The definition of done: `reset` in under 3 minutes (a slower runner gets a warning up to 5).
       - name: Reset
         run: |
@@ -122,3 +132,5 @@ jobs:
             $kubectl --context kind-eventticketing logs -n eventticketing "deployment/$deployment" --tail=60 || true
           done
           $kubectl --context kind-eventticketing logs -n eventticketing job/migrator --tail=60 || true
+          $kubectl --context kind-eventticketing get clusters,backups.postgresql.cnpg.io -n eventticketing || true
+          $kubectl --context kind-eventticketing logs -n cnpg-system deployment/plugin-barman-cloud --tail=40 || true

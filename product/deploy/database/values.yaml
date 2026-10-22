@@ -18,3 +18,16 @@ pooler:
 resources:
   requests: { cpu: 100m, memory: 256Mi }
   limits: { memory: 1Gi }
+
+# Backups (D65): base backups and WAL through CloudNativePG's Barman Cloud plugin to an S3 object
+# store. Off unless an environment names one (values-lab.yaml: SeaweedFS).
+backups:
+  enabled: false
+  # A base backup a day at 03:00 (seconds first, CloudNativePG's cron), and one at once when it is
+  # set up, so there is always one to restore from; WAL in between, every 5 minutes at the latest.
+  schedule: "0 0 3 * * *"
+  retention: 7d
+  destinationPath: ""
+  endpointURL: ""
+  # The Secret with the store's keys: backup-access-key and backup-secret-key.
+  secret: ""

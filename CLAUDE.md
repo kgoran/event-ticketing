@@ -70,7 +70,8 @@ http://localhost:3000, dashboards in `product/deploy/chart/dashboards`), PublicA
 progress (AS2, 0.5 per instance), Toxiproxy with the Scaling Lab's slow database scenario (TX1), the Scaling Lab's Database panel with
 the failover drill (SL3), and check-in (CI3: ticket revocation; the CheckIn module and CheckInApi at http://localhost:5104;
 devices as Keycloak clients), the scanner (SC1: a Blazor WebAssembly PWA at http://localhost:5104/scanner/, deciding
-offline), and T8 measured with 200 simulated door devices (DS1: `tooling/lab/DeviceSimulator`). D67–D72 were decided while building. Decisions continue at D73.
+offline), T8 measured with 200 simulated door devices (DS1: `tooling/lab/DeviceSimulator`), and backups (BK1: the Barman Cloud plugin to
+SeaweedFS; `lab backup`, `lab restore-check`). D67–D73 were decided while building. Decisions continue at D74.
 
 ## Commands
 
@@ -79,7 +80,7 @@ dotnet build product/EventTicketing.slnx            # product only (CI builds to
 dotnet test --solution product/EventTicketing.slnx  # unit + architecture tests (Microsoft.Testing.Platform)
 dotnet test --project dev/AppHost.Tests             # whole system under Aspire; needs Docker
 dotnet run --project dev/AppHost                    # local development
-dotnet run lab.cs -- up | reset | status | check | deploy | flag | down   # the lab cluster (kind); docs/lab.md
+dotnet run lab.cs -- up | reset | status | check | deploy | flag | drill | backup | restore-check | down   # the lab (kind); docs/lab.md
 ```
 
 Package versions live in `Directory.Packages.props`; warnings are errors. EF Core migrations:
