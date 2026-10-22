@@ -77,6 +77,11 @@ That delay is one of the lab's lessons (ADR-0019: "part of scaling is slow is me
 
 ## Updates
 
+- **2026-10-22 (M3, D56):** The trigger changed, and nothing else: KEDA's `prometheus` trigger on
+  requests in progress per instance, target 0.5, in place of CPU ([0019](0019-autoscaling-signals.md)
+  update). The Scaling Lab's line shows `instances × in progress ÷ target`, and T11's step is now
+  *Step 50 → 150*.
+
 - **2026-10-21 (D43, decided while building):** Measured in the lab, a cold instance used several
   times its CPU request while it served its first requests, and the CPU autoscaler went to its
   maximum at 28 requests/s. Three changes, each measured: PublicApi **warms up before it passes

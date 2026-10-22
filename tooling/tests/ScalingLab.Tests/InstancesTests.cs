@@ -32,9 +32,9 @@ public sealed class InstancesTests
     [Fact]
     public void A_paused_scaled_object_is_auto_off_and_shows_no_measurements()
     {
-        var autoscaler = Instances.FromKeda(ScaledObject(paused: true, scaleDownSeconds: 30), Measured(cpu: 140, current: 3, desired: 6));
+        var autoscaler = Instances.FromKeda(ScaledObject(paused: true, scaleDownSeconds: 30), Measured(inProgress: "1500m", current: 3, desired: 6));
 
-        autoscaler.Should().Be(new Autoscaler(On: false, ScalingProfile.Demo, Min: 1, Max: 8, TargetCpuPercent: 70));
+        autoscaler.Should().Be(new Autoscaler(On: false, ScalingProfile.Demo, Min: 1, Max: 8, Target: 0.75));
     }
 
     [Fact]
@@ -42,16 +42,16 @@ public sealed class InstancesTests
     {
         var scaled = new DateTime(2026, 10, 21, 18, 0, 0, DateTimeKind.Utc);
 
-        var autoscaler = Instances.FromKeda(ScaledObject(paused: false, scaleDownSeconds: 300), Measured(cpu: 140, current: 3, desired: 6, scaled));
+        var autoscaler = Instances.FromKeda(ScaledObject(paused: false, scaleDownSeconds: 300), Measured(inProgress: "1500m", current: 3, desired: 6, scaled));
 
-        autoscaler.Should().Be(new Autoscaler(true, ScalingProfile.Realistic, 1, 8, 70, CpuPercent: 140, Current: 3, Wanted: 6, LastScaled: new DateTimeOffset(scaled)));
+        autoscaler.Should().Be(new Autoscaler(true, ScalingProfile.Realistic, 1, 8, 0.75, InProgress: 1.5, Current: 3, Wanted: 6, LastScaled: new DateTimeOffset(scaled)));
     }
 
     [Fact]
     public void Just_switched_on_there_is_nothing_measured_yet()
     {
         Instances.FromKeda(ScaledObject(paused: false, scaleDownSeconds: 30), measured: null)
-            .Should().Match<Autoscaler>(a => a.On && a.CpuPercent == null && a.Wanted == null);
+            .Should().Match<Autoscaler>(a => a.On && a.InProgress == null && a.Wanted == null);
     }
 
     [Fact]
@@ -72,13 +72,13 @@ public sealed class InstancesTests
             "minReplicaCount": 1,
             "maxReplicaCount": 8,
             "advanced": { "horizontalPodAutoscalerConfig": { "behavior": { "scaleDown": { "stabilizationWindowSeconds": {{scaleDownSeconds}} } } } },
-            "triggers": [ { "type": "cpu", "metricType": "Utilization", "metadata": { "value": "70" } } ]
+            "triggers": [ { "type": "prometheus", "metricType": "AverageValue", "metadata": { "serverAddress": "http://prometheus-server.platform.svc.cluster.local", "threshold": "0.75" } } ]
           },
           "status": { "hpaName": "keda-hpa-publicapi" }
         }
         """).RootElement;
 
-    private static V2HorizontalPodAutoscaler Measured(int cpu, int current, int desired, DateTime? scaled = null) => new()
+    private static V2HorizontalPodAutoscaler Measured(string inProgress, int current, int desired, DateTime? scaled = null) => new()
     {
         Spec = new V2HorizontalPodAutoscalerSpec
         {
@@ -92,10 +92,15 @@ public sealed class InstancesTests
             LastScaleTime = scaled,
             CurrentMetrics =
             [
+                // KEDA's external metric, as Kubernetes reports it per instance: a quantity such as "1500m".
                 new V2MetricStatus
                 {
-                    Type = "Resource",
-                    Resource = new V2ResourceMetricStatus { Name = "cpu", Current = new V2MetricValueStatus { AverageUtilization = cpu } },
+                    Type = "External",
+                    External = new V2ExternalMetricStatus
+                    {
+                        Metric = new V2MetricIdentifier { Name = "s0-prometheus" },
+                        Current = new V2MetricValueStatus { AverageValue = new ResourceQuantity(inProgress) },
+                    },
                 },
             ],
         },

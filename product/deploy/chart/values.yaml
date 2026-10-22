@@ -14,9 +14,11 @@ database:
   # 280, within the database's 300 (product/deploy/database).
   maxPoolSize: 20
 
-# OpenTelemetry collector the hosts export to (ServiceDefaults): empty sends nothing.
+# OpenTelemetry collector the hosts export to (ServiceDefaults): empty sends nothing. Prometheus,
+# where an autoscaler reads what the hosts measure (D56).
 telemetry:
   otlpEndpoint: ""
+  prometheus: ""
 
 # Keycloak's realm as the hosts reach it; tokens carry its public issuer (ADR-0053).
 identity:

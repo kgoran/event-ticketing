@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 
@@ -31,6 +34,28 @@ internal sealed class WarmUpHealthCheck(WarmUpState state) : IHealthCheck
         Task.FromResult(state.Done ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy("Warming up."));
 }
 
+/// <summary>
+/// The warm-up's requests aren't traffic: they are left out of the HTTP metrics, which the
+/// autoscaler reads (AS2), as they are of traces. Counted, a new instance's warm-up would look like
+/// load and buy yet another instance.
+/// </summary>
+internal sealed class WarmUpMetricsFilter : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+    {
+        app.Use((context, request) =>
+        {
+            if (context.Request.Headers.ContainsKey(WarmUpService.Header) && context.Features.Get<IHttpMetricsTagsFeature>() is { } metrics)
+            {
+                metrics.MetricsDisabled = true;
+            }
+
+            return request(context);
+        });
+        next(app);
+    };
+}
+
 internal sealed partial class WarmUpService(
     WarmUpRoutine routine,
     WarmUpState state,
@@ -38,7 +63,7 @@ internal sealed partial class WarmUpService(
     IHostApplicationLifetime lifetime,
     ILogger<WarmUpService> logger) : BackgroundService
 {
-    /// <summary>Marks the warm-up's own requests, so traces leave them out.</summary>
+    /// <summary>Marks the warm-up's own requests, so traces and metrics leave them out.</summary>
     public const string Header = "X-Warm-Up";
 
     /// <summary>A warm-up that takes longer has met a problem: the host takes traffic anyway, and its other checks decide.</summary>

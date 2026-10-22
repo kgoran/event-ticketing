@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -116,6 +117,7 @@ public static class ServiceDefaultsExtensions
         builder.Services.AddSingleton(routine);
         builder.Services.AddSingleton<WarmUpState>();
         builder.Services.AddHostedService<WarmUpService>();
+        builder.Services.AddTransient<IStartupFilter, WarmUpMetricsFilter>();
         builder.Services.AddHealthChecks().AddCheck<WarmUpHealthCheck>("warm-up");
 
         return builder;

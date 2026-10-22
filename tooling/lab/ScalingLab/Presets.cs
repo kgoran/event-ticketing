@@ -20,9 +20,9 @@ public static class Presets
     [
         new("Steady 20/s", "20 requests/s until you change it.", [new(20, null)]),
 
-        // T11's step (ADR-0015): at the lab's 20 requests/s per instance, the step that needs 3× the instances.
-        new("Step 28 → 84", "28 requests/s for 30 s, then 84: the step that will need three times the instances (T11).",
-            [new(28, TimeSpan.FromSeconds(30)), new(84, null)]),
+        // T11's step (ADR-0015): at the lab's 50 requests/s per instance at target (D56), the step that needs 3× the instances.
+        new("Step 50 → 150", "50 requests/s for 30 s, then 150: the step that needs three times the instances (T11).",
+            [new(50, TimeSpan.FromSeconds(30)), new(150, null)]),
 
         // An on-sale: from the usual traffic to 200 in 10 s, held, then back. Within today's capacity.
         new("On-sale spike", $"20 requests/s, up to {SpikeTop} within 10 s, held for 30 s, then back to 20.",
