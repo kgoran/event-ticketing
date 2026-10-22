@@ -86,6 +86,8 @@ public sealed class LoadGeneratorTests
         first.Should().Match<SecondStats>(s => s.Offered == 3 && s.Skipped == 1 && s.Completed == 2 && s.Ok == 1 && s.Failed == 1);
         first.LatencyP99Ms.Should().Be(30, "a failure has no meaningful latency");
         first.CompletedByKind["Hold"].Should().Be(1);
+        first.FailedByKind["Hold"].Should().Be(0);
+        first.FailedByKind["Browse"].Should().Be(1);
         first.LatencyP99MsByKind["Hold"].Should().Be(30);
         first.LatencyP99MsByKind["Browse"].Should().BeNull();
         second.Should().Match<SecondStats>(s => s.Offered == 0 && s.Refused == 1 && s.Completed == 1);

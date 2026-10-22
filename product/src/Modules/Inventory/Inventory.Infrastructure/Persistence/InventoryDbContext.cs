@@ -45,8 +45,19 @@ internal static class SeatStatus
     public const string Sold = "Sold";
 }
 
-internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> options) : ModuleDbContext(options)
+internal class InventoryDbContext : ModuleDbContext
 {
+    public InventoryDbContext(DbContextOptions<InventoryDbContext> options)
+        : base(options)
+    {
+    }
+
+    /// <summary>For <see cref="InventoryReplicaDbContext"/>: the same model, another database.</summary>
+    protected InventoryDbContext(DbContextOptions options)
+        : base(options)
+    {
+    }
+
     public const string SchemaName = "inventory";
 
     /// <summary>At most one Active or InCheckout hold per fan per event (ADR-0011, ADR-0024).</summary>
@@ -108,6 +119,13 @@ internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> op
         });
     }
 }
+
+/// <summary>
+/// Inventory on a replica, for availability when there is no snapshot (D75): advice to a fan, a
+/// moment behind the primary at most, as the snapshot is a second behind. Holds decide on the
+/// primary, through <see cref="InventoryDbContext"/>.
+/// </summary>
+internal sealed class InventoryReplicaDbContext(DbContextOptions<InventoryReplicaDbContext> options) : InventoryDbContext(options);
 
 /// <summary>Used by <c>dotnet ef migrations add</c>.</summary>
 internal sealed class InventoryDesignTimeFactory : IDesignTimeDbContextFactory<InventoryDbContext>

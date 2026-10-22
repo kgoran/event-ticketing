@@ -24,6 +24,8 @@ dotnet run lab.cs -- deploy   roll the product out from the current source, as a
 dotnet run lab.cs -- flag     the feature flags; `flag PauseHolds on` switches one without a deploy
 dotnet run lab.cs -- drill failover            the database's primary crashes under load (T10, then T2)
 dotnet run lab.cs -- drill zone [zone-b|zone-c] a zone's node stops under load, then starts again
+dotnet run lab.cs -- backup          a base backup of the database now, to SeaweedFS (D65)
+dotnet run lab.cs -- restore-check   the latest backup and the WAL restored into a new cluster, and compared
 dotnet run lab.cs -- down     delete the cluster and everything in it
 ```
 
@@ -60,8 +62,9 @@ which database instance is the primary. A cluster made before M3 had one node: `
 
 | Namespace | What |
 |---|---|
-| `platform` | Traefik (the gateway), Keycloak, Mailpit, Toxiproxy (between the hosts and PgBouncer, D57), and the observability stack: the OpenTelemetry Collector, Prometheus, Loki, Tempo, Grafana (D55) |
-| `cnpg-system` | the CloudNativePG operator |
+| `platform` | Traefik (the gateway), Keycloak, Mailpit, Toxiproxy (between the hosts and PgBouncer, D57), SeaweedFS (the backups' object store, D65), and the observability stack: the OpenTelemetry Collector, Prometheus, Loki, Tempo, Grafana (D55) |
+| `cnpg-system` | the CloudNativePG operator and its Barman Cloud plugin (backups, D65) |
+| `cert-manager` | cert-manager, which issues the certificates the plugin and the operator talk over |
 | `keda` | KEDA, which runs PublicApi's autoscaler when the Scaling Lab's **Auto** is on ([ADR-0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md)) |
 | `kube-system` | metrics-server, which measures each pod's CPU for `kubectl top` and the autoscaler |
 | `eventticketing` | the database (release `eventticketing-database`: a primary and two standbys, one per zone) and the product (release `eventticketing`): PublicApi ×3, WebhookIngress ×2, Workers ×2, CheckInApi ×2, BackOfficeApi, the fan site, and Valkey (browsing's shared cache, D51) |
@@ -99,8 +102,9 @@ requests (docs/observability.md), so a lab run has traces to look at without kee
 ## Drills (T10)
 
 Each drill runs 100 requests/s through the gateway, breaks something, and times the way back from
-outside: when the database had a new primary, which seconds had failed requests, then T2's
-invariants (D59).
+outside: when the database had a new primary, which seconds had failed requests and of which kind
+(holds, releases, browsing), then T2's invariants (D59). A failover passes with under 60 s of
+errors (T10) and under 1% of browsing failed: browsing needs no primary (D74, D75).
 
 - **`drill failover`**: the primary crashes (its pod is deleted at once, with no time to finish
   anything). CloudNativePG promotes a standby, and the `-rw` service follows it.
@@ -115,9 +119,24 @@ the timeline, and PgBouncer's clients and server connections. **Crash the primar
 does what `drill failover` does, and the panel times the way back. Measured with 60 requests/s
 (2026-10-22): PgBouncer lost its connections to the primary at once, eventticketing-1 took over
 after about 22 s on timeline 11, PgBouncer was reconnected 4 s later, and all three instances were
-healthy after 44 s. 681 of 7,975 requests failed, every one in the same 20 s: the holds and
-releases, which had nowhere to write. Browsing went on. The zone drill needs Docker on the host,
-so it stays in `lab.cs`.
+healthy after 44 s. 681 of 7,975 requests failed, every one in the same 20 s. The zone drill
+needs Docker on the host, so it stays in `lab.cs`.
+
+**Browsing during a failover (M3 Q8).** Once the generator counted failures per kind, the drill
+showed browsing failing with the holds: 1,081 of 7,046 browsing requests. Two causes, each a
+dependency on the primary that browsing didn't need:
+
+| | Browsing failed | Holds failed |
+|---|---|---|
+| Before | 1,081 of 7,046 (15%) | 550 |
+| Readiness without the database and Valkey (D74) | 572 of 7,087 (8%) | 573 |
+| And availability from a replica when there is no snapshot (D75) | **2 of 7,106** | 562 |
+
+Readiness included each module's database: while the primary was gone, every PublicApi instance
+failed its probe, and Kubernetes took all of them out of the Service together, for about 15 s.
+And availability fell back to the primary once its snapshot expired, because the snapshot's
+builder in Workers couldn't reach the primary either. Holds still fail while there is nowhere to
+write: that is what T10's 60 s are for.
 
 Measured on 2026-10-21:
 
@@ -143,6 +162,41 @@ What the drills taught:
   Browsing from the replica (RR1) and the cache (VK1) are what change that.
 - **A pod on a lost node still looks ready** to the API for a while. The lab asks CloudNativePG
   which instances are healthy.
+
+## Backups (D65)
+
+The database sends its WAL to SeaweedFS as it writes it (every 5 minutes at the latest, at once
+when a segment fills), and a base backup goes there once a day at 03:00 and once when the database
+is created. CloudNativePG's Barman Cloud plugin does both, from a sidecar in each instance's pod;
+base backups are taken from a standby, to spare the primary. The database chart has backups off,
+and the lab's values (`product/deploy/database/values-lab.yaml`) name SeaweedFS and the keys in
+`lab-secrets`. `check` says whether the WAL is being archived; `status` lists the backups.
+
+- **`backup`** takes a base backup now, as before a risky change: about 11 s for the demo's
+  database.
+- **`restore-check`** proves one restores. On the primary, it counts the orders and the tickets
+  and names a point in the WAL (`pg_create_restore_point`) in one transaction that holds a SHARE
+  lock on both tables: no write to them can commit between the counts and the point (writers wait
+  the milliseconds it takes). It waits until that WAL is archived, then restores the latest base
+  backup and the WAL up to the point into `eventticketing-restore`, a new cluster with one
+  instance, and counts again. The cluster is deleted when the counts match, and left to look at
+  when they don't. The running database never notices.
+- **`reset`** deletes the backups with the database: a new database won't archive its WAL where
+  another one's is.
+
+Measured (2026-10-22, the lab cluster on a laptop):
+
+| | |
+|---|---|
+| A base backup | 11 s, from a standby |
+| The marked WAL archived | 1.5–1.9 s after the switch |
+| The restore, from creating the cluster to ready | 50–52 s |
+| Purchases going on during the check (4 buyers) | 6 orders at the point, 4 of them made after the base backup: the same 6 restored, while the buyers went on to 20 |
+| After a failover drill | The base backup on timeline 1, the point on timeline 2: the same 11 orders and 11 tickets |
+
+The lab workflow takes a backup after `check`, and checks a restore after the drills, so the
+restore replays the purchases' WAL across the failovers' timelines. Restoring to a chosen time,
+as a drill after a mistake would, stays M6's.
 
 ## Connections: PgBouncer, and the replicas (D49, D50)
 
@@ -186,8 +240,9 @@ At 200 browsing requests/s, measured on 2026-10-21:
 | Output cache | 480 | 297m |
 | And availability snapshots | **89** (idle: 71) | **89m** |
 
-In the failover drill, cached browsing keeps answering while the primary is gone: 1,179 requests
-failed instead of 1,692. Holds and availability (once its 5-second snapshot is gone) still fail.
+In the failover drill, browsing keeps answering while the primary is gone: availability comes
+from a replica when there is no snapshot (D75), and readiness doesn't depend on the database
+(D74). Holds still fail ([Drills](#drills-t10)).
 
 ## T2's invariants
 
@@ -431,3 +486,17 @@ failed request.
     forwarding, and every request in flight stalled for a second and a half: T8 missed, while
     CheckInApi's own p99 said 87 ms. Real devices keep their own connections; the simulator now keeps
     its for the run. Look at the server's numbers before blaming the server.
+12. **Ready can mean "not looked yet".** Adding the backup plugin to a running database changes its
+    pods, so CloudNativePG restarts the instances one by one. But the cluster still said Ready for
+    a few seconds after the change, until the operator got to it: `kubectl wait` passed at once,
+    the product deployed during the restarts, and the seeding met a 500. `up` now waits for the
+    operator to start when the cluster's spec changed, then for Ready. A status is only as recent
+    as the controller's last look at your change: where a resource has no `observedGeneration`,
+    wait for the change to begin.
+13. **Readiness is about the instance, not what every instance shares.** Aspire's integrations add
+    a health check for each database context and each Valkey client, and readiness included them.
+    When the primary went, every PublicApi instance failed its probe at the same moment, and
+    Kubernetes took them all out of rotation: a failover of the writes became an outage of
+    everything, browsing too, which needed no primary. Readiness now says whether this instance has
+    warmed up (D74); a shared dependency is watched by its own probes and dashboards. Count
+    failures by what failed: a total hid this for a milestone.

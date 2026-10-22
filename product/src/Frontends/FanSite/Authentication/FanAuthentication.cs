@@ -73,10 +73,11 @@ internal static class FanAuthentication
 
         // Fans' tokens and the sign-in cookie's keys where every instance finds them (ADR-0049, D54):
         // in Valkey when the host has it, so a fan stays signed in on any instance and through a
-        // deploy; in memory when the fan site runs alone.
+        // deploy; in memory when the fan site runs alone. Not in readiness (D74): without Valkey the
+        // fan site still shows events, and every instance would leave rotation together.
         if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString(Valkey)))
         {
-            builder.AddRedisDistributedCache(Valkey);
+            builder.AddRedisDistributedCache(Valkey, settings => settings.DisableHealthChecks = true);
             builder.Services.AddDataProtection().SetApplicationName("EventTicketing.FanSite");
             builder.Services.AddOptions<KeyManagementOptions>().Configure<IConnectionMultiplexer>((options, valkey) =>
                 options.XmlRepository = new RedisXmlRepository(() => valkey.GetDatabase(), "fansite:data-protection-keys"));

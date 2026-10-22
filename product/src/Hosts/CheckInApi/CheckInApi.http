@@ -48,6 +48,33 @@ Content-Type: application/json
   ]
 }
 
+### At the door with the scanner (http://localhost:5104/scanner/): paste the device's response above,
+### then a code from here. Ana's tickets (she bought some on the fan site first)
+# @name ana
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=ana&password=ana
+
+### Each ticket's code is what its QR code says
+# @name anasTickets
+GET http://localhost:5101/tickets
+Authorization: Bearer {{ana.response.body.$.access_token}}
+
+### Sign in as adam, the admin
+# @name adam
+POST {{keycloak}}/realms/eventticketing/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=eventticketing-dev&username=adam&password=adam
+
+### adam revokes ana's third ticket (D63): the door refuses it once the devices have synced, within seconds
+POST {{backOffice}}/tickets/{{anasTickets.response.body.$[2].ticketId}}/revocation
+Authorization: Bearer {{adam.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "reason": "Reported stolen" }
+
 ### The event's devices, with when each last uploaded
 GET {{backOffice}}/events/{{events.response.body.$.items[0].eventId}}/devices
 Authorization: Bearer {{olga.response.body.$.access_token}}

@@ -1,0 +1,40 @@
+{{- with .Values.backups }}
+{{- if .enabled }}
+# Where the backups go (D65), for CloudNativePG's Barman Cloud plugin: WAL and base backups,
+# compressed, kept for {{ .retention }}.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ $.Values.name }}-backups
+  labels:
+    app.kubernetes.io/part-of: eventticketing
+spec:
+  retentionPolicy: {{ .retention | quote }}
+  configuration:
+    destinationPath: {{ .destinationPath }}
+    endpointURL: {{ .endpointURL }}
+    s3Credentials:
+      accessKeyId: { name: {{ .secret }}, key: backup-access-key }
+      secretAccessKey: { name: {{ .secret }}, key: backup-secret-key }
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ $.Values.name }}-daily
+  labels:
+    app.kubernetes.io/part-of: eventticketing
+spec:
+  schedule: {{ .schedule | quote }}
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: {{ $.Values.name }}
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+{{- end }}
+{{- end }}

@@ -1,0 +1,5 @@
+# CloudNativePG's Barman Cloud plugin (D65): base backups and WAL to an S3-compatible object store,
+# SeaweedFS in the lab. Next to the operator, in cnpg-system and zone-a (D59).
+nodeSelector: { topology.kubernetes.io/zone: zone-a }
+resources:
+  requests: { cpu: 10m, memory: 64Mi }
