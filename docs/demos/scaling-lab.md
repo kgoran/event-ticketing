@@ -115,6 +115,20 @@ instances shows what it measures and wants.
    and so do the extra instances. Browse p99 hardly moves: browsing reads a replica and the
    cache ([the lab](../lab.md#a-slow-database-d57)).
 
+## In the lab cluster: the database (M3)
+
+The **Database** panel, under Instances, shows the product's three PostgreSQL instances, one per
+zone: which is primary, the standbys' lag, connections, and PgBouncer in front of the primary.
+
+1. Run **Steady 20/s** with **Holds** at 30%, or 60/s, so the charts have something to lose.
+2. **Crash the primary**, then click again to confirm. The phase turns to *Failing over*,
+   PgBouncer's connections to the primary drop to 0, and the requests chart shows holds failing.
+3. After about 20 s a standby is ★ primary on the next timeline, PgBouncer reconnects, and holds
+   work again; the crashed instance comes back as a standby. Browsing never stopped: it reads the
+   standbys and the cache.
+4. Afterwards, in a terminal: `dotnet run lab.cs -- check --invariants`. Every rule holds: no
+   confirmed order lost its seats, nothing was sold twice.
+
 ## If something is off
 
 | Symptom | Cause |

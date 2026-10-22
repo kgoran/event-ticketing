@@ -452,6 +452,36 @@
             </ul>
             break;
 
+        case HelpTopic.Database:
+            <p>
+                The product's PostgreSQL cluster, as CloudNativePG runs it: three instances, one per zone (D48). The
+                <strong>primary</strong> (★) takes every write; the two <strong>standbys</strong> (✓) replay what it writes and
+                answer browsing (RR1). A commit waits until one standby has it (quorum synchronous commit, D46), so losing
+                the primary loses no confirmed order.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li><strong>Lag:</strong> how far a standby's replay is behind the primary, as the primary reports it. Under load a few milliseconds.</li>
+                <li><strong>Connections:</strong> backends on each instance. The primary's come from PgBouncer, a few dozen however many hosts run (D49); the standbys' from PublicApi's browsing.</li>
+                <li><strong>Timeline:</strong> PostgreSQL's history counter, one more at every promotion. A failover drill moves it on by one.</li>
+                <li><strong>PgBouncer:</strong> clients are the hosts' connections, waiting ones have no server connection yet; more than a handful waiting means the pool is too small.</li>
+            </ul>
+            break;
+
+        case HelpTopic.CrashPrimary:
+            <p>
+                The failover drill (D59), as <code>dotnet run lab.cs -- drill failover</code> runs it: the primary's pod is deleted
+                at once, with no time to finish anything, as a crash would leave it. Click twice: the first click asks.
+            </p>
+            <h4>What happens</h4>
+            <ul>
+                <li>CloudNativePG notices the primary is gone, promotes the standby furthest ahead, and moves the <code>-rw</code> service to it: about 20 s.</li>
+                <li>Meanwhile holds fail (there is nowhere to write); browsing goes on from the standbys and the cache. Run some load first to see it in the charts.</li>
+                <li>The crashed instance comes back as a standby on the new timeline. T2's invariants still hold: <code>dotnet run lab.cs -- check --invariants</code>.</li>
+                <li>The zone drill (a whole node stopped) needs Docker on your machine, so it is only in <code>lab.cs</code>: <code>drill zone</code>.</li>
+            </ul>
+            break;
+
         case HelpTopic.RequestsChart:
             <p>
                 The last 2 minutes, one point per second: <strong>Offered</strong> (dashed) is what the schedule asked for, and
