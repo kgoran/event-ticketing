@@ -27,6 +27,7 @@ nodes:
       - { hostPort: 8025, containerPort: 30025, listenAddress: 127.0.0.1 } # Mailpit
       - { hostPort: 8180, containerPort: 30180, listenAddress: 127.0.0.1 } # Keycloak
       - { hostPort: 3000, containerPort: 30030, listenAddress: 127.0.0.1 } # Grafana (M3)
+      - { hostPort: 8088, containerPort: 30088, listenAddress: 127.0.0.1 } # Redpanda Console (M4)
   - role: worker
     labels: { topology.kubernetes.io/zone: zone-b }
   - role: worker

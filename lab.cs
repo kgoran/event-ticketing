@@ -39,6 +39,8 @@ try
         "deploy" => await lab.DeployAsync(args[1..]),
         "flag" => lab.Flag(args[1..]),
         "drill" => await lab.DrillAsync(args[1..]),
+        "backup" => await lab.BackupAsync(),
+        "restore-check" => await lab.RestoreCheckAsync(),
         _ => Lab.Help(),
     };
 }
@@ -62,7 +64,7 @@ sealed class Lab(string root)
     [
         (5100, "fan site"), (5101, "PublicApi"), (5102, "BackOfficeApi"), (5103, "WebhookIngress"), (5104, "CheckInApi"),
         (5201, "LocalPay"), (5300, "Scaling Lab"), (5301, "load generator"),
-        (8025, "Mailpit"), (8180, "Keycloak"), (3000, "Grafana"),
+        (8025, "Mailpit"), (8180, "Keycloak"), (3000, "Grafana"), (8088, "Redpanda Console"),
     ];
 
     /// <summary>The images `up` builds, and the projects they come from.</summary>
@@ -112,6 +114,8 @@ sealed class Lab(string root)
               dotnet run lab.cs -- flag <name> on|off   switch one in the running system, without a deploy
               dotnet run lab.cs -- drill failover       the database's primary deleted under load; T10 and T2 checked
               dotnet run lab.cs -- drill zone [zone-b|zone-c]   a zone's node stopped under load
+              dotnet run lab.cs -- backup          a base backup of the database now, to SeaweedFS (D65)
+              dotnet run lab.cs -- restore-check   the latest backup and the WAL restored into a new cluster, and compared
               dotnet run lab.cs -- down     delete the cluster and everything in it
             """);
         return 0;
@@ -130,6 +134,12 @@ sealed class Lab(string root)
             throw new LabException(
                 $"The lab cluster has {ClusterNodes()} node(s); this version of the lab makes {ConfiguredNodes()}, one per zone (D47). "
                 + "Make it again: dotnet run lab.cs -- down, then up.");
+        }
+
+        // A cluster made before M4 doesn't map Redpanda Console's port: everything else works.
+        if (ClusterExists() && !Capture("docker", ["port", $"{ClusterName}-control-plane"]).Contains(":8088", StringComparison.Ordinal))
+        {
+            Console.WriteLine("Note: this cluster was made before M4 and doesn't map port 8088 (Redpanda Console). Everything else works; down, then up, to get it.");
         }
 
         if (!ClusterExists())
@@ -176,6 +186,13 @@ sealed class Lab(string root)
         }
 
         Kubectl("delete", "pvc", "-n", "eventticketing", "-l", "cnpg.io/cluster=eventticketing", "--ignore-not-found", "--wait");
+
+        // The backups go with the database they saved (D65): a new database won't archive its WAL
+        // where another one's already is.
+        Kubectl("delete", "backups.postgresql.cnpg.io", "--all", "-n", "eventticketing", "--ignore-not-found");
+        Kubectl("delete", "cluster", RestoreCluster, "-n", "eventticketing", "--ignore-not-found", "--wait");
+        Weed("s3.bucket.delete -name backups");
+        Weed("s3.bucket.create -name backups");
 
         // A restarted Toxiproxy forgets every toxic: the database isn't left slow (D57).
         Kubectl("rollout", "restart", "deployment/toxiproxy", "-n", "platform");
@@ -261,8 +278,23 @@ sealed class Lab(string root)
     private void InstallProduct(string tag)
     {
         Step("Product: database");
-        Helm("eventticketing-database", PathOf("product/deploy/database"), repo: null, version: null, "eventticketing", values: null);
-        Kubectl("wait", "--for=condition=Ready", "cluster/eventticketing", "-n", "eventticketing", "--timeout=300s");
+        string[] spec = ["--context", Context, "get", "cluster", "eventticketing", "-n", "eventticketing", "-o", "jsonpath={.spec}", "--ignore-not-found"];
+        var before = Capture(_tools.Kubectl, spec);
+        Helm("eventticketing-database", PathOf("product/deploy/database"), repo: null, version: null, "eventticketing", PathOf("product/deploy/database/values-lab.yaml"));
+
+        // A changed cluster may restart its instances one by one (BK1's plugin did), but Ready stays
+        // True until the operator gets to it, a few seconds later: wait for it to start first.
+        if (before.Length > 0 && before != Capture(_tools.Kubectl, spec))
+        {
+            var changed = Stopwatch.StartNew();
+            while (changed.Elapsed < TimeSpan.FromSeconds(30)
+                && Capture(_tools.Kubectl, ["--context", Context, "get", "cluster", "eventticketing", "-n", "eventticketing", "-o", "jsonpath={.status.phase}"]) == "Cluster in healthy state")
+            {
+                Thread.Sleep(TimeSpan.FromSeconds(1));
+            }
+        }
+
+        Kubectl("wait", "--for=condition=Ready", "cluster/eventticketing", "-n", "eventticketing", "--timeout=600s");
 
         DeployProduct(tag);
     }
@@ -367,6 +399,10 @@ sealed class Lab(string root)
 
         Step("T10: requests that failed during the rollout");
         Console.WriteLine($"  {completed} answered in {seconds} s, {failed} failed ({share:P3}), {Sum("skipped")} skipped. T10 allows under 0.1%.");
+        if (failed > 0)
+        {
+            Console.WriteLine($"  Failed: {FailedByKind(window)}.");
+        }
         if (seconds > 300)
         {
             Console.WriteLine("  The generator keeps 300 seconds; only the last 300 are counted.");
@@ -541,8 +577,16 @@ sealed class Lab(string root)
         }
 
         Step("Addresses");
+        // A port a cluster made before a milestone doesn't map (8088 before M4) is noted, not failed.
+        var mapped = Capture("docker", ["port", $"{ClusterName}-control-plane"]);
         foreach (var (port, what) in Addresses)
         {
+            if (!mapped.Contains($":{port}", StringComparison.Ordinal))
+            {
+                Console.WriteLine($"  --    {what} at http://localhost:{port}: this cluster doesn't map the port; down, then up, to get it");
+                continue;
+            }
+
             await Check($"{what} at http://localhost:{port}", async () =>
             {
                 using var response = await http.GetAsync(new Uri($"http://localhost:{port}/"));
@@ -613,6 +657,28 @@ sealed class Lab(string root)
             using var answer = await Grafana("api/search?tag=eventticketing&type=dash-db");
             var titles = answer.RootElement.EnumerateArray().Select(dashboard => dashboard.GetProperty("title").GetString()).ToList();
             return titles.Count >= 3 ? null : $"found {titles.Count}: {string.Join(", ", titles)}";
+        });
+
+        Step("Kafka (D76)");
+        await Check("three Redpanda brokers, healthy", () =>
+        {
+            var health = Capture(_tools.Kubectl, ["--context", Context, "exec", "-n", "platform", "redpanda-0", "-c", "redpanda", "--", "rpk", "cluster", "health"]);
+            var healthy = health.Split('\n').Any(line => line.StartsWith("Healthy:", StringComparison.Ordinal) && line.TrimEnd().EndsWith("true", StringComparison.Ordinal));
+            var nodes = health.Split('\n').FirstOrDefault(line => line.StartsWith("All nodes:", StringComparison.Ordinal))?.Split('[', ']')[1].Split(' ', StringSplitOptions.RemoveEmptyEntries).Length ?? 0;
+            return Task.FromResult(healthy && nodes == 3 ? null : $"healthy: {healthy}, brokers: {nodes}");
+        });
+
+        Step("The database's backups (D65)");
+        await Check("its WAL is archived to SeaweedFS", () =>
+        {
+            var archiving = Capture(_tools.Kubectl, ["--context", Context, "get", "cluster", "eventticketing", "-n", "eventticketing", "-o", "jsonpath={.status.conditions[?(@.type==\"ContinuousArchiving\")]}"]);
+            if (string.IsNullOrEmpty(archiving))
+            {
+                return Task.FromResult<string?>("not yet: CloudNativePG hasn't reported on it");
+            }
+
+            using var condition = JsonDocument.Parse(archiving);
+            return Task.FromResult(condition.RootElement.GetProperty("status").GetString() == "True" ? null : condition.RootElement.GetProperty("message").GetString());
         });
 
         Step("The database, through Toxiproxy");
@@ -693,6 +759,12 @@ sealed class Lab(string root)
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
         var previous = await http.GetStringAsync(GeneratorSettings);
 
+        // A topic with three replicas, to write to while a zone is down (D76); made while all three run.
+        if (kind == "zone")
+        {
+            Succeeds(_tools.Kubectl, ["--context", Context, "exec", "-n", "platform", "redpanda-0", "-c", "redpanda", "--", "rpk", "topic", "create", "lab.drill", "-r", "3", "-p", "1"]);
+        }
+
         Step("Load: 100 requests/s through the gateway, 20% holds");
         await SetLoadAsync(http, """{"requestsPerSecond":100,"holdShare":0.2}""");
         await Task.Delay(TimeSpan.FromSeconds(15)); // steady before anything breaks
@@ -753,11 +825,26 @@ sealed class Lab(string root)
         Console.WriteLine(failing.Count == 0
             ? $"  {completed} answered, none failed."
             : $"  {completed} answered, {failing.Sum(second => second.failed)} failed, within {errorSeconds} s (from {failing[0].index - (window.Count - seconds)} s to {failing[^1].index - (window.Count - seconds)} s after the failure).");
+        if (failing.Count > 0)
+        {
+            Console.WriteLine($"  Failed: {FailedByKind(window)}.");
+        }
+
         Console.WriteLine(kind == "failover"
             ? (errorSeconds < 60 ? "  Within T10 (under 60 s of errors)." : "  Over T10: 60 s of errors or more.")
             : "  A zone may take minutes to recover (§10); its database instance waits for the node, the hosts move.");
 
+        // Browsing reads the replica and the cache (RR1, VK1): without the primary it goes on (M3).
+        var browsed = window.Sum(second => ByKind(second, "completedByKind", "Browse"));
+        var browsingFailed = window.Sum(second => ByKind(second, "failedByKind", "Browse"));
+        var browsingWentOn = browsingFailed <= browsed / 100;
+        if (kind == "failover")
+        {
+            Console.WriteLine($"  Browsing: {browsingFailed} of {browsed} failed. {(browsingWentOn ? "It went on without the primary." : "Over 1%: it should go on without the primary (the replica and the cache).")}");
+        }
+
         var invariants = InvariantsHold();
+        var kafka = node is null || KafkaWritesWithout(node);
         if (node is not null)
         {
             Step($"Zone: the node {node} starts again");
@@ -765,7 +852,203 @@ sealed class Lab(string root)
             Kubectl("wait", "node", node, "--for=condition=Ready", "--timeout=180s");
             Kubectl("wait", "--for=condition=Ready", "cluster/eventticketing", "-n", "eventticketing", "--timeout=300s");
         }
-        return (promoted is not null || !promotes) && invariants && (kind != "failover" || errorSeconds < 60) ? 0 : 1;
+        return (promoted is not null || !promotes) && invariants && kafka && (kind != "failover" || (errorSeconds < 60 && browsingWentOn)) ? 0 : 1;
+    }
+
+    /// <summary>
+    /// With a zone down, Kafka still takes writes (D76): a message produced with acks=all, through a
+    /// broker that runs, needs a majority of its three replicas, and two remain.
+    /// </summary>
+    private bool KafkaWritesWithout(string node)
+    {
+        Step("Kafka: a write with acks=all while the zone is down");
+        var broker = Capture(_tools.Kubectl, ["--context", Context, "get", "pods", "-n", "platform", "-l", "app.kubernetes.io/name=redpanda", "-o", $"jsonpath={{.items[?(@.spec.nodeName!=\"{node}\")].metadata.name}}"])
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        var written = broker is not null && Succeeds(
+            _tools.Kubectl, ["--context", Context, "exec", "-i", "-n", "platform", broker, "-c", "redpanda", "--", "rpk", "topic", "produce", "lab.drill", "--acks", "-1"],
+            stdin: $"written without {node}\n");
+        Console.WriteLine(written ? $"  ok    two of three replicas took it, through {broker}" : "  FAIL  the write wasn't acknowledged");
+        return written;
+    }
+
+    /// <summary>The load generator's failed requests per kind over its seconds, as a drill or a deploy reports them.</summary>
+    private static string FailedByKind(IReadOnlyCollection<JsonElement> window) =>
+        string.Join(", ", new[] { ("Hold", "holds"), ("Release", "releases"), ("Browse", "browsing") }
+            .Select(kind => $"{kind.Item2} {window.Sum(second => ByKind(second, "failedByKind", kind.Item1))}"));
+
+    private static int ByKind(JsonElement second, string property, string kind) =>
+        second.TryGetProperty(property, out var byKind) && byKind.TryGetProperty(kind, out var count) ? count.GetInt32() : 0;
+
+    private const string RestoreCluster = "eventticketing-restore";
+
+    /// <summary>
+    /// A base backup now (D65), as before a risky change: CloudNativePG has the Barman Cloud plugin
+    /// copy an instance's data files to SeaweedFS (a standby's, if one is ready, to spare the
+    /// primary). The WAL goes there continuously anyway; a base backup is where a restore starts.
+    /// </summary>
+    public async Task<int> BackupAsync()
+    {
+        if (!_tools.Installed || !ClusterExists())
+        {
+            throw new LabException("No lab cluster. Start one with: dotnet run lab.cs -- up");
+        }
+
+        var name = $"manual-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+        Step($"Backup {name}");
+        Apply($"""
+            apiVersion: postgresql.cnpg.io/v1
+            kind: Backup
+            metadata:
+              name: {name}
+              namespace: eventticketing
+            spec:
+              cluster:
+                name: eventticketing
+              method: plugin
+              pluginConfiguration:
+                name: barman-cloud.cloudnative-pg.io
+            """);
+
+        var clock = Stopwatch.StartNew();
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            using var backup = JsonDocument.Parse(Capture(_tools.Kubectl, ["--context", Context, "get", "backups.postgresql.cnpg.io", name, "-n", "eventticketing", "-o", "json"]));
+            var status = backup.RootElement.TryGetProperty("status", out var value) ? value : default;
+            var phase = status.ValueKind == JsonValueKind.Object && status.TryGetProperty("phase", out var current) ? current.GetString() : null;
+            if (phase == "completed")
+            {
+                Console.WriteLine($"  completed in {clock.Elapsed.TotalSeconds:0} s, from {status.GetProperty("instanceID").GetProperty("podName").GetString()}: "
+                    + $"WAL {status.GetProperty("beginWal").GetString()} to {status.GetProperty("endWal").GetString()}");
+                return 0;
+            }
+
+            if (phase == "failed" || clock.Elapsed > TimeSpan.FromMinutes(10))
+            {
+                throw new LabException($"The backup {name} {(phase == "failed" ? "failed" : "didn't finish in 10 minutes")}: "
+                    + (status.ValueKind == JsonValueKind.Object && status.TryGetProperty("error", out var error) ? error.GetString() : phase ?? "no status"));
+            }
+        }
+    }
+
+    /// <summary>
+    /// The restore drill (D65): a backup counts once it has been restored. The orders and tickets
+    /// are counted at a named point in the WAL; once that WAL is archived, the latest base backup
+    /// and the WAL up to the point are restored into a new one-instance cluster, and counted
+    /// again. The running database never notices. The new cluster is deleted if the counts match,
+    /// and left to look at if they don't.
+    /// </summary>
+    public async Task<int> RestoreCheckAsync()
+    {
+        if (!_tools.Installed || !ClusterExists())
+        {
+            throw new LabException("No lab cluster. Start one with: dotnet run lab.cs -- up");
+        }
+
+        // The latest base backup: a point named in the WAL says nothing about time, so CloudNativePG
+        // can't choose the backup before it, and is told.
+        using var backups = JsonDocument.Parse(Capture(_tools.Kubectl, ["--context", Context, "get", "backups.postgresql.cnpg.io", "-n", "eventticketing", "-o", "json"]));
+        var latest = backups.RootElement.GetProperty("items").EnumerateArray()
+            .Where(backup => backup.TryGetProperty("status", out var status) && status.TryGetProperty("phase", out var phase) && phase.GetString() == "completed")
+            .Select(backup => (Name: backup.GetProperty("metadata").GetProperty("name").GetString(), Id: backup.GetProperty("status").GetProperty("backupId").GetString(), Stopped: backup.GetProperty("status").GetProperty("stoppedAt").GetDateTimeOffset()))
+            .OrderBy(backup => backup.Stopped)
+            .LastOrDefault();
+        if (latest.Id is null)
+        {
+            throw new LabException("No backup has completed yet. Take one with: dotnet run lab.cs -- backup");
+        }
+
+        Kubectl("delete", "cluster", RestoreCluster, "-n", "eventticketing", "--ignore-not-found", "--wait");
+        var primary = DatabasePod("primary") ?? throw new LabException("No database primary is running.");
+
+        // The counts and the point, at one moment: the SHARE lock lets no write to either table
+        // commit between them (the writers wait the milliseconds it takes). Each table is written
+        // in its module's own transactions, so nothing holds one while it waits for the other.
+        var point = $"restore-check-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+        Step($"The point {point}, on {primary}");
+        const string Counts = "SELECT (SELECT count(*) FROM orders.orders), (SELECT count(*) FROM ticketing.tickets)";
+        var marked = Sql(primary, $"""
+            BEGIN;
+            SET LOCAL lock_timeout = '5s';
+            LOCK TABLE orders.orders, ticketing.tickets IN SHARE MODE;
+            {Counts}, pg_create_restore_point('{point}');
+            COMMIT;
+            SELECT pg_walfile_name(pg_switch_wal());
+            """).Where(line => line is not ("BEGIN" or "SET" or "LOCK TABLE" or "COMMIT")).ToList();
+        var expected = string.Join('|', marked[0].Split('|')[..2]);
+        var segment = marked[1];
+        Console.WriteLine($"  orders | tickets: {expected.Replace("|", " | ")}");
+
+        Step($"Waiting until the WAL segment {segment} is archived");
+        var clock = Stopwatch.StartNew();
+        while (string.CompareOrdinal(Sql(primary, "SELECT coalesce(last_archived_wal, '') FROM pg_stat_archiver;").FirstOrDefault() ?? "", segment) < 0)
+        {
+            if (clock.Elapsed > TimeSpan.FromMinutes(2))
+            {
+                throw new LabException($"The WAL segment {segment} wasn't archived in 2 minutes: dotnet run lab.cs -- check says why.");
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+
+        Console.WriteLine($"  archived after {clock.Elapsed.TotalSeconds:0.0} s");
+
+        // The same PostgreSQL and the same limits: a standby's max_connections may not be lower than
+        // its primary's, and a restore replays the WAL as a standby does.
+        Step($"Restoring {latest.Name} and the WAL up to the point into {RestoreCluster}");
+        using var source = JsonDocument.Parse(Capture(_tools.Kubectl, ["--context", Context, "get", "cluster", "eventticketing", "-n", "eventticketing", "-o", "json"]));
+        var spec = source.RootElement.GetProperty("spec");
+        Apply($"""
+            apiVersion: postgresql.cnpg.io/v1
+            kind: Cluster
+            metadata:
+              name: {RestoreCluster}
+              namespace: eventticketing
+            spec:
+              instances: 1
+              imageName: {spec.GetProperty("imageName").GetString()}
+              storage:
+                size: {spec.GetProperty("storage").GetProperty("size").GetString()}
+              postgresql:
+                parameters:
+                  max_connections: "{spec.GetProperty("postgresql").GetProperty("parameters").GetProperty("max_connections").GetString()}"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              bootstrap:
+                recovery:
+                  source: backups
+                  recoveryTarget:
+                    backupID: {latest.Id}
+                    targetName: {point}
+              externalClusters:
+                - name: backups
+                  plugin:
+                    name: barman-cloud.cloudnative-pg.io
+                    parameters:
+                      barmanObjectName: eventticketing-backups
+                      serverName: eventticketing
+            """);
+        clock.Restart();
+        Kubectl("wait", "--for=condition=Ready", $"cluster/{RestoreCluster}", "-n", "eventticketing", "--timeout=600s");
+        Console.WriteLine($"  ready after {clock.Elapsed.TotalSeconds:0} s");
+
+        var restored = Sql($"{RestoreCluster}-1", Counts + ";")[0];
+        var same = restored == expected;
+        Step(same ? "The same orders and tickets" : "Different");
+        Console.WriteLine($"  at the point:  orders | tickets: {expected.Replace("|", " | ")}");
+        Console.WriteLine($"  restored:      orders | tickets: {restored.Replace("|", " | ")}");
+        if (!same)
+        {
+            Console.WriteLine($"  {RestoreCluster} is left to look at; reset or restore-check deletes it.");
+            return 1;
+        }
+
+        Kubectl("delete", "cluster", RestoreCluster, "-n", "eventticketing", "--wait");
+        return 0;
     }
 
     /// <summary>
@@ -842,6 +1125,9 @@ sealed class Lab(string root)
         Run(_tools.Kubectl, ["--context", Context, "get", "cluster", "eventticketing", "-n", "eventticketing"]);
         Run(_tools.Kubectl, ["--context", Context, "get", "pods", "-n", "eventticketing", "-l", "cnpg.io/cluster=eventticketing", "-L", "cnpg.io/instanceRole", "-o", "wide"]);
         Console.WriteLine();
+        // Its backups (D65), the latest last.
+        Run(_tools.Kubectl, ["--context", Context, "get", "backups.postgresql.cnpg.io", "-n", "eventticketing", "--sort-by=.metadata.creationTimestamp"]);
+        Console.WriteLine();
         PrintAddresses();
         return 0;
     }
@@ -862,7 +1148,36 @@ sealed class Lab(string root)
         Kubectl("wait", "--for=condition=Programmed", "gateway/lab", "-n", "platform", "--timeout=120s");
 
         Step("Platform: secrets");
-        EnsureSecrets();
+        var secrets = EnsureSecrets();
+
+        // Backups (D65): the Barman Cloud plugin talks to CloudNativePG's operator over TLS that
+        // cert-manager issues, and sends them to SeaweedFS. Before the product: its database names both.
+        Step("Platform: cert-manager, the Barman Cloud plugin, SeaweedFS");
+        Helm("cert-manager", Chart("cert-manager", Pins.CertManagerRepo, Pins.CertManagerChart), repo: null, version: null, "cert-manager", PathOf("platform/cert-manager/values.yaml"));
+        Helm("plugin-barman-cloud", Chart("plugin-barman-cloud", Pins.CloudNativePgRepo, Pins.BarmanCloudPluginChart), repo: null, version: null, "cnpg-system", PathOf("platform/plugin-barman-cloud/values.yaml"));
+        var identities = new JsonObject
+        {
+            ["identities"] = new JsonArray(new JsonObject
+            {
+                ["name"] = "backups",
+                ["credentials"] = new JsonArray(new JsonObject { ["accessKey"] = secrets["backup-access-key"], ["secretKey"] = secrets["backup-secret-key"] }),
+                ["actions"] = new JsonArray("Admin", "Read", "Write", "List", "Tagging"),
+            }),
+        };
+        Apply(Capture(_tools.Kubectl, ["--context", Context, "create", "secret", "generic", "seaweedfs-s3", "-n", "platform", $"--from-literal=s3.json={identities.ToJsonString()}", "--dry-run=client", "-o", "yaml"]));
+        Kubectl("apply", "-f", PathOf("platform/manifests/seaweedfs.yaml"));
+        Kubectl("rollout", "status", "deployment/seaweedfs", "-n", "platform", "--timeout=300s");
+        if (!Weed("s3.bucket.list").Split('\n').Any(line => line.Trim().StartsWith("backups", StringComparison.Ordinal)))
+        {
+            Weed("s3.bucket.create -name backups");
+        }
+
+        // Kafka (D76): three brokers, one per zone, and Redpanda Console. Before the product: the
+        // Migrator creates its topics.
+        Step("Platform: Redpanda");
+        Kubectl("apply", "-f", PathOf("platform/manifests/redpanda.yaml"));
+        Kubectl("rollout", "status", "statefulset/redpanda", "-n", "platform", "--timeout=300s");
+        Kubectl("rollout", "status", "deployment/redpanda-console", "-n", "platform", "--timeout=180s");
 
         Step("Platform: Keycloak, Mailpit, Toxiproxy");
         var realm = PathOf("dev/AppHost/Realms/eventticketing-realm.json");
@@ -895,7 +1210,7 @@ sealed class Lab(string root)
     /// The lab's secrets (ADR-0025, D33), generated once per cluster and kept in a Secret that every
     /// lab namespace gets a copy of: Keycloak and the product must agree on the client secrets.
     /// </summary>
-    private void EnsureSecrets()
+    private Dictionary<string, string> EnsureSecrets()
     {
         var existing = Capture(_tools.Kubectl, ["--context", Context, "get", "secret", "lab-secrets", "-n", "platform", "-o", "jsonpath={.data}", "--ignore-not-found"]);
         var values = string.IsNullOrWhiteSpace(existing)
@@ -914,6 +1229,8 @@ sealed class Lab(string root)
             ("ticketing-master-key", () => Secret(48)),
             ("grafana-admin-user", () => "admin"),
             ("grafana-admin-password", () => Secret(24)),
+            ("backup-access-key", () => Secret(20)),
+            ("backup-secret-key", () => Secret(40)),
         })
         {
             values.TryAdd(key, generate());
@@ -933,6 +1250,8 @@ sealed class Lab(string root)
                 {data}
                 """);
         }
+
+        return values;
 
         static string Secret(int length) => RandomNumberGenerator.GetString("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", length);
     }
@@ -1023,6 +1342,18 @@ sealed class Lab(string root)
 
     private void Apply(string manifest) => Run(_tools.Kubectl, ["--context", Context, "apply", "-f", "-"], stdin: manifest);
 
+    /// <summary>A command in SeaweedFS's shell, which talks to its master inside the pod.</summary>
+    private string Weed(string command) =>
+        Capture(_tools.Kubectl, ["--context", Context, "exec", "-i", "-n", "platform", "deployment/seaweedfs", "--", "weed", "shell"], stdin: command + "\n");
+
+    /// <summary>Runs SQL with psql in a database instance's pod, as postgres; returns its rows, a line each, fields split by '|'.</summary>
+    private string[] Sql(string pod, string sql) =>
+        Capture(_tools.Kubectl,
+                ["--context", Context, "exec", "-i", "-n", "eventticketing", pod, "-c", "postgres", "--",
+                 "psql", "-U", "postgres", "-d", "eventticketing", "-v", "ON_ERROR_STOP=1", "-q", "-A", "-t", "-F", "|"],
+                stdin: sql)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     private string PathOf(string relative) => Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
 
     private void Step(string name) => Console.WriteLine($"\n== {name}  ({_clock.Elapsed:mm\\:ss})");
@@ -1051,11 +1382,11 @@ sealed class Lab(string root)
     }
 
     /// <summary>Whether a command succeeds; what it prints is discarded.</summary>
-    private static bool Succeeds(string file, IEnumerable<string> arguments)
+    private static bool Succeeds(string file, IEnumerable<string> arguments, string? stdin = null)
     {
         try
         {
-            Capture(file, arguments);
+            Capture(file, arguments, stdin: stdin);
             return true;
         }
         catch (LabException)
@@ -1151,6 +1482,9 @@ static class Pins
     public const string TraefikChart = "41.6.1";
     public const string CloudNativePgRepo = "https://cloudnative-pg.github.io/charts";
     public const string CloudNativePgChart = "0.29.1";
+    public const string BarmanCloudPluginChart = "0.8.1"; // from the CloudNativePG repository
+    public const string CertManagerRepo = "https://charts.jetstack.io";
+    public const string CertManagerChart = "v1.21.2";
     public const string MetricsServerRepo = "https://kubernetes-sigs.github.io/metrics-server/";
     public const string MetricsServerChart = "3.14.0";
     public const string KedaRepo = "https://kedacore.github.io/charts";

@@ -31,7 +31,8 @@ public static partial class SharedOutputCache
             return builder;
         }
 
-        builder.AddRedisOutputCache(ConnectionName);
+        // Not in readiness (D74): an instance without Valkey still serves, from the database.
+        builder.AddRedisOutputCache(ConnectionName, settings => settings.DisableHealthChecks = true);
 
         // Wrap the Valkey store, so that an outage costs cache misses and nothing else.
         var registered = builder.Services.Last(service => service.ServiceType == typeof(IOutputCacheStore));

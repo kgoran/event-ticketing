@@ -75,3 +75,7 @@ Also part of the plan:
   Its demo runs as a dry run in the nightly lab workflow.
 - **2026-10-21 (D46):** M3 is planned ([M3](../milestones/m3.md), ADR-0055, ADR-0056), decided
   overnight with the recommended answers for the owner's review; three weeks, team of five.
+- **2026-10-22:** M3 is built ([M3](../milestones/m3.md)). **M4 is planned** (D76–D90,
+  [M4](../milestones/m4.md), ADR-0057, ADR-0058), decided overnight with the recommended answers.
+  T9 is checked at lab scale in M4 and at 50,000 orders in M5, with the load-test data set (D87).
+

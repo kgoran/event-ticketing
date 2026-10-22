@@ -26,6 +26,11 @@ public sealed class InventoryModule : IModule
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.AddModuleDatabase<InventoryDbContext>(host, InventoryDbContext.SchemaName);
+        if (host == HostKind.PublicApi)
+        {
+            builder.AddModuleReplicaDatabase<InventoryReplicaDbContext>(InventoryDbContext.SchemaName);
+        }
+
 
         var application = typeof(PlaceHold).Assembly;
         builder.Services.AddCommandHandlers(application);

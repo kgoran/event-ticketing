@@ -1,0 +1,3 @@
+# Redpanda's cluster properties at first start (D76): topics are created by the Migrator, never by a
+# typo. The lab's are in platform/manifests/redpanda.yaml.
+auto_create_topics_enabled: false

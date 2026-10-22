@@ -83,6 +83,26 @@ var mailpit = builder.AddContainer("mailpit", "axllent/mailpit", "v1.31.3")
     .WithHttpEndpoint(port: 8025, targetPort: 8025, name: "http")
     .WithEndpoint(targetPort: 1025, name: "smtp", scheme: "tcp");
 
+// Kafka (D76, ADR-0057): one Redpanda broker, which the hosts reach at localhost:9092 and the
+// Console at redpanda:29092 on Aspire's container network; Redpanda Console at http://localhost:8088.
+var redpanda = builder.AddContainer("redpanda", "docker.redpanda.com/redpandadata/redpanda", "v26.2.4")
+    .WithArgs(
+        "redpanda", "start", "--smp=1", "--memory=768M", "--reserve-memory=0M", "--overprovisioned",
+        "--kafka-addr=internal://0.0.0.0:29092,external://0.0.0.0:9092",
+        "--advertise-kafka-addr=internal://redpanda:29092,external://localhost:9092",
+        "--default-log-level=warn")
+    .WithBindMount("redpanda-bootstrap.yaml", "/etc/redpanda/.bootstrap.yaml", isReadOnly: true)
+    .WithEndpoint(port: 9092, targetPort: 9092, name: "kafka", scheme: "tcp", isProxied: false)
+    .WithHttpEndpoint(targetPort: 9644, name: "admin")
+    .WithHttpHealthCheck("/v1/status/ready", endpointName: "admin");
+var kafka = builder.AddConnectionString("kafka", ReferenceExpression.Create($"{redpanda.GetEndpoint("kafka").Property(EndpointProperty.HostAndPort)}"));
+builder.AddContainer("redpanda-console", "docker.redpanda.com/redpandadata/console", "v3.12.0")
+    .WithEnvironment("KAFKA_BROKERS", "redpanda:29092")
+    .WithEnvironment("REDPANDA_ADMINAPI_ENABLED", "true")
+    .WithEnvironment("REDPANDA_ADMINAPI_URLS", "http://redpanda:9644")
+    .WithHttpEndpoint(port: 8088, targetPort: 8080, name: "http")
+    .WaitFor(redpanda);
+
 // Migrations run first; every other host starts only after the Migrator has exited successfully.
 var migrator = builder.AddProject<Projects.Migrator>("migrator")
     .WithReference(database)

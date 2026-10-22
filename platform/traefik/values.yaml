@@ -32,6 +32,7 @@ ports:
   mailpit: { port: 8025, exposedPort: 8025, nodePort: 30025, protocol: TCP, expose: { default: true } }
   keycloak: { port: 8180, exposedPort: 8180, nodePort: 30180, protocol: TCP, expose: { default: true } }
   grafana: { port: 3000, exposedPort: 3000, nodePort: 30030, protocol: TCP, expose: { default: true } }
+  redpandaconsole: { port: 8088, exposedPort: 8088, nodePort: 30088, protocol: TCP, expose: { default: true } }
 
 # One Gateway, `lab` in namespace platform; routes from any namespace attach to a listener by name.
 gateway:
@@ -49,3 +50,4 @@ gateway:
     mailpit: { port: 8025, protocol: HTTP, namespacePolicy: { from: All } }
     keycloak: { port: 8180, protocol: HTTP, namespacePolicy: { from: All } }
     grafana: { port: 3000, protocol: HTTP, namespacePolicy: { from: All } }
+    redpandaconsole: { port: 8088, protocol: HTTP, namespacePolicy: { from: All } }

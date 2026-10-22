@@ -1,0 +1,6 @@
+# The lab's object store (D65): SeaweedFS in the platform namespace, its keys in lab-secrets.
+backups:
+  enabled: true
+  destinationPath: s3://backups/
+  endpointURL: http://seaweedfs.platform.svc.cluster.local:8333
+  secret: lab-secrets
