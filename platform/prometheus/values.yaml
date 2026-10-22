@@ -37,7 +37,8 @@ extraScrapeConfigs: |
   - job_name: cloudnative-pg
     kubernetes_sd_configs: [{ role: pod, namespaces: { names: [eventticketing] } }]
     relabel_configs:
-      - { source_labels: [__meta_kubernetes_pod_label_cnpg_io_cluster], regex: .+, action: keep }
+      # The product's database only: `lab restore-check` makes another for a minute (D65).
+      - { source_labels: [__meta_kubernetes_pod_label_cnpg_io_cluster], regex: eventticketing, action: keep }
       # The pooler's pods carry the cluster's label too; the pgbouncer job scrapes them.
       - { source_labels: [__meta_kubernetes_pod_label_cnpg_io_poolerName], regex: .+, action: drop }
       - { source_labels: [__meta_kubernetes_pod_container_port_name], regex: metrics, action: keep }
