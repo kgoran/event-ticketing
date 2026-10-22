@@ -4,6 +4,7 @@
 @inject PublicApiClient PublicApi
 @inject TimeProvider Time
 @inject Instances InstanceView
+@inject DatabaseDelay Database
 
 <PageTitle>Scaling Lab</PageTitle>
 
@@ -57,7 +58,7 @@
     </div>
     <div class="presets">
         <span class="presets-label">Scenarios</span><Help Topic="HelpTopic.Scenarios" />
-        @foreach (var preset in Presets.All)
+        @foreach (var preset in Presets.All.Where(preset => DatabaseDelay.Available || !preset.SlowsTheDatabase))
         {
             <button type="button" class="button small @(_running == preset ? "active" : null)" title="@preset.Description" @onclick="() => Start(preset)">@preset.Name</button>
         }
@@ -65,6 +66,10 @@
         @if (_running is not null)
         {
             <span class="running">@_running.Name · @Charts.Format(_rate) requests/s@(StageText)</span>
+        }
+        @if (_databaseDelay > 0)
+        {
+            <span class="database-delay">Database +@_databaseDelay ms<Help Topic="HelpTopic.DatabaseDelay" /></span>
         }
     </div>
 </section>
@@ -240,6 +245,7 @@
     private CancellationTokenSource? _preset;
     private Preset? _running;
     private DateTimeOffset? _stageEnds;
+    private int _databaseDelay;
 
     private enum Status { Good, Warning, Critical }
 
@@ -270,6 +276,7 @@
                 if (tick % 2 == 0)
                 {
                     await RefreshAvailabilityAsync();
+                    await RefreshDatabaseDelayAsync();
                 }
 
                 tick++;
@@ -299,6 +306,37 @@
         catch (Exception exception) when (exception is HttpRequestException || (exception is TaskCanceledException && !_stop.IsCancellationRequested))
         {
             _error = $"The load generator doesn't answer at {Generator.BaseAddress}. It runs with the AppHost (dotnet run --project dev/AppHost).";
+        }
+    }
+
+    private async Task RefreshDatabaseDelayAsync()
+    {
+        if (!DatabaseDelay.Available)
+        {
+            return;
+        }
+
+        try
+        {
+            _databaseDelay = await Database.GetAsync(_stop.Token);
+        }
+        catch (Exception exception) when (exception is HttpRequestException || (exception is TaskCanceledException && !_stop.IsCancellationRequested))
+        {
+            // Toxiproxy is restarting; the next round asks again.
+        }
+    }
+
+    private async Task SetDatabaseDelayAsync(int milliseconds)
+    {
+        try
+        {
+            // Not the page's token: a delay must be removed even while the page closes.
+            await Database.SetAsync(milliseconds, CancellationToken.None);
+            _databaseDelay = milliseconds;
+        }
+        catch (HttpRequestException exception)
+        {
+            _error = $"Toxiproxy didn't take the database's delay: {exception.Message}";
         }
     }
 
@@ -499,6 +537,11 @@
             {
                 _rate = stage.Rate;
                 _stageEnds = Time.GetUtcNow() + stage.For;
+                if (stage.DatabaseDelayMs is { } delay)
+                {
+                    await SetDatabaseDelayAsync(delay);
+                }
+
                 await ApplyAsync();
                 StateHasChanged();
                 if (stage.For is { } length)
@@ -513,6 +556,12 @@
         }
         finally
         {
+            // However it ends, a scenario that slowed the database leaves it as it was.
+            if (preset.SlowsTheDatabase)
+            {
+                await SetDatabaseDelayAsync(0);
+            }
+
             if (_preset == run)
             {
                 (_preset, _running, _stageEnds) = (null, null, null);
@@ -529,11 +578,16 @@
         (_preset, _running, _stageEnds) = (null, null, null);
     }
 
+    /// <summary>Everything back to rest: no load, and no delay on the database, whoever set it.</summary>
     private async Task StopAsync()
     {
         CancelPreset();
         _rate = 0;
         await ApplyAsync();
+        if (_databaseDelay > 0)
+        {
+            await SetDatabaseDelayAsync(0);
+        }
     }
 
     // Cancelled, not disposed: the polling loop may still read its token once more.

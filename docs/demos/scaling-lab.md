@@ -28,7 +28,7 @@ AppHost and the next run starts clean.
 | **Holds** | The share of requests that hold one place (best available) and let go of it at once; the rest browse: the event list, the event page, availability. Nothing is ever sold |
 | **Event** | Which event to load |
 | **Holds go for** | Any section, or one section only: a hot section where the lab fans compete for the same places |
-| **Scenarios** | *Steady 20/s*; *Step 50 → 150* (the step T11 measures); *On-sale spike* (20, up to 200 within 10 s, 30 s there, back to 20); *Past capacity* (400 for 20 s, then back to 20). Moving the slider or **Stop** ends a scenario |
+| **Scenarios** | *Steady 20/s*; *Step 50 → 150* (the step T11 measures); *Slow database* (the database 50 ms slower for a minute, D57; in the lab cluster only); *On-sale spike* (20, up to 200 within 10 s, 30 s there, back to 20); *Past capacity* (400 for 20 s, then back to 20). Moving the slider or **Stop** ends a scenario |
 
 Holds are placed by two hundred lab fans, `lab01` to `lab200` (each password is the name). Each has
 at most one hold at a time, as every fan does, so they manage about 200 ÷ (hold time + release
@@ -109,6 +109,11 @@ instances shows what it measures and wants.
 7. Try the same with **Holds** at 90%: holds wait for each other's locks in the database, so
    there are more requests in progress for the same rate, and more instances. Ask why they don't
    help (the wait is in the database), and why every autoscaler has a maximum.
+8. **Slow database** with Auto on (the lab cluster only): after 30 s the database answers 50 ms
+   later. Hold p99 climbs to about half a second, requests in progress rise, and the autoscaler
+   goes to its maximum of 8, which doesn't bring hold p99 down. A minute later the delay goes
+   and so do the extra instances. Browse p99 hardly moves: browsing reads a replica and the
+   cache ([the lab](../lab.md#a-slow-database-d57)).
 
 ## If something is off
 

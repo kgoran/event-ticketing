@@ -5,6 +5,10 @@ image:
   # Loaded by `kind load`; a missing image should fail loudly, not be looked for in a registry.
   pullPolicy: Never
 
+# PgBouncer through Toxiproxy (D57), which passes everything until the Scaling Lab slows it.
+database:
+  poolerHost: toxiproxy.platform.svc.cluster.local
+
 telemetry:
   otlpEndpoint: http://opentelemetry-collector.platform.svc.cluster.local:4317
   prometheus: http://prometheus-server.platform.svc.cluster.local

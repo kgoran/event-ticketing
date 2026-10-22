@@ -121,6 +121,12 @@
                     any autoscaler could react.
                 </li>
                 <li>
+                    <strong>Slow database:</strong> 100 requests/s; after 30 s the database answers 50 ms later for a minute,
+                    then normally again (Toxiproxy, D57; in the lab cluster only). Holds take longer, so there are more requests
+                    in progress. With <strong>Auto</strong> on, the autoscaler adds instances, and they don't help: they wait
+                    for the same database. Browsing reads a replica and the cache, so it stays fast.
+                </li>
+                <li>
                     <strong>Past capacity:</strong> 400 for 20 s, then back to 20. It shows overload and the way back: T7 asks for
                     normal again within 60 s. Run it last.
                 </li>
@@ -129,6 +135,30 @@
                 A scenario runs in this page. Moving the slider or pressing <strong>Stop</strong> ends it. If you close the page,
                 the generator stays at the rate of the step it was on.
             </p>
+            break;
+
+        case HelpTopic.DatabaseDelay:
+            <p>
+                The database answers this much later than it would (D57). In the lab cluster, Toxiproxy sits between the hosts
+                and PgBouncer and passes everything through; the <em>Slow database</em> scenario adds a delay to every answer
+                from the database, give or take a fifth, and removes it when the scenario ends. <strong>Stop</strong> removes
+                it too.
+            </p>
+            <h4>How to read it</h4>
+            <ul>
+                <li>
+                    Holds wait for the database several times per request, so their p99 rises by a multiple of the delay.
+                    Browsing reads a replica and the cache, which Toxiproxy doesn't stand in front of.
+                </li>
+                <li>
+                    Requests in progress rise with the delay, and so does the count the autoscaler wants. The new instances
+                    don't make the database faster: that is why every autoscaler has a maximum (ADR-0019).
+                </li>
+                <li>
+                    From a terminal: <code>curl -X PUT localhost:5300/database/delay -H "Content-Type: application/json"
+                    -d '{"milliseconds":50}'</code>, and 0 to remove it.
+                </li>
+            </ul>
             break;
 
         case HelpTopic.Offered:

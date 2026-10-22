@@ -47,8 +47,9 @@ instance as a replica), the connection string for hosts that use the database, a
   value: Host={{ .root.Values.database.cluster }}-rw;Database=eventticketing;Username=eventticketing;Password=$(DATABASE_PASSWORD)
 {{- else }}
 # Through PgBouncer (D49), which resets nothing between transactions, so Npgsql needn't either.
+# In the lab, through Toxiproxy in front of it (D57).
 - name: ConnectionStrings__eventticketing
-  value: Host={{ .root.Values.database.cluster }}-pooler-rw;Database=eventticketing;Username=eventticketing;Password=$(DATABASE_PASSWORD);Maximum Pool Size={{ .root.Values.database.maxPoolSize }};No Reset On Close=true
+  value: Host={{ .root.Values.database.poolerHost | default (printf "%s-pooler-rw" .root.Values.database.cluster) }};Database=eventticketing;Username=eventticketing;Password=$(DATABASE_PASSWORD);Maximum Pool Size={{ .root.Values.database.maxPoolSize }};No Reset On Close=true
 {{- end }}
 {{- if eq .name "publicapi" }}
 # Browsing reads a replica (D50); connections are recycled after a minute, so they spread over the

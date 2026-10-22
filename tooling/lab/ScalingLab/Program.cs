@@ -19,6 +19,13 @@ builder.Services.AddHttpClient<LoadGeneratorApi>(http =>
     http.Timeout = TimeSpan.FromSeconds(3);
 });
 
+// The lab cluster's Toxiproxy (D57): the slow database scenario.
+builder.Services.AddHttpClient<DatabaseDelay>(http =>
+{
+    http.BaseAddress = Url("TOXIPROXY_URL", "http://localhost:8474");
+    http.Timeout = TimeSpan.FromSeconds(3);
+});
+
 // Anonymous reads only: the event list for the picker, and free places of the event under load.
 builder.Services.AddSingleton(_ => new PublicApiClient(new DefaultRequestAdapter(new AnonymousAuthenticationProvider())
 {
@@ -32,6 +39,23 @@ app.MapHealthChecks("/health");
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
+// The database's added delay, for the page's scenario and for anyone with a terminal or a test:
+// curl -X PUT localhost:5300/database/delay -H "Content-Type: application/json" -d '{"milliseconds":50}'
+var delay = app.MapGroup("/database/delay").AddEndpointFilter(async (context, next) =>
+    DatabaseDelay.Available ? await next(context) : Results.NotFound("No Toxiproxy here: the database can be slowed in the lab cluster only."));
+delay.MapGet("", async (DatabaseDelay database, CancellationToken cancellationToken) =>
+    Results.Ok(new DelaySetting(await database.GetAsync(cancellationToken))));
+delay.MapPut("", async (DelaySetting setting, DatabaseDelay database, CancellationToken cancellationToken) =>
+{
+    if (setting.Milliseconds is < 0 or > DatabaseDelay.MaxMilliseconds)
+    {
+        return Results.BadRequest($"Between 0 and {DatabaseDelay.MaxMilliseconds} ms.");
+    }
+
+    await database.SetAsync(setting.Milliseconds, cancellationToken);
+    return Results.Ok(setting);
+});
+
 app.Run();
 
 static Uri Url(string variable, string fallback) =>
@@ -39,3 +63,6 @@ static Uri Url(string variable, string fallback) =>
 
 /// <summary>Internal, unlike .NET's default: the lab's tests also reference the load generator, whose Program is public.</summary>
 internal partial class Program;
+
+/// <summary>The database's added delay, in milliseconds (D57).</summary>
+internal sealed record DelaySetting(int Milliseconds);

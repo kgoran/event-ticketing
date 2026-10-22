@@ -58,7 +58,7 @@ which database instance is the primary. A cluster made before M3 had one node: `
 
 | Namespace | What |
 |---|---|
-| `platform` | Traefik (the gateway), Keycloak, Mailpit, and the observability stack: the OpenTelemetry Collector, Prometheus, Loki, Tempo, Grafana (D55) |
+| `platform` | Traefik (the gateway), Keycloak, Mailpit, Toxiproxy (between the hosts and PgBouncer, D57), and the observability stack: the OpenTelemetry Collector, Prometheus, Loki, Tempo, Grafana (D55) |
 | `cnpg-system` | the CloudNativePG operator |
 | `keda` | KEDA, which runs PublicApi's autoscaler when the Scaling Lab's **Auto** is on ([ADR-0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md)) |
 | `kube-system` | metrics-server, which measures each pod's CPU for `kubectl top` and the autoscaler |
@@ -309,6 +309,36 @@ What M2's CPU autoscaler showed (2026-10-21), and what still holds:
   averages 30 s and the autoscaler looks every 15 s: the count moves 20–50 s after the load.
   Precompiled images (ReadyToRun) were tried in M2: they cut the first spike only from 569% to
   420%, cost 50 MB per image and three more minutes per build, and aren't used.
+
+## A slow database (D57)
+
+Toxiproxy sits between the hosts and PgBouncer (`platform/manifests/toxiproxy.yaml`; the product
+chart's `database.poolerHost` points there in the lab). It passes everything through until a toxic
+is added; then every answer from the database reaches the hosts later. Browsing reads a replica
+and the cache, which Toxiproxy doesn't stand in front of; holds and everything else that writes go
+through it. The Migrator goes straight to the primary.
+
+- **In the Scaling Lab:** *Slow database* runs 100 requests/s and, after 30 s, delays the
+  database's answers by 50 ms (give or take a fifth) for a minute. A pill next to Stop shows the
+  delay. However the scenario ends, the delay goes; Stop removes it too, whoever set it.
+- **From a terminal:** `curl -X PUT localhost:5300/database/delay -H "Content-Type: application/json"
+  -d '{"milliseconds":50}'`, and 0 to remove it. `lab check` says if anything slows the database,
+  and `reset` restarts Toxiproxy, which forgets every toxic.
+
+Measured with Auto on (2026-10-22, default mix):
+
+| | Instances | Requests in progress per instance | Holds' p99 |
+|---|---|---|---|
+| 100 requests/s | 2 → 3 | 0.5–0.7 | 55–80 ms |
+| + 50 ms on the database | 3 → 8, the maximum | 2.3–3.8 | about 500 ms, with 8 as with 3 |
+| the delay removed | 8 → 4 | 0.2 | 60–130 ms |
+
+A 50 ms delay costs a hold about ten times that: it talks to the database several times. The
+autoscaler does what its signal says and goes to the maximum, and the five new instances change
+nothing, because they wait for the same database. Nothing failed, and browsing stayed fast apart
+from moments while instances started. This is ADR-0019's rule in action: **every autoscaled
+component has a maximum**, because adding instances in front of a slow dependency only adds
+load to it.
 
 ## Three things the lab taught on its first day
 

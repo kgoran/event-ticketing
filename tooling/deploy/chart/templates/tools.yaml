@@ -19,5 +19,6 @@
   (dict "name" "LOADGENERATOR_URL" "value" "http://loadgenerator:8080")
   (dict "name" "PUBLICAPI_URL" "value" .Values.publicApi)
   (dict "name" "PRODUCT_NAMESPACE" "value" .Values.productNamespace)
+  (dict "name" "TOXIPROXY_URL" "value" .Values.toxiproxy)
 }}
 {{ include "tooling.app" (dict "name" "scalinglab" "root" $ "env" $scalingLab "serviceAccount" "scalinglab") }}

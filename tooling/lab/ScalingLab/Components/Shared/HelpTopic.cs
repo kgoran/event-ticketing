@@ -8,6 +8,7 @@ public enum HelpTopic
     Event,
     Section,
     Scenarios,
+    DatabaseDelay,
     Offered,
     Achieved,
     Ok,

@@ -177,6 +177,10 @@ sealed class Lab(string root)
 
         Kubectl("delete", "pvc", "-n", "eventticketing", "-l", "cnpg.io/cluster=eventticketing", "--ignore-not-found", "--wait");
 
+        // A restarted Toxiproxy forgets every toxic: the database isn't left slow (D57).
+        Kubectl("rollout", "restart", "deployment/toxiproxy", "-n", "platform");
+        Kubectl("rollout", "status", "deployment/toxiproxy", "-n", "platform", "--timeout=120s");
+
         var tag = ImageTag();
         BuildAndLoadImages(tag);
         InstallProduct(tag);
@@ -611,6 +615,14 @@ sealed class Lab(string root)
             return titles.Count >= 3 ? null : $"found {titles.Count}: {string.Join(", ", titles)}";
         });
 
+        Step("The database, through Toxiproxy");
+        await Check("nothing slows it (D57)", () =>
+        {
+            using var toxics = JsonDocument.Parse(Capture(_tools.Kubectl, ["--context", Context, "get", "--raw", "/api/v1/namespaces/platform/services/toxiproxy:8474/proxy/proxies/database/toxics"]));
+            var count = toxics.RootElement.GetArrayLength();
+            return Task.FromResult(count == 0 ? null : $"{count} toxic(s) on it: Stop in the Scaling Lab, or dotnet run lab.cs -- reset");
+        });
+
         if (!InvariantsHold())
         {
             failures.Add("T2's invariants");
@@ -852,15 +864,17 @@ sealed class Lab(string root)
         Step("Platform: secrets");
         EnsureSecrets();
 
-        Step("Platform: Keycloak, Mailpit");
+        Step("Platform: Keycloak, Mailpit, Toxiproxy");
         var realm = PathOf("dev/AppHost/Realms/eventticketing-realm.json");
         Apply(Capture(_tools.Kubectl, ["--context", Context, "create", "configmap", "keycloak-realm", "-n", "platform", $"--from-file={realm}", "--dry-run=client", "-o", "yaml"]));
         // Keycloak imports the realm only when it starts: a changed realm file restarts it.
         var realmHash = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(realm)))[..16];
         Apply(File.ReadAllText(PathOf("platform/manifests/keycloak.yaml")).Replace("REALM_HASH", realmHash, StringComparison.Ordinal));
         Kubectl("apply", "-f", PathOf("platform/manifests/mailpit.yaml"));
+        // Between the hosts and PgBouncer (D57): it must run before the product does.
+        Kubectl("apply", "-f", PathOf("platform/manifests/toxiproxy.yaml"));
 
-        foreach (var deployment in new[] { "keycloak", "mailpit" })
+        foreach (var deployment in new[] { "keycloak", "mailpit", "toxiproxy" })
         {
             Kubectl("rollout", "status", $"deployment/{deployment}", "-n", "platform", "--timeout=300s");
         }

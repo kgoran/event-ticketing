@@ -101,6 +101,7 @@ select { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--axis); 
 .button.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .button.stop { font-weight: 600; }
 .running { color: var(--ink-2); }
+.database-delay { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.1rem 0.6rem; border: 1px solid var(--warning); border-radius: 999px; background: color-mix(in srgb, var(--warning) 16%, var(--surface)); font-weight: 600; }
 
 /* Tiles */
 

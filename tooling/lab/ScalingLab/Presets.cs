@@ -1,10 +1,17 @@
 namespace EventTicketing.Tooling.ScalingLab;
 
-/// <summary>A rate held for a while; the last stage of a preset holds until something else is chosen.</summary>
-public sealed record Stage(double Rate, TimeSpan? For);
+/// <summary>
+/// A rate held for a while; the last stage of a preset holds until something else is chosen. A
+/// stage may also set the database's added delay (D57), which the preset removes when it ends.
+/// </summary>
+public sealed record Stage(double Rate, TimeSpan? For, int? DatabaseDelayMs = null);
 
 /// <summary>A scripted change of rate, as in ADR-0017's presets.</summary>
-public sealed record Preset(string Name, string Description, IReadOnlyList<Stage> Stages);
+public sealed record Preset(string Name, string Description, IReadOnlyList<Stage> Stages)
+{
+    /// <summary>Whether it slows the database, which needs the lab cluster's Toxiproxy.</summary>
+    public bool SlowsTheDatabase => Stages.Any(stage => stage.DatabaseDelayMs > 0);
+}
 
 public static class Presets
 {
@@ -32,6 +39,11 @@ public static class Presets
                 new(SpikeTop, TimeSpan.FromSeconds(29)),
                 new(20, null),
             ]),
+
+        // A slow dependency (D57, ADR-0019): the database answers 50 ms later for a minute. Requests in
+        // progress rise, and the autoscaler adds instances that can't make the database faster.
+        new("Slow database", "100 requests/s; after 30 s the database answers 50 ms later for a minute, then normally again.",
+            [new(100, TimeSpan.FromSeconds(30)), new(100, TimeSpan.FromSeconds(60), DatabaseDelayMs: 50), new(100, null, DatabaseDelayMs: 0)]),
 
         // Overload, then the way back: T7 asks for normal again within 60 s after the load drops.
         new("Past capacity", $"{SliderTop} requests/s for 20 s, then back to 20: past capacity, and how long recovery takes (T7: 60 s).",

@@ -13,6 +13,8 @@ database:
   # 8 PublicApi + 2 Workers + 2 WebhookIngress + 1 BackOfficeApi + the Migrator = 14 pools of 20 =
   # 280, within the database's 300 (product/deploy/database).
   maxPoolSize: 20
+  # Where the hosts reach PgBouncer: empty is its own Service, <cluster>-pooler-rw.
+  poolerHost: ""
 
 # OpenTelemetry collector the hosts export to (ServiceDefaults): empty sends nothing. Prometheus,
 # where an autoscaler reads what the hosts measure (D56).
