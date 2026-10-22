@@ -63,3 +63,11 @@ under `tooling/load-tests/results/`, CI runs keep theirs as build artifacts
 
 - Capacity numbers are laptop-sized and only comparable on the same machine.
 - T1, T4, T5 and T7 get their numbers in M5; until then they have a shape but no value.
+
+## Updates
+
+- **2026-10-22 (M3 DS1):** T8 is measured by `tooling/lab/DeviceSimulator`, run from the host
+  against the lab cluster (or Aspire) and in the nightly lab workflow: 200 devices, 99.9–100% of
+  syncs and uploads answered within 500 ms, a revocation at all 200 within about 5 s. The scan
+  decision on a device takes 1–17 ms (the scanner, SC1). See [the lab](../lab.md#the-doors-t8-d64).
+

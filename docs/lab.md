@@ -352,6 +352,31 @@ from moments while instances started. This is ADR-0019's rule in action: **every
 component has a maximum**, because adding instances in front of a slow dependency only adds
 load to it.
 
+## The doors: T8 (D64)
+
+`tooling/lab/DeviceSimulator` plays the doors of an event. It runs where doors would be, outside
+the system, against the usual localhost ports (the same under Aspire and in the lab):
+
+```
+dotnet run --project tooling/lab/DeviceSimulator -- --devices 200 --seconds 90
+```
+
+olga registers the devices through BackOfficeApi; each signs in through CheckInApi, downloads the
+door list, then every 5 s uploads its share of 10 scans/s and fetches the changes. Half-way, adam
+revokes a ticket, and each device's first sync that has it is timed. At the end the devices are
+revoked, so Keycloak keeps none of their clients. The report judges T8 on the devices once they
+have their lists, and reports the first downloads apart; it exits 1 when T8 doesn't hold. The lab
+workflow runs it after the system tests.
+
+Measured (2026-10-22, 200 devices, the lab cluster on a laptop):
+
+| | |
+|---|---|
+| Syncs and uploads within 500 ms | 99.9–100%, p99 36–115 ms (T8: 99%) |
+| A revocation at every device | 4.8–5.1 s, all 200 (T8: 30 s): the outbox, CheckIn, then the next sync |
+| The door list | 5,451 entries in 755 KB; a ticket ID alone is about 40 bytes, so 80,000 tickets stay well under T8's 5 MB |
+| The first downloads, all 200 at once | p50 1.5 s, p99 2.4 s: reported, not judged |
+
 ## Three things the lab taught on its first day
 
 Each was fixed in configuration, not code ([ADR-0018](adr/0018-capacity-from-configuration-not-code.md)):
@@ -400,3 +425,9 @@ failed request.
     to the consumers of the time, so CheckIn knew neither the event's organizer nor its tickets.
     A fresh system or `reset` doesn't notice; a running one needs a backfill: the publisher sends
     its events again, or, with M4's Kafka, the new consumer reads the topic from the start.
+11. **Connections recycled together reconnect together.** The device simulator first recycled its
+    connections every minute, as the product's HTTP clients do (D36). All 200 devices' connections
+    were a minute old at the same moment, so they reconnected at once through Docker's port
+    forwarding, and every request in flight stalled for a second and a half: T8 missed, while
+    CheckInApi's own p99 said 87 ms. Real devices keep their own connections; the simulator now keeps
+    its for the run. Look at the server's numbers before blaming the server.
