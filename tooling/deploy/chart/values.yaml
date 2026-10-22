@@ -24,6 +24,8 @@ keycloak: http://keycloak.platform.svc.cluster.local:8080
 webhookIngress: http://webhookingress.eventticketing.svc.cluster.local:8080
 # Toxiproxy's API (D57): the Scaling Lab's slow database scenario.
 toxiproxy: http://toxiproxy.platform.svc.cluster.local:8474
+# Prometheus (D55): the Scaling Lab's database panel reads lag and connections there (SL3).
+prometheus: http://prometheus-server.platform.svc.cluster.local
 
 localPay:
   # Where browsers reach LocalPay's checkout page.

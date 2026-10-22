@@ -19,6 +19,16 @@ builder.Services.AddHttpClient<LoadGeneratorApi>(http =>
     http.Timeout = TimeSpan.FromSeconds(3);
 });
 
+// The database panel (SL3): CloudNativePG through the Kubernetes API, lag and connections from Prometheus.
+builder.Services.AddHttpClient("prometheus", http =>
+{
+    http.BaseAddress = Url("PROMETHEUS_URL", "http://localhost:9090");
+    http.Timeout = TimeSpan.FromSeconds(3);
+});
+builder.Services.AddSingleton(services => new DatabaseView(
+    services.GetRequiredService<IConfiguration>(),
+    services.GetRequiredService<IHttpClientFactory>().CreateClient("prometheus")));
+
 // The lab cluster's Toxiproxy (D57): the slow database scenario.
 builder.Services.AddHttpClient<DatabaseDelay>(http =>
 {

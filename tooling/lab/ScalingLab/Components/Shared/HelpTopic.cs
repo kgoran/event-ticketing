@@ -19,6 +19,8 @@ public enum HelpTopic
     InFlight,
     Instances,
     Autoscaling,
+    Database,
+    CrashPrimary,
     RequestsChart,
     OutcomesChart,
     LatencyChart,

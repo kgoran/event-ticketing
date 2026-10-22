@@ -150,6 +150,11 @@ select { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--axis); 
 .chip.starting { background: color-mix(in srgb, var(--warning) 16%, var(--surface)); border-color: var(--warning); }
 .chip.stopping { color: var(--ink-2); text-decoration: line-through; border-style: dashed; }
 .restarts { color: var(--critical); }
+.phase { font-weight: 600; }
+.phase.healthy { color: var(--good-ink); }
+.phase.unhealthy { color: var(--critical); }
+.button.danger { border-color: var(--critical); color: var(--critical); }
+.database .hosts thead th { color: var(--ink-2); font-weight: 600; font-size: 0.85rem; }
 
 @media (max-width: 40rem) {
     .hosts th, .hosts .count { width: auto; }

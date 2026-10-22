@@ -107,6 +107,16 @@ invariants (D59).
   zone-a is never stopped: it is the lab's way in, with the port mappings, the gateway, Keycloak,
   Mailpit, the operators and the tooling, which stand for the outside world.
 
+**In the Scaling Lab (SL3)**, the **Database** panel shows the cluster live, every 2 s: each
+instance's role (★ primary, ✓ standby, ▲ starting, ✕ stopping), zone, replay lag and connections,
+the timeline, and PgBouncer's clients and server connections. **Crash the primary** (click twice)
+does what `drill failover` does, and the panel times the way back. Measured with 60 requests/s
+(2026-10-22): PgBouncer lost its connections to the primary at once, eventticketing-1 took over
+after about 22 s on timeline 11, PgBouncer was reconnected 4 s later, and all three instances were
+healthy after 44 s. 681 of 7,975 requests failed, every one in the same 20 s: the holds and
+releases, which had nowhere to write. Browsing went on. The zone drill needs Docker on the host,
+so it stays in `lab.cs`.
+
 Measured on 2026-10-21:
 
 | Drill | New primary after | Requests failed | Within |
