@@ -42,3 +42,15 @@ what the scanner is built with, and where revocations come from before M4's char
 - Every device is a client in the realm; deleting the device deletes the client.
 - The scanner can be shown on a laptop without a camera.
 - T8 becomes measurable in M3, revocations included.
+
+## Updates
+
+- **2026-10-22 (M3 CI3, D70, D71, decided while building):** Devices are created by **CheckIn's own
+  Keycloak adapter**, with its own service account (`eventticketing-checkin`, allowed to manage
+  clients only), not by Organizers' adapter: CheckIn may depend only on Catalog and Ticketing. A
+  device's client puts the role `door-staff`, `event_id` and `device_id` into every token as fixed
+  claims. CheckIn makes the device's secret, sends it to Keycloak with the new client and shows it
+  once. CheckInApi refuses a revoked device at once, whatever token it still holds. The door list
+  is a log of changes (issued, revoked, admitted) whose sequence is the devices' cursor; its writes
+  take a per-event lock so that sequence order is commit order.
+

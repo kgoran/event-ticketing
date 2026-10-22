@@ -38,6 +38,12 @@ var organizersSecret = builder.AddParameter(
     new GenerateParameterDefault { MinLength = 32, Special = false },
     secret: true);
 
+// The service account CheckIn uses to give each door device a Keycloak client of its own (D61, D70).
+var checkInSecret = builder.AddParameter(
+    "checkin-client-secret",
+    new GenerateParameterDefault { MinLength = 32, Special = false },
+    secret: true);
+
 // The secret every event's private signing key is encrypted under (envelope encryption, ADR-0051).
 // Only Workers signs tickets, so only Workers gets it. Generated per run like the other secrets.
 var ticketingMasterKey = builder.AddParameter(
@@ -56,6 +62,7 @@ var keycloak = builder.AddKeycloak("keycloak", port: 8180)
     .WithRealmImport("./Realms")
     .WithEnvironment("FANSITE_CLIENT_SECRET", fanSiteSecret)
     .WithEnvironment("ORGANIZERS_CLIENT_SECRET", organizersSecret)
+    .WithEnvironment("CHECKIN_CLIENT_SECRET", checkInSecret)
     .WithoutHttpsCertificate();
 #pragma warning restore ASPIRECERTIFICATES001
 
@@ -128,6 +135,17 @@ publicApi.WithEnvironment("Checkout__ReturnUrlTemplate", ReferenceExpression.Cre
 var backOfficeApi = WithTimings(builder.AddProject<Projects.BackOfficeApi>("backofficeapi"))
     .WithReference(database)
     .WithReference(valkey)
+    .WithEnvironment("Authentication__Authority", authority)
+    .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
+    .WithEnvironment("CheckIn__Keycloak__BaseUrl", keycloak.GetEndpoint("http"))
+    .WithEnvironment("CheckIn__Keycloak__ClientSecret", checkInSecret)
+    .WithHttpHealthCheck("/health")
+    .WaitFor(keycloak)
+    .WaitForCompletion(migrator);
+
+// The doors (ADR-0013, ADR-0056): registered devices download door lists and upload scans.
+builder.AddProject<Projects.CheckInApi>("checkinapi")
+    .WithReference(database)
     .WithEnvironment("Authentication__Authority", authority)
     .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
     .WithHttpHealthCheck("/health")

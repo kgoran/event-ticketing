@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- The doors (ADR-0013, ADR-0056): door lists and scans for registered devices; the scanner (M3 SC1). -->
+  <PropertyGroup>
+    <!-- The OpenAPI document is generated at build time and committed: it is the contract the
+         tooling builds its clients from (ADR-0030, ADR-0037). -->
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/openapi</OpenApiDocumentsDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Catalog\Catalog\Catalog.csproj" />
+    <ProjectReference Include="..\..\Modules\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Orders\Orders.Infrastructure\Orders.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Organizers\Organizers\Organizers.csproj" />
+    <ProjectReference Include="..\..\Modules\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Ticketing\Ticketing.Infrastructure\Ticketing.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Notifications\Notifications\Notifications.csproj" />
+    <ProjectReference Include="..\..\Modules\CheckIn\CheckIn.Infrastructure\CheckIn.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+</Project>

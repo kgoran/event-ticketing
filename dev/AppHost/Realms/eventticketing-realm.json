@@ -145,6 +145,17 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true
+    },
+    {
+      "clientId": "eventticketing-checkin",
+      "name": "CheckIn creating and deleting a client per door device (service account; D61, D70)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${CHECKIN_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
     }
   ],
   "users": [
@@ -2243,6 +2254,12 @@
       "enabled": true,
       "serviceAccountClientId": "eventticketing-organizers",
       "clientRoles": { "realm-management": ["manage-users", "view-users", "query-users", "query-groups"] }
+    },
+    {
+      "username": "service-account-eventticketing-checkin",
+      "enabled": true,
+      "serviceAccountClientId": "eventticketing-checkin",
+      "clientRoles": { "realm-management": ["manage-clients", "view-clients", "query-clients"] }
     },
     {
       "username": "olga",

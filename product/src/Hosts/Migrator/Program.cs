@@ -1,4 +1,5 @@
 using EventTicketing.Catalog;
+using EventTicketing.CheckIn.Infrastructure;
 using EventTicketing.Inventory.Infrastructure;
 using EventTicketing.Notifications;
 using EventTicketing.Orders.Infrastructure;
@@ -16,7 +17,7 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.AddServiceDefaults();
 builder.AddNpgsqlDataSource("eventticketing");
-builder.AddModules(HostKind.Migrator, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule());
+builder.AddModules(HostKind.Migrator, new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule(), new CheckInModule());
 
 using var host = builder.Build();
 await host.StartAsync();

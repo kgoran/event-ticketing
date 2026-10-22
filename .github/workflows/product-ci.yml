@@ -65,7 +65,7 @@ jobs:
       # One image per host (ADR-0029), built as the lab builds them; nothing is pushed (D34).
       - name: Container images
         run: |
-          for project in PublicApi BackOfficeApi WebhookIngress Workers Migrator; do
+          for project in PublicApi BackOfficeApi CheckInApi WebhookIngress Workers Migrator; do
             dotnet publish "product/src/Hosts/$project" --no-restore -c Release -t:PublishContainer
           done
           dotnet publish product/src/Frontends/FanSite --no-restore -c Release -t:PublishContainer

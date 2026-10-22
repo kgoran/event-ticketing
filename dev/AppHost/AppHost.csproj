@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\product\src\Frontends\FanSite\FanSite.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\BackOfficeApi\BackOfficeApi.csproj" />
+    <ProjectReference Include="..\..\product\src\Hosts\CheckInApi\CheckInApi.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\Migrator\Migrator.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\PublicApi\PublicApi.csproj" />
     <ProjectReference Include="..\..\product\src\Hosts\WebhookIngress\WebhookIngress.csproj" />

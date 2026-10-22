@@ -26,7 +26,8 @@ public static class TestTokens
         string audience = Audience,
         TimeSpan? lifetime = null,
         SecurityKey? signingKey = null,
-        string? email = null)
+        string? email = null,
+        IReadOnlyDictionary<string, object>? claims = null)
     {
         var now = DateTime.UtcNow;
         var expires = now + (lifetime ?? TimeSpan.FromMinutes(5));
@@ -48,6 +49,11 @@ public static class TestTokens
             },
             SigningCredentials = new SigningCredentials(signingKey ?? SigningKey, SecurityAlgorithms.HmacSha256),
         };
+
+        foreach (var (name, value) in claims ?? new Dictionary<string, object>())
+        {
+            descriptor.Claims[name] = value;
+        }
 
         return new JsonWebTokenHandler().CreateToken(descriptor);
     }

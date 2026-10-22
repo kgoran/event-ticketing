@@ -1,6 +1,9 @@
 using System.Net.Http.Headers;
 using EventTicketing.BackOfficeApi;
 using EventTicketing.Catalog;
+using EventTicketing.CheckIn.Application;
+using EventTicketing.CheckIn.Infrastructure;
+using EventTicketing.CheckInApi;
 using EventTicketing.Inventory.Infrastructure;
 using EventTicketing.Notifications;
 using EventTicketing.Notifications.Email;
@@ -55,6 +58,7 @@ public sealed class TestSystem : IAsyncLifetime
     private WebApplicationFactory<PublicApiEntryPoint>? _publicApi;
     private WebApplicationFactory<BackOfficeApiEntryPoint>? _backOfficeApi;
     private WebApplicationFactory<WebhookIngressEntryPoint>? _webhookIngress;
+    private WebApplicationFactory<CheckInApiEntryPoint>? _checkInApi;
     private IHost? _workers;
 
     public string ConnectionString { get; private set; } = string.Empty;
@@ -68,6 +72,9 @@ public sealed class TestSystem : IAsyncLifetime
     /// <summary>The identity provider's groups Organizers keeps in step (ADR-0027).</summary>
     internal FakeIdentityDirectory Directory { get; } = new();
 
+    /// <summary>Keycloak's device clients, as CheckIn sees them through its port.</summary>
+    internal FakeDeviceDirectory DeviceDirectory { get; } = new();
+
     private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
     public async ValueTask InitializeAsync()
@@ -80,6 +87,7 @@ public sealed class TestSystem : IAsyncLifetime
         _publicApi = InMemory(new WebApplicationFactory<PublicApiEntryPoint>());
         _backOfficeApi = InMemory(new WebApplicationFactory<BackOfficeApiEntryPoint>());
         _webhookIngress = InMemory(new WebApplicationFactory<WebhookIngressEntryPoint>());
+        _checkInApi = InMemory(new WebApplicationFactory<CheckInApiEntryPoint>());
         _workers = BuildHost(HostKind.Workers);
     }
 
@@ -99,6 +107,11 @@ public sealed class TestSystem : IAsyncLifetime
         if (_webhookIngress is not null)
         {
             await _webhookIngress.DisposeAsync();
+        }
+
+        if (_checkInApi is not null)
+        {
+            await _checkInApi.DisposeAsync();
         }
 
         await _postgres.DisposeAsync();
@@ -126,6 +139,8 @@ public sealed class TestSystem : IAsyncLifetime
     public HttpClient BackOfficeApi(string? token = null) => WithToken(Started(_backOfficeApi).CreateClient(), token);
 
     public HttpClient WebhookIngress() => Started(_webhookIngress).CreateClient();
+
+    public HttpClient CheckInApi(string? token = null) => WithToken(Started(_checkInApi).CreateClient(), token);
 
     /// <summary>
     /// What the Workers host does in the background, until there is nothing left: relays every
@@ -235,7 +250,7 @@ public sealed class TestSystem : IAsyncLifetime
         return client;
     }
 
-    private static IModule[] Modules() => [new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule()];
+    private static IModule[] Modules() => [new CatalogModule(), new InventoryModule(), new OrdersModule(), new PaymentsModule(), new OrganizersModule(), new TicketingModule(), new NotificationsModule(), new CheckInModule()];
 
     private WebApplicationFactory<TEntryPoint> InMemory<TEntryPoint>(WebApplicationFactory<TEntryPoint> factory)
         where TEntryPoint : class =>
@@ -252,6 +267,7 @@ public sealed class TestSystem : IAsyncLifetime
             {
                 services.UseTestTokens();
                 services.AddSingleton(_outputCache);
+                services.AddSingleton<IDeviceDirectory>(DeviceDirectory);
                 services.ConfigureHttpClientDefaults(client => client.ConfigurePrimaryHttpMessageHandler(LocalPay.CreateHandler));
             });
         });

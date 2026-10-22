@@ -25,6 +25,7 @@ ports:
   publicapi: { port: 5101, exposedPort: 5101, nodePort: 30101, protocol: TCP, expose: { default: true } }
   backofficeapi: { port: 5102, exposedPort: 5102, nodePort: 30102, protocol: TCP, expose: { default: true } }
   webhookingress: { port: 5103, exposedPort: 5103, nodePort: 30103, protocol: TCP, expose: { default: true } }
+  checkinapi: { port: 5104, exposedPort: 5104, nodePort: 30104, protocol: TCP, expose: { default: true } }
   localpay: { port: 5201, exposedPort: 5201, nodePort: 30201, protocol: TCP, expose: { default: true } }
   scalinglab: { port: 5300, exposedPort: 5300, nodePort: 30300, protocol: TCP, expose: { default: true } }
   loadgenerator: { port: 5301, exposedPort: 5301, nodePort: 30301, protocol: TCP, expose: { default: true } }
@@ -41,6 +42,7 @@ gateway:
     publicapi: { port: 5101, protocol: HTTP, namespacePolicy: { from: All } }
     backofficeapi: { port: 5102, protocol: HTTP, namespacePolicy: { from: All } }
     webhookingress: { port: 5103, protocol: HTTP, namespacePolicy: { from: All } }
+    checkinapi: { port: 5104, protocol: HTTP, namespacePolicy: { from: All } }
     localpay: { port: 5201, protocol: HTTP, namespacePolicy: { from: All } }
     scalinglab: { port: 5300, protocol: HTTP, namespacePolicy: { from: All } }
     loadgenerator: { port: 5301, protocol: HTTP, namespacePolicy: { from: All } }
