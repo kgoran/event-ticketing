@@ -147,6 +147,7 @@ var backOfficeApi = WithTimings(builder.AddProject<Projects.BackOfficeApi>("back
 builder.AddProject<Projects.CheckInApi>("checkinapi")
     .WithReference(database)
     .WithEnvironment("Authentication__Authority", authority)
+    .WithEnvironment("CheckIn__Keycloak__BaseUrl", keycloak.GetEndpoint("http"))
     .WithEnvironment("Authentication__RequireHttpsMetadata", "false")
     .WithHttpHealthCheck("/health")
     .WaitFor(keycloak)

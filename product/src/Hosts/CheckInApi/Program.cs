@@ -36,4 +36,9 @@ if (app.Environment.IsDevelopment())
 
 app.MapModuleEndpoints();
 
+// The scanner (D62): a Blazor WebAssembly app at /scanner/, which works offline once loaded. Its
+// files are public; what it reads and sends needs the device's token.
+app.MapStaticAssets().AllowAnonymous();
+app.MapFallbackToFile("/scanner/{*path:nonfile}", "scanner/index.html").AllowAnonymous();
+
 app.Run();

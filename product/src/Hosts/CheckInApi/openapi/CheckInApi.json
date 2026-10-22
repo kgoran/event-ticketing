@@ -5,6 +5,57 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/device-token": {
+      "post": {
+        "tags": [
+          "Door"
+        ],
+        "summary": "Signs a door device in with its client credentials: an access token from Keycloak",
+        "operationId": "GetDeviceToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/events/{eventId}/door-list": {
       "get": {
         "tags": [
@@ -161,9 +212,45 @@
           }
         }
       },
+      "DeviceTokenRequest": {
+        "required": [
+          "clientId",
+          "clientSecret"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string"
+          }
+        }
+      },
+      "DeviceTokenResponse": {
+        "required": [
+          "accessToken",
+          "expiresIn"
+        ],
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "DoorListPage": {
         "required": [
           "eventId",
+          "eventName",
           "cursor",
           "more",
           "keys",
@@ -176,6 +263,12 @@
           "eventId": {
             "type": "string",
             "format": "uuid"
+          },
+          "eventName": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "cursor": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",

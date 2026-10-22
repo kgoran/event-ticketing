@@ -1,0 +1,311 @@
+@page "/"
+@implements IAsyncDisposable
+@inject DoorBrowser Browser
+@inject DoorSync Sync
+
+<PageTitle>Door · EventTicketing</PageTitle>
+
+<header class="bar">
+    <strong>EventTicketing · Door</strong>
+    @if (_list is not null && _device is not null)
+    {
+        <span class="event">@(_list.EventName ?? "Event")</span>
+        <span class="status @(_online ? "online" : "offline")">@(_online ? "Online" : "Offline")</span>
+    }
+</header>
+
+<main>
+    @if (!_loaded)
+    {
+        <p class="muted">Loading…</p>
+    }
+    else if (_device is null)
+    {
+        <section class="card">
+            <h1>Set up this door</h1>
+            <p>
+                Paste what the back office showed when this device was registered
+                (<code>POST /events/{id}/devices</code>): its <code>clientId</code> and <code>clientSecret</code>, or the whole answer.
+            </p>
+            <textarea rows="6" @bind="_setupText" placeholder='{ "clientId": "device-…", "clientSecret": "…" }' aria-label="Device credentials"></textarea>
+            <button type="button" class="button primary" disabled="@_busy" @onclick="SetUpAsync">Connect</button>
+            @if (_problem is not null)
+            {
+                <p class="problem" role="alert">@_problem</p>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="result @ResultClass" aria-live="assertive">
+            @if (_decision is { } decision)
+            {
+                <span class="verdict">@(decision.Admit ? "ADMIT" : "REFUSE")</span>
+                <span class="message">@decision.Message</span>
+                <span class="timing">decided in @_decidedIn.ToString("0") ms@(_decodedIn is { } decoded ? $", read in {decoded:0} ms" : "")</span>
+            }
+            else
+            {
+                <span class="message">Show a ticket's QR code to the camera, or type or paste its code below.</span>
+            }
+        </section>
+
+        <section class="card scan">
+            <video @ref="_video" class="camera @(_cameraOn ? "on" : null)" muted playsinline aria-label="Camera"></video>
+            <div class="row">
+                <button type="button" class="button" @onclick="ToggleCameraAsync">@(_cameraOn ? "Stop camera" : "Start camera")</button>
+            </div>
+            <textarea rows="3" @bind="_codeText" placeholder="A ticket's code (eyJ…)" aria-label="Ticket code"></textarea>
+            <div class="row">
+                <button type="button" class="button primary" @onclick="CheckTypedAsync">Check</button>
+            </div>
+            @if (_cameraProblem is not null)
+            {
+                <p class="problem" role="alert">@_cameraProblem</p>
+            }
+        </section>
+
+        <section class="card facts">
+            <dl>
+                <dt>On the list</dt><dd>@_list!.Issued.Count tickets, @_list.Revoked.Count revoked</dd>
+                <dt>Let in</dt><dd>@_queue!.AdmittedHere.Count here, @_list.Admitted.Count at all doors (last sync)</dd>
+                <dt>Waiting to upload</dt><dd>@_queue.Pending.Count scans</dd>
+                <dt>Last sync</dt><dd>@(_list.SyncedAt?.ToLocalTime().ToString("HH:mm:ss") ?? "never")</dd>
+            </dl>
+            @if (_problem is not null)
+            {
+                <p class="problem" role="alert">@_problem</p>
+            }
+            <button type="button" class="button small" @onclick="ForgetAsync">Forget this device</button>
+        </section>
+    }
+</main>
+
+@code {
+    private const string ListKey = "list";
+    private const string QueueKey = "queue";
+    private const string DeviceKey = "device";
+
+    private readonly CancellationTokenSource _stop = new();
+    private DotNetObjectReference<Door>? _self;
+    private ElementReference _video;
+
+    private bool _loaded;
+    private bool _busy;
+    private bool _online = true;
+    private bool _cameraOn;
+    private string? _setupText;
+    private string? _codeText;
+    private string? _problem;
+    private string? _cameraProblem;
+
+    private DeviceSetup? _device;
+    private DoorList? _list;
+    private DoorQueue? _queue;
+
+    private Decision? _decision;
+    private double _decidedIn;
+    private double? _decodedIn;
+
+    private string? ResultClass => _decision is null ? null : _decision.Admit ? "admit" : "refuse";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _self = DotNetObjectReference.Create(this);
+        _device = await Browser.LoadAsync<DeviceSetup>(DeviceKey);
+        _list = await Browser.LoadAsync<DoorList>(ListKey) ?? new DoorList();
+        _queue = await Browser.LoadAsync<DoorQueue>(QueueKey) ?? new DoorQueue();
+        _loaded = true;
+        StateHasChanged();
+        _ = SyncLoopAsync();
+    }
+
+    /// <summary>Every 5 s while online: upload, then fetch the changes (T8's rhythm).</summary>
+    private async Task SyncLoopAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            do
+            {
+                await SyncOnceAsync();
+            }
+            while (await timer.WaitForNextTickAsync(_stop.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+    }
+
+    private async Task SyncOnceAsync()
+    {
+        if (_device is null || _list is null || _queue is null)
+        {
+            return;
+        }
+
+        _online = await Browser.OnlineAsync();
+        if (!_online)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var result = await Sync.SyncAsync(_device, _list, [.. _queue.Pending], _stop.Token);
+            var uploaded = result.Uploaded.ToHashSet();
+            _queue.Pending.RemoveAll(scan => uploaded.Contains(scan.ScanId));
+            await Browser.SaveAsync(QueueKey, _queue);
+            await Browser.SaveAsync(ListKey, _list);
+            _problem = result.Problem;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException && !_stop.IsCancellationRequested)
+        {
+            // CheckInApi is out of reach: the door goes on from what it has.
+            _online = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SetUpAsync()
+    {
+        _problem = null;
+        if (ParseSetup(_setupText) is not { } device)
+        {
+            _problem = "Paste the device's clientId and clientSecret.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (!await Sync.SignInAsync(device, _stop.Token))
+            {
+                _problem = "CheckInApi refused these credentials.";
+                return;
+            }
+
+            _device = device;
+            _list = new DoorList();
+            _queue = new DoorQueue();
+            await Browser.SaveAsync(DeviceKey, device);
+            await SyncOnceAsync();
+        }
+        catch (HttpRequestException exception)
+        {
+            _problem = $"CheckInApi doesn't answer: {exception.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CheckTypedAsync()
+    {
+        await DecideAsync(_codeText, decodedIn: null);
+        _codeText = null;
+    }
+
+    /// <summary>From the camera (door.js): a QR code read, and how long jsQR took.</summary>
+    [JSInvokable]
+    public async Task OnCodeAsync(string code, double decodedIn)
+    {
+        await DecideAsync(code, decodedIn);
+        StateHasChanged();
+    }
+
+    private async Task DecideAsync(string? text, double? decodedIn)
+    {
+        if (_list is null || _queue is null || string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        var code = TicketCode.Parse(text);
+        var signed = code is not null && await Browser.VerifyAsync(text.Trim(), _list.Keys);
+        var decision = DoorDecision.Decide(code, signed, new DoorView(_list, _queue));
+        _decidedIn = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        (_decision, _decodedIn) = (decision, decodedIn);
+
+        // Recorded before anything else, so a crash or a closed tab loses no scan.
+        var now = DateTimeOffset.UtcNow;
+        if (code is not null)
+        {
+            _queue.Pending.Add(new PendingScan(Guid.NewGuid(), code.TicketId, now, decision.Admit, decision.Admit ? null : decision.Reason));
+            if (decision.Admit)
+            {
+                _queue.AdmittedHere[code.TicketId] = now;
+            }
+
+            await Browser.SaveAsync(QueueKey, _queue);
+        }
+    }
+
+    private async Task ToggleCameraAsync()
+    {
+        _cameraProblem = null;
+        try
+        {
+            if (_cameraOn)
+            {
+                await Browser.StopCameraAsync();
+                _cameraOn = false;
+            }
+            else
+            {
+                await Browser.StartCameraAsync(_video, _self!);
+                _cameraOn = true;
+            }
+        }
+        catch (JSException exception)
+        {
+            _cameraProblem = $"No camera: {exception.Message}. Type or paste the code instead.";
+        }
+    }
+
+    private async Task ForgetAsync()
+    {
+        await Browser.StopCameraAsync();
+        await Browser.ForgetAsync();
+        (_device, _list, _queue, _decision, _cameraOn) = (null, new DoorList(), new DoorQueue(), null, false);
+    }
+
+    /// <summary>The registration's answer as pasted, or just its two fields.</summary>
+    internal static DeviceSetup? ParseSetup(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(text);
+            return json.RootElement.TryGetProperty("clientId", out var id) && json.RootElement.TryGetProperty("clientSecret", out var secret)
+                && id.GetString() is { Length: > 0 } clientId && secret.GetString() is { Length: > 0 } clientSecret
+                ? new DeviceSetup(clientId, clientSecret)
+                : null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _stop.Cancel();
+        _self?.Dispose();
+        await Browser.DisposeAsync();
+    }
+}

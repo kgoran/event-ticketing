@@ -2,6 +2,7 @@
   <Folder Name="/src/" />
   <Folder Name="/src/Frontends/">
     <Project Path="src/Frontends/FanSite/FanSite.csproj" />
+    <Project Path="src/Frontends/Scanner/Scanner.csproj" />
   </Folder>
   <Folder Name="/src/Hosts/">
     <Project Path="src/Hosts/BackOfficeApi/BackOfficeApi.csproj" />
@@ -63,6 +64,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/ArchitectureTests/ArchitectureTests.csproj" />
     <Project Path="tests/FanSite.Tests/FanSite.Tests.csproj" />
+    <Project Path="tests/Scanner.Tests/Scanner.Tests.csproj" />
     <Project Path="tests/Hosts.Tests/Hosts.Tests.csproj" />
     <Project Path="tests/Modules.IntegrationTests/Modules.IntegrationTests.csproj" />
     <Project Path="tests/Shared.IntegrationTests/Shared.IntegrationTests.csproj" />
