@@ -3,6 +3,7 @@
 using EventTicketing.Tooling.Clients.BackOffice.Events;
 using EventTicketing.Tooling.Clients.BackOffice.Me;
 using EventTicketing.Tooling.Clients.BackOffice.Organizers;
+using EventTicketing.Tooling.Clients.BackOffice.Tickets;
 using EventTicketing.Tooling.Clients.BackOffice.Venues;
 using Microsoft.Kiota.Abstractions.Extensions;
 using Microsoft.Kiota.Abstractions;
@@ -36,6 +37,11 @@ namespace EventTicketing.Tooling.Clients.BackOffice
         public global::EventTicketing.Tooling.Clients.BackOffice.Organizers.OrganizersRequestBuilder Organizers
         {
             get => new global::EventTicketing.Tooling.Clients.BackOffice.Organizers.OrganizersRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The tickets property</summary>
+        public global::EventTicketing.Tooling.Clients.BackOffice.Tickets.TicketsRequestBuilder Tickets
+        {
+            get => new global::EventTicketing.Tooling.Clients.BackOffice.Tickets.TicketsRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The venues property</summary>
         public global::EventTicketing.Tooling.Clients.BackOffice.Venues.VenuesRequestBuilder Venues

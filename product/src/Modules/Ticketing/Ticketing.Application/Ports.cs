@@ -7,6 +7,9 @@ public interface ITicketRepository
     void Add(Ticket ticket);
 
     Task<bool> AnyForOrderAsync(Guid orderId, CancellationToken cancellationToken);
+
+    /// <summary>The ticket, tracked so a change is saved with the command.</summary>
+    Task<Ticket?> FindAsync(Guid ticketId, CancellationToken cancellationToken);
 }
 
 /// <summary>Ticketing's copy of the events it issues tickets for.</summary>

@@ -45,6 +45,7 @@ internal sealed class TicketingDbContext(DbContextOptions<TicketingDbContext> op
             entity.Property(ticket => ticket.Label).HasMaxLength(200);
             entity.Property(ticket => ticket.KeyId).HasMaxLength(64);
             entity.Property(ticket => ticket.Code).HasMaxLength(1000);
+            entity.Property(ticket => ticket.RevocationReason).HasMaxLength(200);
         });
 
         modelBuilder.Entity<TicketedEvent>(entity =>
@@ -92,6 +93,9 @@ internal sealed class TicketRepository(TicketingDbContext db) : ITicketRepositor
 
     public Task<bool> AnyForOrderAsync(Guid orderId, CancellationToken cancellationToken) =>
         db.Tickets.AnyAsync(ticket => ticket.OrderId == orderId, cancellationToken);
+
+    public Task<Ticket?> FindAsync(Guid ticketId, CancellationToken cancellationToken) =>
+        db.Tickets.SingleOrDefaultAsync(ticket => ticket.Id == ticketId, cancellationToken);
 }
 
 internal sealed class TicketedEvents(TicketingDbContext db) : ITicketedEvents

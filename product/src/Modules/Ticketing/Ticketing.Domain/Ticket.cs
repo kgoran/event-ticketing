@@ -1,3 +1,5 @@
+using EventTicketing.Shared.Domain;
+
 namespace EventTicketing.Ticketing.Domain;
 
 /// <summary>
@@ -35,6 +37,14 @@ public sealed class Ticket
 
     public DateTimeOffset IssuedAt { get; private set; }
 
+    /// <summary>
+    /// When the ticket stopped letting anyone in (D63): an admin revoked it; in M4 also a chargeback
+    /// or a cancelled event. The code stays valid as a signature; the door list says no.
+    /// </summary>
+    public DateTimeOffset? RevokedAt { get; private set; }
+
+    public string? RevocationReason { get; private set; }
+
     public static Ticket Issue(TicketSpec spec, string keyId, string code, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(spec);
@@ -52,6 +62,18 @@ public sealed class Ticket
             Code = code,
             IssuedAt = now.ToUniversalTime(),
         };
+    }
+
+    public Result<Unit> Revoke(string reason, DateTimeOffset now)
+    {
+        if (RevokedAt is not null)
+        {
+            return Error.Conflict("ticket.already_revoked", "The ticket is already revoked.");
+        }
+
+        RevokedAt = now.ToUniversalTime();
+        RevocationReason = reason;
+        return Unit.Value;
     }
 }
 
