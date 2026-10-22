@@ -50,6 +50,7 @@ The usual ports, as under Aspire:
 | http://localhost:8025 | Mailpit |
 | http://localhost:8180 | Keycloak (`status` prints the admin password) |
 | http://localhost:3000 | Grafana: the dashboards, and Explore for metrics, logs and traces (no sign-in needed; `status` prints the admin password) |
+| http://localhost:8088 | Redpanda Console: topics, partitions and their leaders, messages, consumer groups (M4; a cluster made before M4 doesn't map the port: `down`, then `up`) |
 
 `kubectl --context kind-eventticketing …` reaches the cluster (or `.tools/bin/kubectl`).
 
@@ -62,7 +63,7 @@ which database instance is the primary. A cluster made before M3 had one node: `
 
 | Namespace | What |
 |---|---|
-| `platform` | Traefik (the gateway), Keycloak, Mailpit, Toxiproxy (between the hosts and PgBouncer, D57), SeaweedFS (the backups' object store, D65), and the observability stack: the OpenTelemetry Collector, Prometheus, Loki, Tempo, Grafana (D55) |
+| `platform` | Traefik (the gateway), Keycloak, Mailpit, Toxiproxy (between the hosts and PgBouncer, D57), SeaweedFS (the backups' object store, D65), Redpanda (three Kafka brokers, one per zone, and its Console, D76), and the observability stack: the OpenTelemetry Collector, Prometheus, Loki, Tempo, Grafana (D55) |
 | `cnpg-system` | the CloudNativePG operator and its Barman Cloud plugin (backups, D65) |
 | `cert-manager` | cert-manager, which issues the certificates the plugin and the operator talk over |
 | `keda` | KEDA, which runs PublicApi's autoscaler when the Scaling Lab's **Auto** is on ([ADR-0054](adr/0054-publicapi-autoscaling-switch-in-the-lab.md)) |
@@ -108,7 +109,9 @@ errors (T10) and under 1% of browsing failed: browsing needs no primary (D74, D7
 
 - **`drill failover`**: the primary crashes (its pod is deleted at once, with no time to finish
   anything). CloudNativePG promotes a standby, and the `-rw` service follows it.
-- **`drill zone`**: a worker node stops, as a zone would fail, and starts again afterwards. Without
+- **`drill zone`**: a worker node stops, as a zone would fail, and starts again afterwards. While
+  it is down, a message is written to a topic with three replicas with `acks=all`: Redpanda
+  replicates by Raft, so two of three take it (D76). Without
   a zone named, the one with the database's primary, if it is a worker's.
   zone-a is never stopped: it is the lab's way in, with the port mappings, the gateway, Keycloak,
   Mailpit, the operators and the tooling, which stand for the outside world.
@@ -162,6 +165,25 @@ What the drills taught:
   Browsing from the replica (RR1) and the cache (VK1) are what change that.
 - **A pod on a lost node still looks ready** to the API for a while. The lab asks CloudNativePG
   which instances are healthy.
+
+## Kafka: Redpanda (D76)
+
+Three Redpanda brokers, a StatefulSet with one per zone (`platform/manifests/redpanda.yaml`), and
+Redpanda Console at http://localhost:8088. Each partition is replicated to all three by Raft: a
+write with `acks=all` returns once two have it, and when a broker's zone goes, its partitions elect
+leaders among the other two. `check` asks `rpk cluster health` for three healthy brokers; the zone
+drill writes while a zone is down.
+
+- **Topics aren't created by producing** (`auto_create_topics_enabled: false`, from
+  `.bootstrap.yaml`): the Migrator creates them with their partitions and limits (KF1). A topic's
+  message limit is its own: the catalog topic allows 16 MB (D80), others Kafka's 1 MB.
+- **One core and 768 MB per broker, overprovisioned**, which also skips fsync: a broker survives
+  its pod being killed, not the laptop losing power. The other two brokers have every write.
+- From a broker's pod: `kubectl --context kind-eventticketing exec -n platform redpanda-0 -c redpanda -- rpk cluster health`
+  (or `rpk topic list`, `rpk group list`).
+
+Measured (2026-10-22): three brokers healthy after about a minute; with a zone down, a write with
+`acks=all` acknowledged through the two that remain.
 
 ## Backups (D65)
 

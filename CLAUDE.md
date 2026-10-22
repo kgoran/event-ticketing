@@ -75,9 +75,10 @@ SeaweedFS; `lab backup`, `lab restore-check`), and the demo (Q8: runbook `docs/d
 readiness without shared dependencies, D74; availability from a replica without a snapshot, D75). D67–D75 were decided
 while building.
 
-**M4 is planned** (`docs/milestones/m4.md`, D76–D90, ADR-0057, ADR-0058), decided overnight: Kafka (Redpanda) as the
+**M4 is in progress** (`docs/milestones/m4.md`, D76–D90, ADR-0057, ADR-0058), decided overnight: Kafka (Redpanda) as the
 transport with Protobuf code-first, dead letters, Workers split by configuration, Reporting, event cancellation with refunds
-at the provider's rate, chargebacks, T6 and T9. Decisions continue at D91.
+at the provider's rate, chargebacks, T6 and T9. Built: RP1 (three Redpanda brokers in the lab, one under Aspire;
+Redpanda Console at http://localhost:8088). Next: KF1, the Kafka transport. Decisions continue at D91.
 
 ## Commands
 

@@ -64,7 +64,7 @@ sealed class Lab(string root)
     [
         (5100, "fan site"), (5101, "PublicApi"), (5102, "BackOfficeApi"), (5103, "WebhookIngress"), (5104, "CheckInApi"),
         (5201, "LocalPay"), (5300, "Scaling Lab"), (5301, "load generator"),
-        (8025, "Mailpit"), (8180, "Keycloak"), (3000, "Grafana"),
+        (8025, "Mailpit"), (8180, "Keycloak"), (3000, "Grafana"), (8088, "Redpanda Console"),
     ];
 
     /// <summary>The images `up` builds, and the projects they come from.</summary>
@@ -134,6 +134,12 @@ sealed class Lab(string root)
             throw new LabException(
                 $"The lab cluster has {ClusterNodes()} node(s); this version of the lab makes {ConfiguredNodes()}, one per zone (D47). "
                 + "Make it again: dotnet run lab.cs -- down, then up.");
+        }
+
+        // A cluster made before M4 doesn't map Redpanda Console's port: everything else works.
+        if (ClusterExists() && !Capture("docker", ["port", $"{ClusterName}-control-plane"]).Contains(":8088", StringComparison.Ordinal))
+        {
+            Console.WriteLine("Note: this cluster was made before M4 and doesn't map port 8088 (Redpanda Console). Everything else works; down, then up, to get it.");
         }
 
         if (!ClusterExists())
@@ -571,8 +577,16 @@ sealed class Lab(string root)
         }
 
         Step("Addresses");
+        // A port a cluster made before a milestone doesn't map (8088 before M4) is noted, not failed.
+        var mapped = Capture("docker", ["port", $"{ClusterName}-control-plane"]);
         foreach (var (port, what) in Addresses)
         {
+            if (!mapped.Contains($":{port}", StringComparison.Ordinal))
+            {
+                Console.WriteLine($"  --    {what} at http://localhost:{port}: this cluster doesn't map the port; down, then up, to get it");
+                continue;
+            }
+
             await Check($"{what} at http://localhost:{port}", async () =>
             {
                 using var response = await http.GetAsync(new Uri($"http://localhost:{port}/"));
@@ -643,6 +657,15 @@ sealed class Lab(string root)
             using var answer = await Grafana("api/search?tag=eventticketing&type=dash-db");
             var titles = answer.RootElement.EnumerateArray().Select(dashboard => dashboard.GetProperty("title").GetString()).ToList();
             return titles.Count >= 3 ? null : $"found {titles.Count}: {string.Join(", ", titles)}";
+        });
+
+        Step("Kafka (D76)");
+        await Check("three Redpanda brokers, healthy", () =>
+        {
+            var health = Capture(_tools.Kubectl, ["--context", Context, "exec", "-n", "platform", "redpanda-0", "-c", "redpanda", "--", "rpk", "cluster", "health"]);
+            var healthy = health.Split('\n').Any(line => line.StartsWith("Healthy:", StringComparison.Ordinal) && line.TrimEnd().EndsWith("true", StringComparison.Ordinal));
+            var nodes = health.Split('\n').FirstOrDefault(line => line.StartsWith("All nodes:", StringComparison.Ordinal))?.Split('[', ']')[1].Split(' ', StringSplitOptions.RemoveEmptyEntries).Length ?? 0;
+            return Task.FromResult(healthy && nodes == 3 ? null : $"healthy: {healthy}, brokers: {nodes}");
         });
 
         Step("The database's backups (D65)");
@@ -736,6 +759,12 @@ sealed class Lab(string root)
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
         var previous = await http.GetStringAsync(GeneratorSettings);
 
+        // A topic with three replicas, to write to while a zone is down (D76); made while all three run.
+        if (kind == "zone")
+        {
+            Succeeds(_tools.Kubectl, ["--context", Context, "exec", "-n", "platform", "redpanda-0", "-c", "redpanda", "--", "rpk", "topic", "create", "lab.drill", "-r", "3", "-p", "1"]);
+        }
+
         Step("Load: 100 requests/s through the gateway, 20% holds");
         await SetLoadAsync(http, """{"requestsPerSecond":100,"holdShare":0.2}""");
         await Task.Delay(TimeSpan.FromSeconds(15)); // steady before anything breaks
@@ -815,6 +844,7 @@ sealed class Lab(string root)
         }
 
         var invariants = InvariantsHold();
+        var kafka = node is null || KafkaWritesWithout(node);
         if (node is not null)
         {
             Step($"Zone: the node {node} starts again");
@@ -822,7 +852,23 @@ sealed class Lab(string root)
             Kubectl("wait", "node", node, "--for=condition=Ready", "--timeout=180s");
             Kubectl("wait", "--for=condition=Ready", "cluster/eventticketing", "-n", "eventticketing", "--timeout=300s");
         }
-        return (promoted is not null || !promotes) && invariants && (kind != "failover" || (errorSeconds < 60 && browsingWentOn)) ? 0 : 1;
+        return (promoted is not null || !promotes) && invariants && kafka && (kind != "failover" || (errorSeconds < 60 && browsingWentOn)) ? 0 : 1;
+    }
+
+    /// <summary>
+    /// With a zone down, Kafka still takes writes (D76): a message produced with acks=all, through a
+    /// broker that runs, needs a majority of its three replicas, and two remain.
+    /// </summary>
+    private bool KafkaWritesWithout(string node)
+    {
+        Step("Kafka: a write with acks=all while the zone is down");
+        var broker = Capture(_tools.Kubectl, ["--context", Context, "get", "pods", "-n", "platform", "-l", "app.kubernetes.io/name=redpanda", "-o", $"jsonpath={{.items[?(@.spec.nodeName!=\"{node}\")].metadata.name}}"])
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        var written = broker is not null && Succeeds(
+            _tools.Kubectl, ["--context", Context, "exec", "-i", "-n", "platform", broker, "-c", "redpanda", "--", "rpk", "topic", "produce", "lab.drill", "--acks", "-1"],
+            stdin: $"written without {node}\n");
+        Console.WriteLine(written ? $"  ok    two of three replicas took it, through {broker}" : "  FAIL  the write wasn't acknowledged");
+        return written;
     }
 
     /// <summary>The load generator's failed requests per kind over its seconds, as a drill or a deploy reports them.</summary>
@@ -1126,6 +1172,13 @@ sealed class Lab(string root)
             Weed("s3.bucket.create -name backups");
         }
 
+        // Kafka (D76): three brokers, one per zone, and Redpanda Console. Before the product: the
+        // Migrator creates its topics.
+        Step("Platform: Redpanda");
+        Kubectl("apply", "-f", PathOf("platform/manifests/redpanda.yaml"));
+        Kubectl("rollout", "status", "statefulset/redpanda", "-n", "platform", "--timeout=300s");
+        Kubectl("rollout", "status", "deployment/redpanda-console", "-n", "platform", "--timeout=180s");
+
         Step("Platform: Keycloak, Mailpit, Toxiproxy");
         var realm = PathOf("dev/AppHost/Realms/eventticketing-realm.json");
         Apply(Capture(_tools.Kubectl, ["--context", Context, "create", "configmap", "keycloak-realm", "-n", "platform", $"--from-file={realm}", "--dry-run=client", "-o", "yaml"]));
@@ -1329,11 +1382,11 @@ sealed class Lab(string root)
     }
 
     /// <summary>Whether a command succeeds; what it prints is discarded.</summary>
-    private static bool Succeeds(string file, IEnumerable<string> arguments)
+    private static bool Succeeds(string file, IEnumerable<string> arguments, string? stdin = null)
     {
         try
         {
-            Capture(file, arguments);
+            Capture(file, arguments, stdin: stdin);
             return true;
         }
         catch (LabException)
