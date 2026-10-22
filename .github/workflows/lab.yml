@@ -76,7 +76,7 @@ jobs:
 
       # Q7: the M2 demo's other steps as a dry run (docs/demos/m2.md): a purchase in the cluster,
       # scaling by hand and with Auto, a flag switched without a deploy; none may fail a request.
-      - name: Lab system tests (the M2 demo dry run, the invariant checker, the slow database, door devices)
+      - name: Lab system tests (the M2 and M3 demo dry runs, the invariant checker, the slow database, door devices)
         env:
           LAB_SYSTEM_TESTS: "1"
         run: dotnet test --project tooling/tests/Lab.SystemTests

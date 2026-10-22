@@ -23,10 +23,11 @@ internal sealed class HostUnderTest : IAsyncDisposable
 
     public IServiceProvider Services { get; }
 
-    public static HostUnderTest Start(string host) => host switch
+    /// <param name="settings">Configuration for the host, such as connection strings.</param>
+    public static HostUnderTest Start(string host, params (string Key, string Value)[] settings) => host switch
     {
-        "PublicApi" => Start(new WebApplicationFactory<PublicApiEntryPoint>()),
-        "BackOfficeApi" => Start(new WebApplicationFactory<BackOfficeApiEntryPoint>()),
+        "PublicApi" => Start(new WebApplicationFactory<PublicApiEntryPoint>(), settings),
+        "BackOfficeApi" => Start(new WebApplicationFactory<BackOfficeApiEntryPoint>(), settings),
         _ => throw new ArgumentOutOfRangeException(nameof(host), host, "Unknown host."),
     };
 
@@ -36,12 +37,17 @@ internal sealed class HostUnderTest : IAsyncDisposable
         await _factory.DisposeAsync();
     }
 
-    private static HostUnderTest Start<TEntryPoint>(WebApplicationFactory<TEntryPoint> factory)
+    private static HostUnderTest Start<TEntryPoint>(WebApplicationFactory<TEntryPoint> factory, (string Key, string Value)[] settings)
         where TEntryPoint : class
     {
         var configured = factory.WithWebHostBuilder(host =>
         {
             host.UseEnvironment("Development");
+            foreach (var (key, value) in settings)
+            {
+                host.UseSetting(key, value);
+            }
+
             host.ConfigureTestServices(services => services.UseTestTokens());
         });
 

@@ -134,7 +134,7 @@ internal static class LabCluster
 
     // The cluster (D31, D39, D45): what the Scaling Lab and `lab flag` change
 
-    private static Kubernetes Kubernetes() => new(KubernetesClientConfiguration.BuildConfigFromConfigFile(currentContext: "kind-eventticketing"));
+    internal static Kubernetes Kubernetes() => new(KubernetesClientConfiguration.BuildConfigFromConfigFile(currentContext: "kind-eventticketing"));
 
     public static async Task<(int Wanted, int Ready)> PublicApiAsync()
     {

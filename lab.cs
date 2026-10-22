@@ -393,6 +393,10 @@ sealed class Lab(string root)
 
         Step("T10: requests that failed during the rollout");
         Console.WriteLine($"  {completed} answered in {seconds} s, {failed} failed ({share:P3}), {Sum("skipped")} skipped. T10 allows under 0.1%.");
+        if (failed > 0)
+        {
+            Console.WriteLine($"  Failed: {FailedByKind(window)}.");
+        }
         if (seconds > 300)
         {
             Console.WriteLine("  The generator keeps 300 seconds; only the last 300 are counted.");
@@ -792,9 +796,23 @@ sealed class Lab(string root)
         Console.WriteLine(failing.Count == 0
             ? $"  {completed} answered, none failed."
             : $"  {completed} answered, {failing.Sum(second => second.failed)} failed, within {errorSeconds} s (from {failing[0].index - (window.Count - seconds)} s to {failing[^1].index - (window.Count - seconds)} s after the failure).");
+        if (failing.Count > 0)
+        {
+            Console.WriteLine($"  Failed: {FailedByKind(window)}.");
+        }
+
         Console.WriteLine(kind == "failover"
             ? (errorSeconds < 60 ? "  Within T10 (under 60 s of errors)." : "  Over T10: 60 s of errors or more.")
             : "  A zone may take minutes to recover (§10); its database instance waits for the node, the hosts move.");
+
+        // Browsing reads the replica and the cache (RR1, VK1): without the primary it goes on (M3).
+        var browsed = window.Sum(second => ByKind(second, "completedByKind", "Browse"));
+        var browsingFailed = window.Sum(second => ByKind(second, "failedByKind", "Browse"));
+        var browsingWentOn = browsingFailed <= browsed / 100;
+        if (kind == "failover")
+        {
+            Console.WriteLine($"  Browsing: {browsingFailed} of {browsed} failed. {(browsingWentOn ? "It went on without the primary." : "Over 1%: it should go on without the primary (the replica and the cache).")}");
+        }
 
         var invariants = InvariantsHold();
         if (node is not null)
@@ -804,8 +822,16 @@ sealed class Lab(string root)
             Kubectl("wait", "node", node, "--for=condition=Ready", "--timeout=180s");
             Kubectl("wait", "--for=condition=Ready", "cluster/eventticketing", "-n", "eventticketing", "--timeout=300s");
         }
-        return (promoted is not null || !promotes) && invariants && (kind != "failover" || errorSeconds < 60) ? 0 : 1;
+        return (promoted is not null || !promotes) && invariants && (kind != "failover" || (errorSeconds < 60 && browsingWentOn)) ? 0 : 1;
     }
+
+    /// <summary>The load generator's failed requests per kind over its seconds, as a drill or a deploy reports them.</summary>
+    private static string FailedByKind(IReadOnlyCollection<JsonElement> window) =>
+        string.Join(", ", new[] { ("Hold", "holds"), ("Release", "releases"), ("Browse", "browsing") }
+            .Select(kind => $"{kind.Item2} {window.Sum(second => ByKind(second, "failedByKind", kind.Item1))}"));
+
+    private static int ByKind(JsonElement second, string property, string kind) =>
+        second.TryGetProperty(property, out var byKind) && byKind.TryGetProperty(kind, out var count) ? count.GetInt32() : 0;
 
     private const string RestoreCluster = "eventticketing-restore";
 

@@ -34,6 +34,7 @@ public enum Outcome
 /// <param name="Skipped">Asked for, but not sent: the generator's own limit of requests in flight was reached, or no lab fan was free.</param>
 /// <param name="Completed">Requests that finished in this second, by outcome.</param>
 /// <param name="LatencyP50Ms">Latency of the answered requests (ok or refused); failures have no meaningful latency.</param>
+/// <param name="FailedByKind">Failed requests and other 4xx per kind: which part of the system couldn't serve, as a drill asks.</param>
 /// <param name="LatencyP99MsByKind">The same per kind: holds and browsing have different targets (ADR-0015, T1 and T4).</param>
 public sealed record SecondStats(
     DateTimeOffset At,
@@ -48,6 +49,7 @@ public sealed record SecondStats(
     double? LatencyP95Ms,
     double? LatencyP99Ms,
     IReadOnlyDictionary<string, int> CompletedByKind,
+    IReadOnlyDictionary<string, int> FailedByKind,
     IReadOnlyDictionary<string, double?> LatencyP99MsByKind);
 
 /// <param name="EventId">The event under load: the chosen one, or the first on sale once found.</param>
@@ -81,6 +83,11 @@ public sealed class LoadStats(TimeProvider time)
         {
             bucket.Outcomes[(int)outcome]++;
             bucket.Kinds[(int)kind]++;
+            if (outcome is Outcome.ClientError or Outcome.Failed)
+            {
+                bucket.FailedKinds[(int)kind]++;
+            }
+
             if (outcome is Outcome.Ok or Outcome.Refused)
             {
                 bucket.Latencies[(int)kind].Add(latency.TotalMilliseconds);
@@ -118,6 +125,7 @@ public sealed class LoadStats(TimeProvider time)
         public int Skipped;
         public readonly int[] Outcomes = new int[Enum.GetValues<Outcome>().Length];
         public readonly int[] Kinds = new int[Enum.GetValues<RequestKind>().Length];
+        public readonly int[] FailedKinds = new int[Enum.GetValues<RequestKind>().Length];
         public readonly List<double>[] Latencies = [.. Enum.GetValues<RequestKind>().Select(_ => new List<double>())];
 
         public void Add(Action<Bucket> change)
@@ -146,6 +154,7 @@ public sealed class LoadStats(TimeProvider time)
                     Percentile(sorted, 0.95),
                     Percentile(sorted, 0.99),
                     Enum.GetValues<RequestKind>().ToDictionary(kind => kind.ToString(), kind => Kinds[(int)kind]),
+                    Enum.GetValues<RequestKind>().ToDictionary(kind => kind.ToString(), kind => FailedKinds[(int)kind]),
                     Enum.GetValues<RequestKind>().ToDictionary(kind => kind.ToString(), kind => Percentile([.. Latencies[(int)kind].Order()], 0.99)));
             }
         }

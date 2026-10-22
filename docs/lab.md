@@ -102,8 +102,9 @@ requests (docs/observability.md), so a lab run has traces to look at without kee
 ## Drills (T10)
 
 Each drill runs 100 requests/s through the gateway, breaks something, and times the way back from
-outside: when the database had a new primary, which seconds had failed requests, then T2's
-invariants (D59).
+outside: when the database had a new primary, which seconds had failed requests and of which kind
+(holds, releases, browsing), then T2's invariants (D59). A failover passes with under 60 s of
+errors (T10) and under 1% of browsing failed: browsing needs no primary (D74, D75).
 
 - **`drill failover`**: the primary crashes (its pod is deleted at once, with no time to finish
   anything). CloudNativePG promotes a standby, and the `-rw` service follows it.
@@ -118,9 +119,24 @@ the timeline, and PgBouncer's clients and server connections. **Crash the primar
 does what `drill failover` does, and the panel times the way back. Measured with 60 requests/s
 (2026-10-22): PgBouncer lost its connections to the primary at once, eventticketing-1 took over
 after about 22 s on timeline 11, PgBouncer was reconnected 4 s later, and all three instances were
-healthy after 44 s. 681 of 7,975 requests failed, every one in the same 20 s: the holds and
-releases, which had nowhere to write. Browsing went on. The zone drill needs Docker on the host,
-so it stays in `lab.cs`.
+healthy after 44 s. 681 of 7,975 requests failed, every one in the same 20 s. The zone drill
+needs Docker on the host, so it stays in `lab.cs`.
+
+**Browsing during a failover (M3 Q8).** Once the generator counted failures per kind, the drill
+showed browsing failing with the holds: 1,081 of 7,046 browsing requests. Two causes, each a
+dependency on the primary that browsing didn't need:
+
+| | Browsing failed | Holds failed |
+|---|---|---|
+| Before | 1,081 of 7,046 (15%) | 550 |
+| Readiness without the database and Valkey (D74) | 572 of 7,087 (8%) | 573 |
+| And availability from a replica when there is no snapshot (D75) | **2 of 7,106** | 562 |
+
+Readiness included each module's database: while the primary was gone, every PublicApi instance
+failed its probe, and Kubernetes took all of them out of the Service together, for about 15 s.
+And availability fell back to the primary once its snapshot expired, because the snapshot's
+builder in Workers couldn't reach the primary either. Holds still fail while there is nowhere to
+write: that is what T10's 60 s are for.
 
 Measured on 2026-10-21:
 
@@ -224,8 +240,9 @@ At 200 browsing requests/s, measured on 2026-10-21:
 | Output cache | 480 | 297m |
 | And availability snapshots | **89** (idle: 71) | **89m** |
 
-In the failover drill, cached browsing keeps answering while the primary is gone: 1,179 requests
-failed instead of 1,692. Holds and availability (once its 5-second snapshot is gone) still fail.
+In the failover drill, browsing keeps answering while the primary is gone: availability comes
+from a replica when there is no snapshot (D75), and readiness doesn't depend on the database
+(D74). Holds still fail ([Drills](#drills-t10)).
 
 ## T2's invariants
 
@@ -476,3 +493,10 @@ failed request.
     operator to start when the cluster's spec changed, then for Ready. A status is only as recent
     as the controller's last look at your change: where a resource has no `observedGeneration`,
     wait for the change to begin.
+13. **Readiness is about the instance, not what every instance shares.** Aspire's integrations add
+    a health check for each database context and each Valkey client, and readiness included them.
+    When the primary went, every PublicApi instance failed its probe at the same moment, and
+    Kubernetes took them all out of rotation: a failover of the writes became an outage of
+    everything, browsing too, which needed no primary. Readiness now says whether this instance has
+    warmed up (D74); a shared dependency is watched by its own probes and dashboards. Count
+    failures by what failed: a total hid this for a milestone.

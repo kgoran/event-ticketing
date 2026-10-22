@@ -62,7 +62,7 @@ with T10 measured (DP2) and refuses during an on-sale's rush (DP4, D44), a colum
 `docs/feature-flags.md`), the M2 demo (`docs/demos/m2.md`) with its dry run `tooling/tests/Lab.SystemTests` in the
 nightly lab workflow (Q7). D43–D45 were decided while building and wait for the owner's review.
 
-**M3 is in progress** (`docs/milestones/m3.md`, D46–D66, ADR-0055, ADR-0056), decided overnight with the recommended
+**M3 is built** (`docs/milestones/m3.md`, D46–D66, ADR-0055, ADR-0056), decided overnight with the recommended
 answers: the owner asked for M3 to M5 without approval round-trips. Built: three zones and three database instances
 (PL3, DB3), the invariant checker and the failover and zone drills (IC1, FO1), Valkey with browsing's cache (VK1), the
 fan site twice (FS2), PgBouncer and browsing from the replica (PG1, RR1), the observability stack (OB1: Grafana at
@@ -71,7 +71,9 @@ progress (AS2, 0.5 per instance), Toxiproxy with the Scaling Lab's slow database
 the failover drill (SL3), and check-in (CI3: ticket revocation; the CheckIn module and CheckInApi at http://localhost:5104;
 devices as Keycloak clients), the scanner (SC1: a Blazor WebAssembly PWA at http://localhost:5104/scanner/, deciding
 offline), T8 measured with 200 simulated door devices (DS1: `tooling/lab/DeviceSimulator`), and backups (BK1: the Barman Cloud plugin to
-SeaweedFS; `lab backup`, `lab restore-check`). D67–D73 were decided while building. Decisions continue at D74.
+SeaweedFS; `lab backup`, `lab restore-check`), and the demo (Q8: runbook `docs/demos/m3.md`, dry run `M3DemoDryRunTests`;
+readiness without shared dependencies, D74; availability from a replica without a snapshot, D75). D67–D75 were decided
+while building. Decisions continue at D76.
 
 ## Commands
 

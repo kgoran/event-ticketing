@@ -68,4 +68,11 @@ were named in earlier decisions; this one says how they fit together in the lab.
   restores the latest base backup and the WAL up to it into a new cluster, and compares: the same
   counts in about 50 s, with purchases going on and across a failover's timeline. In the nightly
   lab workflow. See [the lab](../lab.md#backups-d65).
+- **2026-10-22 (M3 Q8, D74 and D75, decided while building):** Once the load generator counted
+  failures by kind, the failover drill showed browsing failing with the holds (1,081 of 7,046).
+  Readiness had included each module's database through Aspire's health checks, so every PublicApi
+  instance left rotation together while the primary was gone; it now includes no dependency that
+  every instance shares (D74), Valkey's clients included. And availability fell back to the
+  primary once its snapshot expired; it falls back to a replica now (D75), as Catalog's browsing
+  does (D50). Browsing during a failover: 2 of 7,106 failed. The drill fails when over 1% does.
 

@@ -51,8 +51,15 @@ public static partial class ModuleDatabaseRegistration
                 npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", schema))
             .UseSnakeCaseNamingConvention());
 
-        // Retries happen at the request level, with idempotency keys, not hidden inside EF Core.
-        builder.EnrichNpgsqlDbContext<TContext>(settings => settings.DisableRetry = true);
+        // Retries happen at the request level, with idempotency keys, not hidden inside EF Core. No
+        // health check (D74): readiness says whether this instance can serve, and the database is
+        // every instance's. In it, a failover took every instance out of rotation at once, and
+        // browsing, which needs no primary, failed with the writes.
+        builder.EnrichNpgsqlDbContext<TContext>(settings =>
+        {
+            settings.DisableRetry = true;
+            settings.DisableHealthChecks = true;
+        });
 
         builder.Services.GetOrAddSingletonInstance<ModuleRegistry>()
             .Add(new ModuleDatabase(schema, moduleNamespace, typeof(TContext)));
@@ -68,8 +75,8 @@ public static partial class ModuleDatabaseRegistration
 
     /// <summary>
     /// Registers a read-only context on a replica (D50, ADR-0003: replicas never decide): no change
-    /// tracking, no migrations, and no health check, since a replica that is gone for a moment must
-    /// not take the host out of rotation. Its data may be a moment behind the primary's.
+    /// tracking, no migrations, and no health check, as for the primary (D74). Its data may be a
+    /// moment behind the primary's.
     /// </summary>
     public static IHostApplicationBuilder AddModuleReplicaDatabase<TContext>(this IHostApplicationBuilder builder, string schema)
         where TContext : ModuleDbContext
