@@ -40,6 +40,7 @@ public sealed class CheckInModule : IModule
         // Devices get credentials only where an identity provider is configured (BackOfficeApi).
         var keycloak = builder.Configuration.GetSection("CheckIn:Keycloak");
         builder.Services.Configure<CheckInKeycloakOptions>(keycloak);
+        builder.Services.AddHttpClient(nameof(DeviceTokens));
         if (!string.IsNullOrWhiteSpace(keycloak["ClientSecret"]))
         {
             builder.Services.AddSingleton<CheckInAdminToken>();
@@ -56,6 +57,7 @@ public sealed class CheckInModule : IModule
         if (host == HostKind.CheckInApi)
         {
             DoorEndpoints.MapForDevices(endpoints);
+            DeviceTokens.Map(endpoints);
         }
 
         if (host == HostKind.BackOfficeApi)

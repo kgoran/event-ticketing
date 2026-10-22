@@ -17,9 +17,11 @@
     <ProjectReference Include="..\..\Modules\Ticketing\Ticketing.Infrastructure\Ticketing.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Notifications\Notifications\Notifications.csproj" />
     <ProjectReference Include="..\..\Modules\CheckIn\CheckIn.Infrastructure\CheckIn.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Frontends\Scanner\Scanner.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
       <PrivateAssets>all</PrivateAssets>

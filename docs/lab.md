@@ -42,6 +42,7 @@ The usual ports, as under Aspire:
 | http://localhost:5100 | fan site (ana, ben, cid, …; password = name) |
 | http://localhost:5101 · 5102 · 5103 | PublicApi · BackOfficeApi · WebhookIngress (the `.http` files work unchanged) |
 | http://localhost:5104 | CheckInApi: the doors' door lists and scans (`CheckInApi.http` registers a device and plays one) |
+| http://localhost:5104/scanner/ | The scanner (D62): a PWA that decides at the door, offline too; set it up with a device's credentials from `POST /events/{id}/devices` |
 | http://localhost:5201 | LocalPay |
 | http://localhost:5300 | Scaling Lab, with the **Instances** panel |
 | http://localhost:8025 | Mailpit |

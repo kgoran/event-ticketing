@@ -53,4 +53,11 @@ what the scanner is built with, and where revocations come from before M4's char
   once. CheckInApi refuses a revoked device at once, whatever token it still holds. The door list
   is a log of changes (issued, revoked, admitted) whose sequence is the devices' cursor; its writes
   take a per-event lock so that sequence order is commit order.
+- **2026-10-22 (M3 SC1, D72, decided while building):** The scanner is served by CheckInApi at
+  `/scanner/` and signs in through it (`POST /device-token`, device clients only), so it needn't
+  reach Keycloak or be allowed by it as a web origin. It checks a code's signature with the
+  browser's WebCrypto (.NET's ECDsa isn't available in WebAssembly); the decision itself is C#.
+  The door list and the queued scans live in IndexedDB, the app in the service worker's cache: a
+  reload with the network off comes back with everything. Measured in the lab: 1–17 ms from a
+  pasted code to the decision, offline included.
 

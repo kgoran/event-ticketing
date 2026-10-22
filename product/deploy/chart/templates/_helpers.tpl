@@ -88,6 +88,11 @@ instance as a replica), the connection string for hosts that use the database, a
 - name: Payments__LocalPay__WebhookSecret
   valueFrom: { secretKeyRef: { name: {{ $secrets }}, key: localpay-webhook-secret } }
 {{- end }}
+{{- if eq .name "checkinapi" }}
+# The scanner signs in through CheckInApi, which asks Keycloak (D62).
+- name: CheckIn__Keycloak__BaseUrl
+  value: {{ $values.urls.keycloak | quote }}
+{{- end }}
 {{- if eq .name "backofficeapi" }}
 # Registering a door device creates its Keycloak client (D61, D70); devices sign in at the public address.
 - name: CheckIn__Keycloak__BaseUrl

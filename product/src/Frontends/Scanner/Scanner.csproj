@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+  <!-- The scanner at the doors (D62, ADR-0013): a Blazor WebAssembly app, installed as a PWA and
+       served by CheckInApi at /scanner/. Once loaded it works offline: it decides at the door from
+       the door list in the browser's storage, and uploads its scans when it can. It references no
+       module and no Shared project: it talks to CheckInApi over HTTP only. -->
+  <PropertyGroup>
+    <StaticWebAssetBasePath>scanner</StaticWebAssetBasePath>
+    <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ServiceWorker Include="wwwroot\service-worker.js" PublishedContent="wwwroot\service-worker.published.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="EventTicketing.Scanner.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,58 @@
+/* The door's page: one decision, big enough to read from a step away. */
+:root {
+    --page: #f9f9f7;
+    --surface: #ffffff;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --border: rgba(11, 11, 11, 0.12);
+    --admit: #0a7a0a;
+    --refuse: #b42318;
+    --accent: #2a78d6;
+    color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --page: #0d0d0d;
+        --surface: #1a1a19;
+        --ink: #f0efec;
+        --ink-2: #c3c2b7;
+        --border: rgba(255, 255, 255, 0.12);
+        --admit: #3fbf4a;
+        --refuse: #f0605a;
+        --accent: #3987e5;
+    }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 34rem; margin: 0 auto; padding: 1rem; display: grid; gap: 1rem; }
+.bar { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; padding: 0.75rem 1rem; background: #1c1917; color: #f0efec; }
+.bar .event { flex: 1; }
+.status { font-weight: 600; padding: 0.1rem 0.6rem; border-radius: 999px; }
+.status.online { background: #0a7a0a; }
+.status.offline { background: #8a5a00; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1rem; display: grid; gap: 0.75rem; }
+h1 { font-size: 1.3rem; margin: 0; }
+textarea { width: 100%; font: 0.95rem ui-monospace, Consolas, monospace; padding: 0.5rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--page); color: var(--ink); }
+.row { display: flex; gap: 0.5rem; }
+.button { font: inherit; font-weight: 600; padding: 0.55rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer; }
+.button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.button.small { justify-self: start; font-size: 0.85rem; padding: 0.3rem 0.7rem; }
+.button:disabled { opacity: 0.5; cursor: default; }
+.result { min-height: 9rem; border-radius: 0.75rem; padding: 1.25rem; display: grid; align-content: center; gap: 0.25rem; border: 2px solid var(--border); background: var(--surface); text-align: center; }
+.result.admit { background: var(--admit); border-color: var(--admit); color: #fff; }
+.result.refuse { background: var(--refuse); border-color: var(--refuse); color: #fff; }
+.verdict { font-size: 2.6rem; font-weight: 800; letter-spacing: 0.04em; }
+.message { font-size: 1.1rem; }
+.timing { font-size: 0.85rem; opacity: 0.85; font-variant-numeric: tabular-nums; }
+.camera { display: none; width: 100%; border-radius: 0.5rem; background: #000; }
+.camera.on { display: block; }
+.facts dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem; margin: 0; }
+.facts dt { color: var(--ink-2); }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.problem { color: var(--refuse); margin: 0; }
+.muted { color: var(--ink-2); }
+code { font: 0.9em ui-monospace, Consolas, monospace; }
+#blazor-error-ui { display: none; position: fixed; bottom: 0; left: 0; right: 0; padding: 0.75rem 1rem; background: #b42318; color: #fff; }
+#blazor-error-ui .reload { color: #fff; font-weight: 600; }

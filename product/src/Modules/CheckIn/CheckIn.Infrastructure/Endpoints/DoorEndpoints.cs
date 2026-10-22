@@ -23,6 +23,7 @@ namespace EventTicketing.CheckIn.Infrastructure.Endpoints;
 /// <param name="Keys">The public keys that verify the tickets' codes, offline.</param>
 public sealed record DoorListPage(
     Guid EventId,
+    string? EventName,
     long Cursor,
     bool More,
     TicketKeySet? Keys,
@@ -73,9 +74,11 @@ internal static class DoorEndpoints
                     .ToListAsync(cancellationToken);
                 var page = entries.Take(size).ToList();
 
+                var name = await db.Events.AsNoTracking().Where(e => e.EventId == eventId).Select(e => e.Name).SingleOrDefaultAsync(cancellationToken);
                 response.Headers.CacheControl = "no-store";
                 return Results.Ok(new DoorListPage(
                     eventId,
+                    name,
                     page.Count > 0 ? page[^1].Sequence : after,
                     entries.Count > size,
                     await ticketing.KeysAsync(eventId, cancellationToken),
