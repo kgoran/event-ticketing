@@ -1,0 +1,43 @@
+# The OpenTelemetry Collector (D55, ADR-0055): the one place the hosts and the tooling send their
+# telemetry. Metrics go to Prometheus (it scrapes the collector), logs to Loki, traces to Tempo.
+# In zone-a with the rest of the lab's outside world (D59).
+mode: deployment
+image:
+  repository: otel/opentelemetry-collector-contrib
+nodeSelector: { topology.kubernetes.io/zone: zone-a }
+resources:
+  requests: { cpu: 50m, memory: 96Mi }
+  limits: { memory: 256Mi }
+ports:
+  metrics:
+    enabled: true
+    containerPort: 8889
+    servicePort: 8889
+    protocol: TCP
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: 0.0.0.0:4317 }
+        http: { endpoint: 0.0.0.0:4318 }
+  processors:
+    memory_limiter: { check_interval: 5s, limit_percentage: 80, spike_limit_percentage: 20 }
+    batch: {}
+  exporters:
+    # service.name becomes the series' job, service.instance.id (the pod) its instance.
+    # A stopped instance's series go after a minute (the hosts send every 5 s), not the default five,
+    # so a dashboard shows the instances that run.
+    prometheus:
+      endpoint: 0.0.0.0:8889
+      resource_to_telemetry_conversion: { enabled: true }
+      metric_expiration: 1m
+    otlphttp/loki:
+      endpoint: http://loki.platform.svc.cluster.local:3100/otlp
+    otlp/tempo:
+      endpoint: tempo.platform.svc.cluster.local:4317
+      tls: { insecure: true }
+  service:
+    pipelines:
+      metrics: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [prometheus] }
+      logs: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [otlphttp/loki] }
+      traces: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [otlp/tempo] }

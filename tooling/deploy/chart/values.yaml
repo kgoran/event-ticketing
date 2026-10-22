@@ -8,7 +8,7 @@ image:
   pullPolicy: Never
 
 telemetry:
-  otlpEndpoint: http://aspire-dashboard.platform.svc.cluster.local:18889
+  otlpEndpoint: http://opentelemetry-collector.platform.svc.cluster.local:4317
 
 gateway:
   name: lab

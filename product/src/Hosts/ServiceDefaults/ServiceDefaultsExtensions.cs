@@ -58,6 +58,8 @@ public static class ServiceDefaultsExtensions
                 .AddRuntimeInstrumentation()
                 .AddMeter(ProductTelemetry))
             .WithTracing(tracing => tracing
+                // Before the exporter, which skips what this marks as not recorded.
+                .AddProcessor(new BackgroundCallsFilter())
                 .AddSource(builder.Environment.ApplicationName)
                 .AddSource(ProductTelemetry)
                 .AddAspNetCoreInstrumentation(options =>

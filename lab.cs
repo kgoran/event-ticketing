@@ -62,7 +62,7 @@ sealed class Lab(string root)
     [
         (5100, "fan site"), (5101, "PublicApi"), (5102, "BackOfficeApi"), (5103, "WebhookIngress"),
         (5201, "LocalPay"), (5300, "Scaling Lab"), (5301, "load generator"),
-        (8025, "Mailpit"), (8180, "Keycloak"), (18888, "Aspire Dashboard"),
+        (8025, "Mailpit"), (8180, "Keycloak"), (3000, "Grafana"),
     ];
 
     /// <summary>The images `up` builds, and the projects they come from.</summary>
@@ -368,7 +368,7 @@ sealed class Lab(string root)
             Console.WriteLine("  The generator keeps 300 seconds; only the last 300 are counted.");
         }
 
-        Console.WriteLine(share < 0.001 ? "  Within T10." : "  Over T10: see the failed requests' traces in the Aspire Dashboard.");
+        Console.WriteLine(share < 0.001 ? "  Within T10." : "  Over T10: see the failed requests' traces in Grafana (Explore, Tempo).");
         return share < 0.001 ? 0 : 1;
     }
 
@@ -583,6 +583,32 @@ sealed class Lab(string root)
             {
                 await http.PutAsync(new Uri("http://localhost:5301/settings"), Rate(0));
             }
+        });
+
+        // Through Grafana's data source proxy, as anyone looking would see it (D55).
+        Step("Telemetry, through the collector");
+        async Task<JsonDocument> Grafana(string path) => JsonDocument.Parse(await http.GetStringAsync(new Uri($"http://localhost:3000/{path}")));
+        await Check("PublicApi's metrics are in Prometheus", async () =>
+        {
+            using var answer = await Grafana("api/datasources/proxy/uid/prometheus/api/v1/query?query=" +
+                Uri.EscapeDataString("sum(rate(http_server_request_duration_seconds_count{job=\"publicapi\"}[1m]))"));
+            return answer.RootElement.GetProperty("data").GetProperty("result").GetArrayLength() > 0 ? null : "no request metrics from publicapi";
+        });
+        await Check("its traces are in Tempo", async () =>
+        {
+            using var answer = await Grafana("api/datasources/proxy/uid/tempo/api/search?limit=1&tags=" + Uri.EscapeDataString("service.name=publicapi"));
+            return answer.RootElement.GetProperty("traces").GetArrayLength() > 0 ? null : "no traces from publicapi";
+        });
+        await Check("its logs are in Loki", async () =>
+        {
+            using var answer = await Grafana("api/datasources/proxy/uid/loki/loki/api/v1/query_range?limit=1&query=" + Uri.EscapeDataString("{service_name=\"publicapi\"}"));
+            return answer.RootElement.GetProperty("data").GetProperty("result").GetArrayLength() > 0 ? null : "no log lines from publicapi";
+        });
+        await Check("the product's dashboards are in Grafana", async () =>
+        {
+            using var answer = await Grafana("api/search?tag=eventticketing&type=dash-db");
+            var titles = answer.RootElement.EnumerateArray().Select(dashboard => dashboard.GetProperty("title").GetString()).ToList();
+            return titles.Count >= 3 ? null : $"found {titles.Count}: {string.Join(", ", titles)}";
         });
 
         if (!InvariantsHold())
@@ -826,19 +852,29 @@ sealed class Lab(string root)
         Step("Platform: secrets");
         EnsureSecrets();
 
-        Step("Platform: Keycloak, Mailpit, Aspire Dashboard");
+        Step("Platform: Keycloak, Mailpit");
         var realm = PathOf("dev/AppHost/Realms/eventticketing-realm.json");
         Apply(Capture(_tools.Kubectl, ["--context", Context, "create", "configmap", "keycloak-realm", "-n", "platform", $"--from-file={realm}", "--dry-run=client", "-o", "yaml"]));
         // Keycloak imports the realm only when it starts: a changed realm file restarts it.
         var realmHash = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(realm)))[..16];
         Apply(File.ReadAllText(PathOf("platform/manifests/keycloak.yaml")).Replace("REALM_HASH", realmHash, StringComparison.Ordinal));
         Kubectl("apply", "-f", PathOf("platform/manifests/mailpit.yaml"));
-        Kubectl("apply", "-f", PathOf("platform/manifests/aspire-dashboard.yaml"));
 
-        foreach (var deployment in new[] { "keycloak", "mailpit", "aspire-dashboard" })
+        foreach (var deployment in new[] { "keycloak", "mailpit" })
         {
             Kubectl("rollout", "status", $"deployment/{deployment}", "-n", "platform", "--timeout=300s");
         }
+
+        // Observability (D55): the collector the hosts send to, Prometheus, Loki, Tempo and Grafana.
+        // The Aspire Dashboard was M2's stand-in; a cluster made then still has it, which this removes.
+        Step("Platform: OpenTelemetry Collector, Prometheus, Loki, Tempo, Grafana");
+        Kubectl("delete", "deployment,service,httproute", "aspire-dashboard", "-n", "platform", "--ignore-not-found");
+        Helm("loki", Chart("loki", Pins.GrafanaRepo, Pins.LokiChart), repo: null, version: null, "platform", PathOf("platform/loki/values.yaml"));
+        Helm("tempo", Chart("tempo", Pins.GrafanaCommunityRepo, Pins.TempoChart), repo: null, version: null, "platform", PathOf("platform/tempo/values.yaml"));
+        Helm("opentelemetry-collector", Chart("opentelemetry-collector", Pins.OpenTelemetryRepo, Pins.CollectorChart), repo: null, version: null, "platform", PathOf("platform/opentelemetry-collector/values.yaml"));
+        Helm("prometheus", Chart("prometheus", Pins.PrometheusRepo, Pins.PrometheusChart), repo: null, version: null, "platform", PathOf("platform/prometheus/values.yaml"));
+        Helm("grafana", Chart("grafana", Pins.GrafanaCommunityRepo, Pins.GrafanaChart), repo: null, version: null, "platform", PathOf("platform/grafana/values.yaml"));
+        Kubectl("apply", "-f", PathOf("platform/manifests/grafana-route.yaml"));
     }
 
     /// <summary>
@@ -849,16 +885,24 @@ sealed class Lab(string root)
     {
         var existing = Capture(_tools.Kubectl, ["--context", Context, "get", "secret", "lab-secrets", "-n", "platform", "-o", "jsonpath={.data}", "--ignore-not-found"]);
         var values = string.IsNullOrWhiteSpace(existing)
-            ? new Dictionary<string, string>
-            {
-                ["keycloak-admin-password"] = Secret(24),
-                ["fansite-client-secret"] = Secret(32),
-                ["organizers-client-secret"] = Secret(32),
-                ["localpay-webhook-secret"] = Secret(32),
-                ["ticketing-master-key"] = Secret(48),
-            }
+            ? []
             : JsonSerializer.Deserialize<Dictionary<string, string>>(existing)!
                 .ToDictionary(pair => pair.Key, pair => Encoding.UTF8.GetString(Convert.FromBase64String(pair.Value)));
+
+        // Every secret the lab needs; one a later version added is made for an existing cluster too.
+        foreach (var (key, generate) in new (string, Func<string>)[]
+        {
+            ("keycloak-admin-password", () => Secret(24)),
+            ("fansite-client-secret", () => Secret(32)),
+            ("organizers-client-secret", () => Secret(32)),
+            ("localpay-webhook-secret", () => Secret(32)),
+            ("ticketing-master-key", () => Secret(48)),
+            ("grafana-admin-user", () => "admin"),
+            ("grafana-admin-password", () => Secret(24)),
+        })
+        {
+            values.TryAdd(key, generate());
+        }
 
         foreach (var space in new[] { "platform", "eventticketing", "lab" })
         {
@@ -888,6 +932,8 @@ sealed class Lab(string root)
 
         var adminPassword = Capture(_tools.Kubectl, ["--context", Context, "get", "secret", "lab-secrets", "-n", "platform", "-o", "jsonpath={.data.keycloak-admin-password}"]);
         Console.WriteLine($"  Keycloak admin     user admin, password {Encoding.UTF8.GetString(Convert.FromBase64String(adminPassword))} (generated for this cluster)");
+        var grafanaPassword = Capture(_tools.Kubectl, ["--context", Context, "get", "secret", "lab-secrets", "-n", "platform", "-o", "jsonpath={.data.grafana-admin-password}"]);
+        Console.WriteLine($"  Grafana admin      user admin, password {Encoding.UTF8.GetString(Convert.FromBase64String(grafanaPassword))} (no sign-in needed to look and explore)");
         Console.WriteLine("  Fans               ana, ben, cid, … (password = name); olga (organizer), adam (admin)");
     }
 
@@ -1094,6 +1140,16 @@ static class Pins
     public const string MetricsServerChart = "3.14.0";
     public const string KedaRepo = "https://kedacore.github.io/charts";
     public const string KedaChart = "2.21.0";
+    public const string PrometheusRepo = "https://prometheus-community.github.io/helm-charts";
+    public const string PrometheusChart = "29.35.0";
+    // Loki's chart is still Grafana Labs'; Grafana's and Tempo's moved to the community repo in 2026.
+    public const string GrafanaRepo = "https://grafana.github.io/helm-charts";
+    public const string LokiChart = "7.3.0";
+    public const string GrafanaCommunityRepo = "https://grafana-community.github.io/helm-charts";
+    public const string GrafanaChart = "13.2.7";
+    public const string TempoChart = "2.4.0";
+    public const string OpenTelemetryRepo = "https://open-telemetry.github.io/opentelemetry-helm-charts";
+    public const string CollectorChart = "0.175.1";
 }
 
 /// <summary>kind, kubectl and Helm in .tools/bin, downloaded at their pinned versions and verified.</summary>

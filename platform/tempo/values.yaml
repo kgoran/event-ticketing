@@ -1,0 +1,13 @@
+# Tempo for the lab (D55): one binary, traces on the pod for six hours, OTLP from the collector.
+# In zone-a (D59).
+nodeSelector: { topology.kubernetes.io/zone: zone-a }
+tempo:
+  retention: 6h
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: 0.0.0.0:4317 }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+persistence: { enabled: false }

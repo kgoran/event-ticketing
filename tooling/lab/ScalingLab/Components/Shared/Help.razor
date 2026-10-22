@@ -247,9 +247,10 @@
                     The first failures under overload are usually timeouts: requests that waited in a queue for more than 5 s.
                 </li>
                 <li>
-                    To find out why, open <strong>Traces</strong> in the Aspire Dashboard and filter by error, or read PublicApi's
-                    logs there. The dashboard is at <code>http://localhost:18888</code> in the lab cluster; under Aspire, use the
-                    address the AppHost prints.
+                    To find out why, in the lab cluster open Grafana at <code>http://localhost:3000</code>: the
+                    <strong>Services</strong> dashboard shows PublicApi's errors and warnings, and Explore → Tempo finds the failed
+                    requests' traces (status = error), each with its logs. Under Aspire, open <strong>Traces</strong> in the
+                    dashboard the AppHost prints and filter by error.
                 </li>
             </ul>
             break;

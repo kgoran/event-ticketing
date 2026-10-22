@@ -30,7 +30,7 @@ ports:
   loadgenerator: { port: 5301, exposedPort: 5301, nodePort: 30301, protocol: TCP, expose: { default: true } }
   mailpit: { port: 8025, exposedPort: 8025, nodePort: 30025, protocol: TCP, expose: { default: true } }
   keycloak: { port: 8180, exposedPort: 8180, nodePort: 30180, protocol: TCP, expose: { default: true } }
-  dashboard: { port: 18888, exposedPort: 18888, nodePort: 30888, protocol: TCP, expose: { default: true } }
+  grafana: { port: 3000, exposedPort: 3000, nodePort: 30030, protocol: TCP, expose: { default: true } }
 
 # One Gateway, `lab` in namespace platform; routes from any namespace attach to a listener by name.
 gateway:
@@ -46,4 +46,4 @@ gateway:
     loadgenerator: { port: 5301, protocol: HTTP, namespacePolicy: { from: All } }
     mailpit: { port: 8025, protocol: HTTP, namespacePolicy: { from: All } }
     keycloak: { port: 8180, protocol: HTTP, namespacePolicy: { from: All } }
-    dashboard: { port: 18888, protocol: HTTP, namespacePolicy: { from: All } }
+    grafana: { port: 3000, protocol: HTTP, namespacePolicy: { from: All } }

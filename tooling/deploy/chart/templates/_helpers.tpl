@@ -48,6 +48,8 @@ spec:
               valueFrom: { fieldRef: { fieldPath: metadata.name } }
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ $root.Values.telemetry.otlpEndpoint | quote }}
+            - name: OTEL_METRIC_EXPORT_INTERVAL
+              value: "5000"
             - name: OTEL_SERVICE_NAME
               value: {{ .name }}
             - name: OTEL_RESOURCE_ATTRIBUTES

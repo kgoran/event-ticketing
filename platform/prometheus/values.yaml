@@ -1,0 +1,51 @@
+# Prometheus for the lab (D55): the server alone, keeping six hours in memory-backed storage. It
+# scrapes the collector (the product's and tooling's metrics), the database instances and PgBouncer
+# (CloudNativePG's exporters), and Kubernetes' own targets. In zone-a (D59).
+alertmanager: { enabled: false }
+prometheus-pushgateway: { enabled: false }
+prometheus-node-exporter: { enabled: false }
+kube-state-metrics:
+  enabled: true
+  nodeSelector: { topology.kubernetes.io/zone: zone-a }
+server:
+  nodeSelector: { topology.kubernetes.io/zone: zone-a }
+  global:
+    scrape_interval: 10s
+    evaluation_interval: 10s
+  retention: 6h
+  persistentVolume: { enabled: false }
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 768Mi }
+  extraFlags: [web.enable-lifecycle]
+# Of the chart's default jobs, not the API server's and the kubelets' own metrics: 60,000 of the
+# first 98,000 series, which nothing here reads. From cAdvisor, only each container's CPU and memory.
+scrapeConfigs:
+  kubernetes-api-servers: { enabled: false }
+  kubernetes-nodes: { enabled: false }
+  kubernetes-nodes-cadvisor:
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: container_cpu_usage_seconds_total|container_memory_working_set_bytes|container_cpu_cfs_(throttled_)?periods_total
+        action: keep
+extraScrapeConfigs: |
+  - job_name: otel-collector
+    scrape_interval: 5s
+    honor_labels: true
+    static_configs:
+      - targets: [opentelemetry-collector.platform.svc.cluster.local:8889]
+  - job_name: cloudnative-pg
+    kubernetes_sd_configs: [{ role: pod, namespaces: { names: [eventticketing] } }]
+    relabel_configs:
+      - { source_labels: [__meta_kubernetes_pod_label_cnpg_io_cluster], regex: .+, action: keep }
+      # The pooler's pods carry the cluster's label too; the pgbouncer job scrapes them.
+      - { source_labels: [__meta_kubernetes_pod_label_cnpg_io_poolerName], regex: .+, action: drop }
+      - { source_labels: [__meta_kubernetes_pod_container_port_name], regex: metrics, action: keep }
+      - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
+      - { source_labels: [__meta_kubernetes_pod_label_cnpg_io_instanceRole], target_label: role }
+  - job_name: pgbouncer
+    kubernetes_sd_configs: [{ role: pod, namespaces: { names: [eventticketing] } }]
+    relabel_configs:
+      - { source_labels: [__meta_kubernetes_pod_label_cnpg_io_poolerName], regex: .+, action: keep }
+      - { source_labels: [__meta_kubernetes_pod_container_port_name], regex: metrics, action: keep }
+      - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }

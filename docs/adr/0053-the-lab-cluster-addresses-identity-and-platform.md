@@ -69,3 +69,5 @@ dashboards. KEDA comes in M5, Valkey and SeaweedFS in M3.
 - Aspire and the lab can't run at the same time: they use the same ports.
 - `.http` files, runbooks, the realm and the seeder work against either.
 - When M3 adds the observability stack, the Aspire Dashboard can stay as the quick view or go.
+  **Update (M3, D55, D68):** it went. Grafana answers at http://localhost:3000 instead of 18888,
+  fed by the OpenTelemetry Collector ([docs/lab.md](../lab.md#seeing-it-grafana-d55)).
