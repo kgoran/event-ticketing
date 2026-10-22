@@ -1,0 +1,204 @@
+@implements IDisposable
+@inject DatabaseView Database
+@inject TimeProvider Time
+
+@* SL3: the product's database, live: which instance is primary, the standbys and their lag,
+   connections, PgBouncer, and the failover drill. Polled every 2 s, in the lab cluster only. *@
+<section class="card instances database" aria-label="Database">
+    <div class="instances-head">
+        <div class="heading"><h2>Database</h2><Help Topic="HelpTopic.Database" /></div>
+        @if (_state is { } head)
+        {
+            <div class="instance-controls">
+                <span class="phase @(head.Healthy ? "healthy" : "unhealthy")" aria-live="polite">@head.Phase</span>
+                <button type="button" class="button small @(_confirming ? "danger" : null)" disabled="@(_crashing || !head.Healthy)" @onclick="CrashAsync">
+                    @(_confirming ? $"Crash {head.Primary}? Click again" : "Crash the primary")
+                </button>
+                <Help Topic="HelpTopic.CrashPrimary" />
+            </div>
+        }
+    </div>
+    @if (!Database.Available)
+    {
+        <p class="muted">The database appears when the lab runs in the cluster: <code>dotnet run lab.cs -- up</code>.</p>
+    }
+    else if (_error is not null)
+    {
+        <div class="alert error" role="alert">@_error</div>
+    }
+    else if (_state is { } state)
+    {
+        <table class="hosts">
+            <thead>
+                <tr><th scope="col">Instance</th><th scope="col">Role</th><th scope="col">Zone</th><th scope="col">Lag</th><th scope="col">Connections</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var instance in state.Instances)
+                {
+                    <tr>
+                        <th scope="row">@instance.Name</th>
+                        <td><span class="chip @RoleClass(instance.Role)"><span class="chip-state">@RoleMark(instance.Role)</span> @instance.Role</span></td>
+                        <td>@(instance.Zone ?? "—")</td>
+                        <td class="count">@Lag(instance)</td>
+                        <td class="count">@(instance.Connections?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="autoscaler">
+            @if (state.Primary is { } primary)
+            {
+                <span>Primary <strong>@primary</strong>@(state.PrimarySince is { } since ? $" since {Ago(since)}" : "")@(state.Timeline is { } timeline ? $", timeline {timeline}" : "").</span>
+            }
+            @if (state.Pooler is { } pooler)
+            {
+                <span> PgBouncer: @pooler.ClientsActive clients active, @pooler.ClientsWaiting waiting, @pooler.Servers connections to the primary.</span>
+            }
+        </p>
+        @if (_drill is not null)
+        {
+            <p class="autoscaler on" aria-live="polite">@_drill</p>
+        }
+    }
+</section>
+
+@code {
+    private readonly CancellationTokenSource _stop = new();
+    private DatabaseState? _state;
+    private string? _error;
+
+    // The drill: a second click within 5 s crashes the primary; then the panel times the way back.
+    private bool _confirming;
+    private DateTimeOffset _confirmUntil;
+    private bool _crashing;
+    private string? _crashed;
+    private DateTimeOffset? _crashedAt;
+    private int? _promotedAfter;
+    private string? _drill;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && Database.Available)
+        {
+            _ = PollAsync();
+        }
+    }
+
+    private async Task PollAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2), Time);
+        try
+        {
+            do
+            {
+                await RefreshAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+            while (await timer.WaitForNextTickAsync(_stop.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            _state = await Database.ReadAsync(_stop.Token);
+            _error = null;
+        }
+        catch (Exception exception) when (exception is k8s.Autorest.HttpOperationException or HttpRequestException)
+        {
+            _error = Instances.Explain(exception);
+            return;
+        }
+
+        if (_confirming && Time.GetUtcNow() > _confirmUntil)
+        {
+            _confirming = false;
+        }
+
+        // Two moments: another instance takes over (writes work again), then all three are healthy.
+        if (_crashed is not { } crashed || _crashedAt is not { } at)
+        {
+            return;
+        }
+
+        var after = (int)Math.Round((Time.GetUtcNow() - at).TotalSeconds);
+        if (_state?.Primary is { } primary && primary != crashed)
+        {
+            _promotedAfter ??= after;
+        }
+
+        if (_state is { Healthy: true, Primary: { } promoted } && promoted != crashed)
+        {
+            _drill = $"{promoted} took over {_promotedAfter} s after {crashed} crashed (timeline {_state.Timeline}), and all three "
+                + $"instances were healthy again after {after} s, {crashed} as a standby. The requests chart shows the gap: holds "
+                + "failed while there was nowhere to write, browsing went on.";
+            (_crashed, _crashedAt, _promotedAfter, _crashing) = (null, null, null, false);
+        }
+        else
+        {
+            _drill = _promotedAfter is { } took
+                ? $"{_state?.Primary} took over {took} s after {crashed} crashed; {crashed} is starting again as a standby…"
+                : $"{crashed} crashed {after} s ago; CloudNativePG is promoting a standby…";
+        }
+    }
+
+    private async Task CrashAsync()
+    {
+        if (!_confirming)
+        {
+            (_confirming, _confirmUntil) = (true, Time.GetUtcNow().AddSeconds(5));
+            return;
+        }
+
+        _confirming = false;
+        _crashing = true;
+        try
+        {
+            _crashed = await Database.CrashPrimaryAsync(_stop.Token);
+            _crashedAt = Time.GetUtcNow();
+            _drill = $"{_crashed} crashed; CloudNativePG is promoting a standby…";
+        }
+        catch (Exception exception) when (exception is k8s.Autorest.HttpOperationException or HttpRequestException or InvalidOperationException)
+        {
+            _crashing = false;
+            _error = Instances.Explain(exception);
+        }
+    }
+
+    private string Lag(DatabaseInstance instance) => instance.LagSeconds switch
+    {
+        null => "—",
+        < 0.001 => "0 ms",
+        < 1 and var seconds => $"{seconds * 1000:0} ms",
+        var seconds => $"{seconds:0.0} s",
+    };
+
+    private static string RoleClass(string role) => role switch
+    {
+        "Primary" or "Standby" => "ready",
+        "Starting" => "starting",
+        _ => "stopping",
+    };
+
+    private static string RoleMark(string role) => role switch
+    {
+        "Primary" => "★",
+        "Standby" => "✓",
+        "Starting" => "▲",
+        _ => "✕",
+    };
+
+    private string Ago(DateTimeOffset at) => (Time.GetUtcNow() - at) switch
+    {
+        var ago when ago < TimeSpan.FromMinutes(1) => $"{Math.Max(0, (int)ago.TotalSeconds)} s ago",
+        var ago when ago < TimeSpan.FromHours(1) => $"{(int)ago.TotalMinutes} min ago",
+        var ago => $"{(int)ago.TotalHours} h ago",
+    };
+
+    public void Dispose() => _stop.Cancel();
+}
