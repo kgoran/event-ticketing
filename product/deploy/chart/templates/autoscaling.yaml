@@ -9,6 +9,9 @@ lab once installed, so a deploy renders what runs, and the values only at the fi
 {{- if not ($.Capabilities.APIVersions.Has "keda.sh/v1alpha1/ScaledObject") }}
 {{- fail (printf "%s autoscales, which needs KEDA in the cluster (ADR-0054)" $name) }}
 {{- end }}
+{{- if not $.Values.telemetry.prometheus }}
+{{- fail (printf "%s autoscales on what Prometheus measures: set telemetry.prometheus (D56)" $name) }}
+{{- end }}
 {{- $context := dict "name" $name "root" $ }}
 {{- $running := lookup "keda.sh/v1alpha1" "ScaledObject" $.Release.Namespace $name }}
 {{- $paused := .pausedAtInstall }}
@@ -44,10 +47,17 @@ spec:
         scaleDown:
           stabilizationWindowSeconds: {{ int $scaleDown }}
   triggers:
-    # CPU until Prometheus arrives in M3, then requests in progress per instance (ADR-0019, D40).
-    - type: cpu
-      metricType: Utilization
+    # Requests in progress (ADR-0019, D56): the seconds of request time the host spends per
+    # second, all instances together, over half a minute. That is the average number of requests in
+    # progress (Little's law: arrivals per second × seconds each takes), without sampling a gauge.
+    # Kubernetes wants ⌈ that ÷ the target per instance ⌉ instances. Probes aren't traffic, nor is
+    # an instance's warm-up (ServiceDefaults leaves it out of the metrics).
+    - type: prometheus
+      metricType: AverageValue
       metadata:
-        value: {{ .cpuUtilization | quote }}
+        serverAddress: {{ $.Values.telemetry.prometheus | quote }}
+        query: >-
+          sum(rate(http_server_request_duration_seconds_sum{job="{{ $name }}", http_route!~"/health|/alive"}[30s]))
+        threshold: {{ .inProgressPerInstance | quote }}
 {{- end }}
 {{- end }}

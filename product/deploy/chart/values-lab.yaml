@@ -7,6 +7,7 @@ image:
 
 telemetry:
   otlpEndpoint: http://opentelemetry-collector.platform.svc.cluster.local:4317
+  prometheus: http://prometheus-server.platform.svc.cluster.local
 
 identity:
   authority: http://keycloak.platform.svc.cluster.local:8080/realms/eventticketing
@@ -21,17 +22,20 @@ urls:
 hosts:
   publicapi:
     replicas: 3
-    # The CPU each instance asks for: KEDA aims for 70% of it, which one instance reaches at about
-    # 20 requests/s of the lab's default mix: about 105m of CPU (D40, measured 2026-10-21).
+    # No CPU limit (D69): under a limit below a core .NET sees one processor, and a burst on a new
+    # instance starved its thread pool for a minute (measured 2026-10-22, docs/lab.md).
     resources:
       requests: { cpu: 150m, memory: 160Mi }
       limits: { memory: 512Mi }
     # The Scaling Lab's Auto switch (ADR-0054): off after `lab up`, 1 to 8 instances, demo speed.
+    # The target, in requests in progress per instance (D56, D69): 0.5 is what each of three
+    # instances had at 50 requests/s of the default mix (measured 2026-10-22). The instances share
+    # one laptop, which carries about 400 requests/s: 50 each lets the maximum of 8 fit it.
     autoscaling:
       pausedAtInstall: true
       minReplicas: 1
       maxReplicas: 8
-      cpuUtilization: 70
+      inProgressPerInstance: 0.5
       scaleUpSeconds: 20
       scaleDownSeconds: 30
   webhookingress: { replicas: 2 }

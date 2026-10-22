@@ -4,8 +4,9 @@ namespace EventTicketing.PublicApi;
 
 /// <summary>
 /// PublicApi's warm-up (D43): what fans do most, browsing, a few dozen times, so each read's code
-/// and queries are compiled before fans' requests arrive. Holds change data, so they aren't part of
-/// it; their first requests on a new instance stay a little slower.
+/// and queries are compiled before fans' requests arrive. Holds change data and need a fan's token,
+/// so they aren't part of it, and their first half-minute on a new instance is slow: a burst of
+/// holds onto instances that had all just started timed out for a minute (docs/lab.md, D69).
 /// </summary>
 internal static class PublicApiWarmUp
 {

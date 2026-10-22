@@ -233,9 +233,9 @@ reload, still signed in. A chart's change to an instance count reaches a running
 ## Autoscaling
 
 The Scaling Lab's **Auto** checkbox hands PublicApi's count to KEDA's autoscaler: between 1 and 8
-instances, aiming for 70% of the CPU each instance requests (150m, which one instance reaches at
-about 20 requests/s of the default mix). Off is KEDA's pause, and − / + set the count again. The
-switch is the `autoscaling.keda.sh/paused` annotation on the `ScaledObject`, so the same thing
+instances, aiming for **0.5 requests in progress per instance** (D56,
+[ADR-0019](adr/0019-autoscaling-signals.md)). Off is KEDA's pause, and − / + set the count again.
+The switch is the `autoscaling.keda.sh/paused` annotation on the `ScaledObject`, so the same thing
 works from a terminal:
 
 ```
@@ -244,32 +244,71 @@ kubectl --context kind-eventticketing -n eventticketing annotate scaledobject pu
 kubectl --context kind-eventticketing -n eventticketing get hpa    # what the autoscaler measures and wants, while on
 ```
 
-CPU is the signal until Prometheus arrives in M3 ([ADR-0019](adr/0019-autoscaling-signals.md)
-update); then it becomes requests in progress per instance.
+**The signal.** KEDA asks Prometheus for the seconds of request time PublicApi spends per
+second, all instances together, over 30 s:
 
-What the first runs showed (2026-10-21, default mix, demo speed):
+```
+sum(rate(http_server_request_duration_seconds_sum{job="publicapi", http_route!~"/health|/alive"}[30s]))
+```
 
-- **Warm instances scale as calculated.** At 84 requests/s the count settled at 5 (84 ÷ 20 =
-  4.2) at 56–70% CPU, and 30 s after the load stopped it was back to 1. Not one of 16,784
-  requests failed, and p99 stayed under 100 ms.
-- **Cold instances fool a CPU autoscaler.** An instance that has just started does its first-time
-  work while it serves its first requests. At only 28 requests/s a fresh instance used several
-  times its CPU request, the autoscaler read that as load and went to the maximum of 8, and every
-  instance it added was cold too. Three things fixed it (D43), each measured:
+That is the average number of requests in progress (Little's law: requests per second × seconds
+each takes), measured from every request rather than sampled. Kubernetes wants ⌈ that ÷ 0.5 ⌉
+instances. Probes are left out, and so is a new instance's warm-up: ServiceDefaults switches the
+HTTP metrics off for its requests, or warming up would look like load.
+
+**The target.** 0.5 is what each of three instances had at 50 requests/s of the default mix
+(measured 2026-10-22). The instances share one laptop, which carries about 400 requests/s; 50
+each lets the maximum of 8 fit it. Measured since:
+
+| Load | Instances | Requests in progress |
+|---|---|---|
+| 50 requests/s | 1 | 0.35 |
+| step to 150 | 1 → 2 → 3 (ready 47 s after the step) → 5, settling at 4 | 1.6 in all |
+| stop | back to 1 within 50 s (demo speed) | 0 |
+
+Not one request failed, out of about 20,000. Two things the measurements showed:
+
+- **Waiting counts.** Holds on one section wait for each other's locks in the database, and that
+  wait grows with the total load, not with one instance's share: 150 requests/s have 1.6 in
+  progress where one instance's 50 had 0.35. More instances can't remove it. That is the
+  signal working: a slow dependency raises requests in progress, the autoscaler adds instances
+  that can't help, and the maximum stops it (ADR-0019; the *slow database* scenario, TX1).
+- **A new instance is slow for its first half-minute.** Its holds run code the warm-up couldn't
+  reach (holds need a fan's token), unoptimized until .NET recompiles it. A new instance carried
+  1.5–2.2 requests in progress where a warm one carried 0.2, and with a lower target (0.35) that
+  bought instances up to the maximum, then 6–7 for a load 4 carry. Turning tiered compilation off
+  halved that, but costs every start and steady-state speed; the target was the fix.
+- **A burst onto instances that have all just started fails holds.** Right after a deploy had
+  replaced every instance, 150 requests/s from nothing failed 141 holds and releases of about
+  45,000 requests in the first minute (timeouts; browsing, which the warm-up covers, failed none).
+  A rollout under steady load replaces instances one at a time and failed nothing (T10). Warming
+  the hold path up, which needs a fan's token or a hold that changes nothing, is open: T11's
+  verification (M5) needs it.
+
+**No CPU limit** (D69). A quarter-CPU limit per instance looked like the way to give each
+instance a capacity to predict: one instance then answered holds within T1 up to about 70
+requests/s. But under a limit below a core .NET sees one processor, and its thread pool starts
+with as many threads. On a burst, work queued (168 items at worst) while the pool added threads
+one by one, from 3 to 49 over 45 s, and requests failed for a minute. PublicApi keeps its 150m
+request and no CPU limit.
+
+What M2's CPU autoscaler showed (2026-10-21), and what still holds:
+
+- **Cold instances fool an autoscaler.** An instance that has just started does its first-time
+  work while it serves its first requests. On CPU, a fresh instance at only 28 requests/s used
+  several times its CPU request, the autoscaler read that as load and went to the maximum of 8,
+  and every instance it added was cold too. Three things fixed it (D43), and they stay:
   1. **Warm up before ready.** PublicApi sends itself its browsing requests a few dozen times
-     (about 5 s) and only then passes its readiness check; the autoscaler ignores instances that
-     aren't ready, and Traefik sends them nothing. A new instance is ready 10 s after it starts.
+     (about 2–5 s) and only then passes its readiness check; Traefik sends it nothing until then.
   2. **No dynamic PGO** (`DOTNET_TieredPGO=0`). .NET recompiles busy methods once more in the
      background, which cost a new instance 621m of CPU in its first half-minute of holds instead
      of the 140m it settles at. Without it: 224m, and the same steady CPU.
   3. **A 20-second scale-up window.** The autoscaler scales up only to the lowest count it wanted
      over 20 s, so one instance's first moments don't buy another.
-
-  Then the step behaves: 1 → 2 at 28/s, 2 → 5 (and one more, briefly) at 84/s, back down after
-  Stop, with no failed request. The count needs about 60–70 s to catch up with the step: most of
-  that is measuring (metrics-server and the autoscaler each look every 15 s), the rest the
-  20-second window. Precompiled images (ReadyToRun) were tried too: they cut the first spike only
-  from 569% to 420%, cost 50 MB per image and three more minutes per build, and aren't used.
+- **Measuring is slow.** The hosts send metrics every 5 s, Prometheus scrapes every 5 s, the rate
+  averages 30 s and the autoscaler looks every 15 s: the count moves 20–50 s after the load.
+  Precompiled images (ReadyToRun) were tried in M2: they cut the first spike only from 569% to
+  420%, cost 50 MB per image and three more minutes per build, and aren't used.
 
 ## Three things the lab taught on its first day
 
@@ -311,3 +350,6 @@ failed request.
    first dashboard with live data; Prometheus held 98,000 series after half an hour, 60,000 of them
    the API server's own metrics nobody read (15,000 now). Limits from measurements, and scrape
    only what a dashboard or an alert reads. All the lab's pods together: about 6.3 GB.
+9. **A CPU limit below a core is a trap for .NET.** It sees one processor, sizes its thread pool
+   for it, and a burst queues work while threads are added one by one: a minute of failures on a
+   new instance. Requests, not limits, for .NET services ([Autoscaling](#autoscaling), D69).

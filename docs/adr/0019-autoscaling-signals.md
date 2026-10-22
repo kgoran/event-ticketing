@@ -68,3 +68,13 @@ Rules:
   scaling down, the realistic one 5 minutes. KEDA's polling interval doesn't apply to CPU:
   Kubernetes' autoscaler reads metrics-server every 15 s. In M3 the trigger becomes utilization
   as above.
+- **2026-10-22 (M3, D56, D69):** PublicApi scales on **requests in progress**, from Prometheus:
+  the seconds of request time per second over 30 s (Little's law), divided by **0.5 per
+  instance**, measured in the lab ([lab](../lab.md#autoscaling)). Until M5 brings the concurrency
+  limit, the target is in requests in progress, not a share of a limit. A new instance's warm-up
+  is left out of the metrics. Measured: a step from 50 to 150 requests/s went from 1 to 3 ready
+  instances in 47 s and settled at 4, with no failed request. Two more lessons for the rules:
+  requests in progress include waiting for the database's locks, which grows with the total load
+  and which instances can't remove (the maximum matters); and **a CPU limit below a core** makes
+  .NET size its thread pool for one processor, which starved it for a minute on a burst, so the
+  lab's instances have CPU requests and no CPU limits.

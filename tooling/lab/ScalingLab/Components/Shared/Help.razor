@@ -113,8 +113,8 @@
             <ul>
                 <li><strong>Steady 20/s:</strong> a quiet baseline. Everything should be flat, with no failures.</li>
                 <li>
-                    <strong>Step 28 → 84:</strong> 30 s at 28, then 84. This is the step T11 measures in M5: an autoscaler must
-                    have three times the instances ready within 60 s.
+                    <strong>Step 50 → 150:</strong> 30 s at 50, then 150. This is the step T11 measures: it needs three times
+                    the instances, and an autoscaler must have them ready within 60 s.
                 </li>
                 <li>
                     <strong>On-sale spike:</strong> 20 → 200 within 10 s, held for 30 s, then back to 20. It arrives faster than
@@ -357,25 +357,43 @@
 
         case HelpTopic.Autoscaling:
             <p>
-                With <strong>Auto</strong> on, KEDA's autoscaler sets PublicApi's count, between 1 and 8 (ADR-0054). Underneath it
-                is Kubernetes' own autoscaler: it measures the average CPU of the ready instances, as a share of the CPU each one
-                requests, and aims for 70%. The line under the instances shows its sum:
+                With <strong>Auto</strong> on, KEDA's autoscaler sets PublicApi's count, between 1 and 8 (ADR-0054). It reads
+                from Prometheus how many requests PublicApi has <strong>in progress</strong>, all instances together, and aims
+                for 0.5 per instance (D56):
             </p>
-            <p class="formula">wanted = ⌈ instances × CPU ÷ target ⌉, between the minimum and the maximum</p>
+            <p class="formula">wanted = ⌈ requests in progress ÷ 0.5 ⌉, between the minimum and the maximum</p>
             <p>
-                For example, 3 instances at 140% want 3 × 140 ÷ 70 = 6. Within 10% of the target it changes nothing, so the
-                count doesn't twitch.
+                Requests in progress is the seconds of request time PublicApi spends per second, over the last 30 s: 100
+                requests a second taking 10 ms each are 1 request in progress on average (Little's law). 0.5 is what each of
+                three instances had at 50 requests/s. The instances share one laptop, which carries about 400 requests/s: at
+                50 each, the maximum of 8 fits it. So 150 requests/s want about 4 instances. Within 10% of the target it
+                changes nothing, so the count doesn't twitch.
             </p>
+            <h4>Why this and not CPU</h4>
+            <ul>
+                <li>
+                    Requests in progress rise whenever requests wait, for the CPU, the database or a lock, and they rise
+                    steeply as an instance nears its capacity. CPU only shows the first of those.
+                </li>
+                <li>
+                    It doesn't depend on the machine: CI's slower runners need more instances for the same load, and the
+                    measurement says so by itself.
+                </li>
+                <li>
+                    A new instance's warm-up isn't counted (ServiceDefaults leaves it out of the metrics), and Kubernetes'
+                    probes aren't either.
+                </li>
+            </ul>
             <h4>How fast</h4>
             <ul>
                 <li>
-                    metrics-server samples CPU every 15 s, and the autoscaler looks every 15 s. So the count moves 15–45 s after
-                    the load does, and a new instance needs a few more seconds to become ready. Part of "scaling is slow" is
-                    "measuring is slow" (ADR-0019).
+                    The hosts send their metrics every 5 s, Prometheus scrapes them every 5 s, the measurement averages 30 s,
+                    and the autoscaler looks every 15 s. So the count moves 20–50 s after the load does, and a new instance
+                    needs about 20 s more to warm up and become ready. Part of "scaling is slow" is "measuring is slow"
+                    (ADR-0019).
                 </li>
                 <li>
-                    It adds instances once it has wanted them for 20 s. A new instance costs extra CPU in its first moments
-                    under load, and that alone shouldn't buy another one (D43).
+                    It adds instances once it has wanted them for 20 s, so a short burst doesn't buy them (D43).
                 </li>
                 <li>
                     It gives them back only after the load has stayed lower for a while. <strong>Demo speed</strong> waits 30 s,
@@ -386,19 +404,16 @@
             <h4>How to read it</h4>
             <ul>
                 <li>
-                    Try <strong>Step 28 → 84</strong> with Auto on: the step needs about three times the instances, and T11 asks
+                    Try <strong>Step 50 → 150</strong> with Auto on: the step needs about three times the instances, and T11 asks
                     for them to be ready within 60 s. Then press Stop and watch them go after the wait. Failed should stay at 0
                     both ways.
                 </li>
                 <li>
-                    CPU is a stand-in until Prometheus arrives in M3. Holds spend most of their time waiting for the database,
-                    which costs PublicApi little CPU, so a hold-heavy load can queue before CPU reaches its target. Browsing costs
-                    more CPU per request and scales sooner. In M3 the signal becomes requests in progress per instance
-                    (ADR-0019).
-                </li>
-                <li>
-                    On one laptop the instances share the same CPU and database. Past what the machine can do, more instances
-                    don't help, and the autoscaler keeps adding them until the maximum. That is why every autoscaler has one.
+                    Requests in progress include waiting for the database. Holds on one section wait for each other's locks,
+                    and that wait grows with the total load, not with one instance's share: at 150 requests/s there are
+                    about 1.6 in progress, where 50 requests/s on one instance had 0.35. More instances can't remove that
+                    wait. When the database is slow, the autoscaler adds instances that can't help, which is why every
+                    autoscaler has a maximum (ADR-0019), and what the <em>slow database</em> scenario will show.
                 </li>
                 <li>
                     Off is KEDA's pause: the count stays where it was, and − and + work again. Every open lab page shows the

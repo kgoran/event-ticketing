@@ -366,25 +366,25 @@
 
     private bool AutoOn => _autoscaler?.On == true;
 
-    /// <summary>What the autoscaler measures and wants, as Kubernetes computes it: ⌈instances × CPU ÷ target⌉.</summary>
+    /// <summary>What the autoscaler measures and wants, as Kubernetes computes it: ⌈instances × in progress ÷ target⌉.</summary>
     private string AutoscalerText(Autoscaler autoscaler)
     {
         var limits = $"between {autoscaler.Min} and {autoscaler.Max}";
         var giveBack = autoscaler.Profile == ScalingProfile.Demo ? "30 s" : "5 minutes";
         if (!autoscaler.On)
         {
-            return $"Auto is off: − and + set the count. On, KEDA's autoscaler aims for {autoscaler.TargetCpuPercent}% CPU per instance, {limits} instances.";
+            return $"Auto is off: − and + set the count. On, KEDA's autoscaler aims for {autoscaler.Target:0.0#} requests in progress per instance, {limits} instances.";
         }
 
-        if (autoscaler is not { CpuPercent: { } cpu, Current: { } current, Wanted: { } wanted })
+        if (autoscaler is not { InProgress: { } inProgress, Current: { } current, Wanted: { } wanted })
         {
             return "Auto is on: the autoscaler is waiting for its first measurement (up to 30 s).";
         }
 
-        var exact = current * cpu / (double)autoscaler.TargetCpuPercent;
+        var exact = current * inProgress / autoscaler.Target;
         var changed = autoscaler.LastScaled is { } at ? $" Last change {Ago(at)}." : "";
-        return $"Auto is on. CPU {cpu}% of what each instance requests, target {autoscaler.TargetCpuPercent}%: "
-            + $"{current} × {cpu}% ÷ {autoscaler.TargetCpuPercent}% = {exact:0.0} → wants {wanted} ({limits}). "
+        return $"Auto is on. Requests in progress per instance {inProgress:0.00}, target {autoscaler.Target:0.0#}: "
+            + $"{current} × {inProgress:0.00} ÷ {autoscaler.Target:0.0#} = {exact:0.0} → wants {wanted} ({limits}). "
             + $"It adds instances once it has wanted them for 20 s, and gives them back after {giveBack} below target.{changed}";
     }
 

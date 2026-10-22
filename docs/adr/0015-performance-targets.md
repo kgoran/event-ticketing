@@ -46,7 +46,7 @@ at 5,000 requests/s.
 | T8 | correctness | Scan decision within 300 ms offline; door list for 80,000 tickets under 5 MB; 200 devices syncing every 5 s get 99% of answers within 500 ms; a revocation reaches online devices within 30 s | k6 device simulator plus Toxiproxy (latency, packet loss, offline periods); on-device timing measured in a UI test |
 | T9 | correctness | Cancelling an event with 50,000 orders (load-test data set): no refund paid twice, every order reaches a final state, speed limited only by the provider's rate limit | LocalPay with a simulated rate limit; T2 checker |
 | T10 | correctness | Under load: a rolling deploy causes under 0.1% errors; a primary database failover causes under 60 s of errors and breaks none of the T2 invariants | k6 at constant load during a rollout (M2) and while killing the primary (M3) |
-| T11 | correctness | After a load step that needs about 3× the instances (e.g. 28 → 84 requests/s at the lab's 20 requests/s per instance: 2 → 6 instances), the new instances are ready within 60 s (demo-speed profile), with under 5% of requests rejected during the gap; scaling back in causes zero failed requests | k6 step scenario plus Kubernetes event timestamps |
+| T11 | correctness | After a load step that needs about 3× the instances (e.g. 50 → 150 requests/s at the lab's 50 requests/s per instance, since M3; 28 → 84 on M2's CPU signal), the new instances are ready within 60 s (demo-speed profile), with under 5% of requests rejected during the gap; scaling back in causes zero failed requests | k6 step scenario plus Kubernetes event timestamps |
 
 **Results are the only thing kept.** k6 summaries are saved as files: baselines are committed
 under `tooling/load-tests/results/`, CI runs keep theirs as build artifacts

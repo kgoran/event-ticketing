@@ -28,7 +28,7 @@ AppHost and the next run starts clean.
 | **Holds** | The share of requests that hold one place (best available) and let go of it at once; the rest browse: the event list, the event page, availability. Nothing is ever sold |
 | **Event** | Which event to load |
 | **Holds go for** | Any section, or one section only: a hot section where the lab fans compete for the same places |
-| **Scenarios** | *Steady 20/s*; *Step 28 → 84* (the step T11 measures in M5); *On-sale spike* (20, up to 200 within 10 s, 30 s there, back to 20); *Past capacity* (400 for 20 s, then back to 20). Moving the slider or **Stop** ends a scenario |
+| **Scenarios** | *Steady 20/s*; *Step 50 → 150* (the step T11 measures); *On-sale spike* (20, up to 200 within 10 s, 30 s there, back to 20); *Past capacity* (400 for 20 s, then back to 20). Moving the slider or **Stop** ends a scenario |
 
 Holds are placed by two hundred lab fans, `lab01` to `lab200` (each password is the name). Each has
 at most one hold at a time, as every fan does, so they manage about 200 ÷ (hold time + release
@@ -100,13 +100,15 @@ instances shows what it measures and wants.
    What they show is how scaling works, and what it needs (probe timeouts, a graceful stop, a
    connection budget: [what the lab taught](../lab.md#three-things-the-lab-taught-on-its-first-day)).
 4. **Auto** on, at rest: within a minute the autoscaler gives instances back, down to one.
-5. **Step 28 → 84**: at 28/s one or two instances are enough; after the step the line shows CPU
-   climbing past its 70% target and the count it wants, and new instances start. Count how long
-   the step takes to be served by enough ready instances: T11 asks for 60 s. No request fails.
+5. **Step 50 → 150**: at 50/s one instance is enough; after the step the line shows requests in
+   progress climbing past the 0.5 target and the count it wants, and new instances start: about
+   4 for 150/s. Count how long the step takes to be served by enough ready instances: T11 asks
+   for 60 s (measured: 47 s to three). No request fails.
 6. **Stop**: after 30 s below target (demo speed) the instances go again; **Realistic** waits 5
    minutes. Switch Auto off and − / + work again, from the count the autoscaler left.
-7. Try the same with **Holds** at 90%: holds wait on the database more than they use PublicApi's
-   CPU, so latency can climb before CPU does. That is why CPU is only the stand-in until M3.
+7. Try the same with **Holds** at 90%: holds wait for each other's locks in the database, so
+   there are more requests in progress for the same rate, and more instances. Ask why they don't
+   help (the wait is in the database), and why every autoscaler has a maximum.
 
 ## If something is off
 

@@ -109,17 +109,18 @@ public sealed class M2DemoDryRunTests
         try
         {
             await RestoreAsync();
-            await ScalePublicApiAsync(2);
-            await EventuallyAsync(PublicApiAsync, state => state.Wanted == 2 && state.Ready == 2, TimeSpan.FromSeconds(120), "two instances to start from");
+            await ScalePublicApiAsync(1);
+            await EventuallyAsync(PublicApiAsync, state => state.Wanted == 1 && state.Ready == 1, TimeSpan.FromSeconds(120), "one instance to start from");
             var clock = Stopwatch.StartNew();
 
-            // 150 requests/s, well past what two instances carry at the CPU target on any machine: how
-            // much CPU a request costs differs between the laptop and CI's runners (the demo uses 84).
+            // 200 requests/s: at least 3 instances at the target of 0.5 requests in progress each (the
+            // laptop has about 2 in progress at 200 requests/s and wants 4 or 5). A slower machine's
+            // requests take longer, so there are more in progress, and it wants more (D56).
             await AutoAsync(on: true);
-            await LoadAsync(150);
-            await EventuallyAsync(PublicApiAsync, state => state.Ready >= 4, TimeSpan.FromSeconds(240), "the autoscaler adds instances for 150 requests/s", AutoscalerAsync);
+            await LoadAsync(200);
+            await EventuallyAsync(PublicApiAsync, state => state.Ready >= 3, TimeSpan.FromSeconds(240), "the autoscaler adds instances for 200 requests/s", AutoscalerAsync);
             await LoadAsync(0);
-            await EventuallyAsync(PublicApiAsync, state => state.Wanted <= 2, TimeSpan.FromSeconds(180), "the autoscaler gives them back, demo speed: 30 s", AutoscalerAsync);
+            await EventuallyAsync(PublicApiAsync, state => state.Wanted <= 1, TimeSpan.FromSeconds(180), "the autoscaler gives them back, demo speed: 30 s", AutoscalerAsync);
 
             var totals = await TotalsAsync(Math.Min(300, (int)Math.Ceiling(clock.Elapsed.TotalSeconds)));
             totals.Failed.Should().Be(0, "scaling out and in fails no request");

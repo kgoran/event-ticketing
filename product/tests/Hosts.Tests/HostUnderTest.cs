@@ -12,13 +12,16 @@ internal sealed class HostUnderTest : IAsyncDisposable
 {
     private readonly IAsyncDisposable _factory;
 
-    private HostUnderTest(IAsyncDisposable factory, HttpClient client)
+    private HostUnderTest(IAsyncDisposable factory, HttpClient client, IServiceProvider services)
     {
         _factory = factory;
         Client = client;
+        Services = services;
     }
 
     public HttpClient Client { get; }
+
+    public IServiceProvider Services { get; }
 
     public static HostUnderTest Start(string host) => host switch
     {
@@ -42,6 +45,6 @@ internal sealed class HostUnderTest : IAsyncDisposable
             host.ConfigureTestServices(services => services.UseTestTokens());
         });
 
-        return new HostUnderTest(factory, configured.CreateClient());
+        return new HostUnderTest(factory, configured.CreateClient(), configured.Services);
     }
 }

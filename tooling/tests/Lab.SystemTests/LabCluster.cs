@@ -124,8 +124,8 @@ internal static class LabCluster
         try
         {
             var hpa = await kubernetes.AutoscalingV2.ReadNamespacedHorizontalPodAutoscalerAsync("keda-hpa-publicapi", Product, cancellationToken: Ct);
-            var cpu = hpa.Status?.CurrentMetrics?.FirstOrDefault(metric => metric.Resource?.Name == "cpu")?.Resource?.Current?.AverageUtilization;
-            return $"autoscaler: CPU {cpu?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown"}%, {hpa.Status?.CurrentReplicas} instances, wants {hpa.Status?.DesiredReplicas}";
+            var inProgress = hpa.Status?.CurrentMetrics?.FirstOrDefault(metric => metric.External is not null)?.External?.Current?.AverageValue;
+            return $"autoscaler: {inProgress?.ToString() ?? "unknown"} requests in progress per instance, {hpa.Status?.CurrentReplicas} instances, wants {hpa.Status?.DesiredReplicas}";
         }
         catch (k8s.Autorest.HttpOperationException exception)
         {

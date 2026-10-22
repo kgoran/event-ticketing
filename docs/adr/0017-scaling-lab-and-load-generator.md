@@ -68,7 +68,7 @@ Scaling Lab ──rate, mix──► LoadGenerator ──HTTP at set rate──�
 
 | Preset | What it teaches |
 |---|---|
-| 1. Step up (e.g. 28 → 84 requests/s) | Scale-out, the gap while new pods start, the autoscaler's formula |
+| 1. Step up (e.g. 50 → 150 requests/s) | Scale-out, the gap while new pods start, the autoscaler's formula |
 | 2. On-sale spike (to the top of the slider in 10 s) | Autoscaling is slower than a spike: requests are rejected until capacity arrives. Repeat with pre-scaling on and compare. This is why the waiting room exists |
 | 3. Drop back | Deliberately slow scale-in; pods shut down without dropping a request |
 | 4. Slow database (Toxiproxy) | Requests hold their slots longer → utilization rises → more pods → more database connections → the database gets slower. Autoscaling makes a downstream problem worse; instance caps and circuit breakers are the fix |

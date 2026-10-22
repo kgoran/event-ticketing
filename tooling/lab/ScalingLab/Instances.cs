@@ -26,15 +26,16 @@ public enum ScalingProfile
 /// A host's autoscaler (ADR-0054): on or off, its limits and profile, and while on, what it measures
 /// and the count it wants.
 /// </summary>
-/// <param name="CpuPercent">Average CPU per ready instance, as a share of the CPU each one requests; null until measured.</param>
+/// <param name="Target">The requests in progress per instance it aims for (ADR-0019, D56).</param>
+/// <param name="InProgress">Requests in progress per instance, averaged over half a minute; null until measured.</param>
 /// <param name="Current">The instances the autoscaler counted when it measured.</param>
 public sealed record Autoscaler(
     bool On,
     ScalingProfile Profile,
     int Min,
     int Max,
-    int TargetCpuPercent,
-    int? CpuPercent = null,
+    double Target,
+    double? InProgress = null,
     int? Current = null,
     int? Wanted = null,
     DateTimeOffset? LastScaled = null);
@@ -184,18 +185,19 @@ public sealed class Instances : IDisposable
         var on = !IsPaused(scaledObject);
         var scaleDown = Number(spec, "advanced", "horizontalPodAutoscalerConfig", "behavior", "scaleDown", "stabilizationWindowSeconds") ?? 300;
         var target = spec.TryGetProperty("triggers", out var triggers)
-            ? triggers.EnumerateArray().Where(trigger => Text(trigger, "type") == "cpu").Select(trigger => Text(trigger, "metadata", "value")).FirstOrDefault()
+            ? triggers.EnumerateArray().Where(trigger => Text(trigger, "type") == "prometheus").Select(trigger => Text(trigger, "metadata", "threshold")).FirstOrDefault()
             : null;
-        var cpu = measured?.Status?.CurrentMetrics?
-            .FirstOrDefault(metric => metric.Resource?.Name == "cpu")?.Resource?.Current?.AverageUtilization;
+        // KEDA hands Kubernetes the total; Kubernetes reports it per instance.
+        var inProgress = measured?.Status?.CurrentMetrics?
+            .FirstOrDefault(metric => metric.External is not null)?.External?.Current?.AverageValue?.ToDecimal();
 
         return new Autoscaler(
             on,
             scaleDown < ScaleDownSeconds(ScalingProfile.Realistic) ? ScalingProfile.Demo : ScalingProfile.Realistic,
             Number(spec, "minReplicaCount") ?? 1,
             Number(spec, "maxReplicaCount") ?? 100,
-            int.TryParse(target, System.Globalization.CultureInfo.InvariantCulture, out var percent) ? percent : 0,
-            on ? cpu : null,
+            double.TryParse(target, System.Globalization.CultureInfo.InvariantCulture, out var perInstance) ? perInstance : 0,
+            on && inProgress is { } value ? (double)value : null,
             on ? measured?.Status?.CurrentReplicas : null,
             on ? measured?.Status?.DesiredReplicas : null,
             on && measured?.Status?.LastScaleTime is { } scaled ? new DateTimeOffset(scaled, TimeSpan.Zero) : null);
