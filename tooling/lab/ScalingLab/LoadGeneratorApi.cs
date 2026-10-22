@@ -39,6 +39,7 @@ public sealed record SecondStats(
     double? LatencyP95Ms,
     double? LatencyP99Ms,
     IReadOnlyDictionary<string, int> CompletedByKind,
+    IReadOnlyDictionary<string, int> FailedByKind,
     IReadOnlyDictionary<string, double?> LatencyP99MsByKind);
 
 public sealed record StatsSnapshot(DateTimeOffset At, LoadSettings Settings, Guid? EventId, int InFlight, IReadOnlyList<SecondStats> Seconds);

@@ -62,7 +62,7 @@ with T10 measured (DP2) and refuses during an on-sale's rush (DP4, D44), a colum
 `docs/feature-flags.md`), the M2 demo (`docs/demos/m2.md`) with its dry run `tooling/tests/Lab.SystemTests` in the
 nightly lab workflow (Q7). D43–D45 were decided while building and wait for the owner's review.
 
-**M3 is in progress** (`docs/milestones/m3.md`, D46–D66, ADR-0055, ADR-0056), decided overnight with the recommended
+**M3 is built** (`docs/milestones/m3.md`, D46–D66, ADR-0055, ADR-0056), decided overnight with the recommended
 answers: the owner asked for M3 to M5 without approval round-trips. Built: three zones and three database instances
 (PL3, DB3), the invariant checker and the failover and zone drills (IC1, FO1), Valkey with browsing's cache (VK1), the
 fan site twice (FS2), PgBouncer and browsing from the replica (PG1, RR1), the observability stack (OB1: Grafana at
@@ -70,7 +70,14 @@ http://localhost:3000, dashboards in `product/deploy/chart/dashboards`), PublicA
 progress (AS2, 0.5 per instance), Toxiproxy with the Scaling Lab's slow database scenario (TX1), the Scaling Lab's Database panel with
 the failover drill (SL3), and check-in (CI3: ticket revocation; the CheckIn module and CheckInApi at http://localhost:5104;
 devices as Keycloak clients), the scanner (SC1: a Blazor WebAssembly PWA at http://localhost:5104/scanner/, deciding
-offline), and T8 measured with 200 simulated door devices (DS1: `tooling/lab/DeviceSimulator`). D67–D72 were decided while building. Decisions continue at D73.
+offline), T8 measured with 200 simulated door devices (DS1: `tooling/lab/DeviceSimulator`), and backups (BK1: the Barman Cloud plugin to
+SeaweedFS; `lab backup`, `lab restore-check`), and the demo (Q8: runbook `docs/demos/m3.md`, dry run `M3DemoDryRunTests`;
+readiness without shared dependencies, D74; availability from a replica without a snapshot, D75). D67–D75 were decided
+while building.
+
+**M4 is planned** (`docs/milestones/m4.md`, D76–D90, ADR-0057, ADR-0058), decided overnight: Kafka (Redpanda) as the
+transport with Protobuf code-first, dead letters, Workers split by configuration, Reporting, event cancellation with refunds
+at the provider's rate, chargebacks, T6 and T9. Decisions continue at D91.
 
 ## Commands
 
@@ -79,7 +86,7 @@ dotnet build product/EventTicketing.slnx            # product only (CI builds to
 dotnet test --solution product/EventTicketing.slnx  # unit + architecture tests (Microsoft.Testing.Platform)
 dotnet test --project dev/AppHost.Tests             # whole system under Aspire; needs Docker
 dotnet run --project dev/AppHost                    # local development
-dotnet run lab.cs -- up | reset | status | check | deploy | flag | down   # the lab cluster (kind); docs/lab.md
+dotnet run lab.cs -- up | reset | status | check | deploy | flag | drill | backup | restore-check | down   # the lab (kind); docs/lab.md
 ```
 
 Package versions live in `Directory.Packages.props`; warnings are errors. EF Core migrations:
@@ -112,7 +119,7 @@ run `bash product/src/Frontends/FanSite/generate-client.sh` and `bash tooling/cl
 | `docs/payments.md` | Payment design: Stripe + LocalPay simulator, consistency flow, failure handling |
 | `docs/architecture/overview.md` | Agreed architecture: modules, hosts, key flows, targets, milestones, repository, Scaling Lab |
 | `docs/adr/` | Architecture decision records, one per agreed decision (index in `README.md`) |
-| `docs/milestones/` | Milestone plans (m1a … m3): scope, decisions, backlog, definition of done, demo script |
+| `docs/milestones/` | Milestone plans (m1a … m4): scope, decisions, backlog, definition of done, demo script |
 | `docs/lab.md` | The lab cluster: commands, addresses, what runs, deploys under load, autoscaling, lessons |
 | `docs/database-changes.md` | Changing the database without downtime: the expand/contract rule and the worked example |
 | `docs/feature-flags.md` | Feature flags: how they work, the flags, adding one |

@@ -27,8 +27,9 @@ internal static class SeatEndpoints
         var events = endpoints.MapGroup("/events/{eventId:guid}").WithTags("Seats");
 
         // Browsing needs no account. From the snapshot when there is one (D53): one query a second for
-        // everyone watching an on-sale, instead of three per request. Otherwise from the database.
-        events.MapGet("/availability", async (Guid eventId, InventoryDbContext db, AvailabilitySnapshots snapshots, CancellationToken cancellationToken) =>
+        // everyone watching an on-sale, instead of three per request. Otherwise from a replica (D75):
+        // it is advice, the hold decides; and without the primary, during a failover, it still answers.
+        events.MapGet("/availability", async (Guid eventId, InventoryReplicaDbContext db, AvailabilitySnapshots snapshots, CancellationToken cancellationToken) =>
                 TypedResults.Ok(await snapshots.ReadAsync(eventId) ?? await AvailabilityQuery.RunAsync(db, eventId, cancellationToken)))
             .AllowAnonymous()
             .WithName("GetAvailability")

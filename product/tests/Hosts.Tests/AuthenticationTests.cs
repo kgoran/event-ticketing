@@ -22,7 +22,7 @@ public sealed class AuthenticationTests
     {
         await using var api = HostUnderTest.Start(host);
 
-        // /alive, not /health: readiness includes the database, which these in-memory hosts don't have.
+        // Liveness; readiness is ReadinessTests'.
         (await api.Client.GetAsync(new Uri("/alive", UriKind.Relative), CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await api.Client.GetAsync(new Uri("/openapi/v1.json", UriKind.Relative), CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
     }

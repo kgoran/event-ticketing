@@ -33,3 +33,11 @@ spec:
     podAntiAffinityType: required
   resources:
     {{- toYaml .Values.resources | nindent 4 }}
+  {{- if .Values.backups.enabled }}
+  # WAL to the object store as it is written, and base backups on demand or on schedule (D65).
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: {{ .Values.name }}-backups
+  {{- end }}
