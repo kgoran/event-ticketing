@@ -1,7 +1,9 @@
-using System.Buffers.Text;
-using System.Security.Cryptography;
+using EventTicketing.Shared.Application.Commands;
 using EventTicketing.Shared.Application.Context;
-using EventTicketing.Ticketing.Domain;
+using EventTicketing.Shared.Domain;
+using EventTicketing.Shared.Infrastructure.Http;
+using EventTicketing.Ticketing.Application.Revocation;
+using EventTicketing.Ticketing.Contracts;
 using EventTicketing.Ticketing.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -24,20 +26,8 @@ public sealed record MyTicket(
     string Code,
     DateTimeOffset IssuedAt);
 
-/// <summary>A JSON Web Key Set (RFC 7517): the public keys that verify an event's ticket codes.</summary>
-public sealed record TicketKeySet(IReadOnlyList<TicketKey> Keys);
-
-/// <summary>An EC public key as a JWK: P-256, for ES256 signatures, named by <paramref name="Kid"/>.</summary>
-public sealed record TicketKey(string Kty, string Crv, string X, string Y, string Kid, string Alg, string Use)
-{
-    internal static TicketKey From(EventKey key)
-    {
-        using var ecdsa = ECDsa.Create();
-        ecdsa.ImportSubjectPublicKeyInfo(key.PublicKey, out _);
-        var point = ecdsa.ExportParameters(includePrivateParameters: false).Q;
-        return new TicketKey("EC", "P-256", Base64Url.EncodeToString(point.X), Base64Url.EncodeToString(point.Y), key.KeyId, "ES256", "sig");
-    }
-}
+/// <summary>Why an admin revokes a ticket (D63), for the record and for TicketsRevoked.</summary>
+public sealed record RevokeTicketRequest(string Reason);
 
 internal static class TicketEndpoints
 {
@@ -73,21 +63,16 @@ internal static class TicketEndpoints
             .Produces<IReadOnlyList<MyTicket>>();
 
         // Public keys only: anyone may verify a ticket, nobody can make one (ADR-0051). The scanner
-        // gets them with the door list (M3); this is the same set in the standard format.
-        endpoints.MapGet("/events/{eventId:guid}/ticket-keys", async (Guid eventId, TicketingDbContext db, HttpResponse response, CancellationToken cancellationToken) =>
+        // gets them with the door list (CheckIn); this is the same set in the standard format.
+        endpoints.MapGet("/events/{eventId:guid}/ticket-keys", async (Guid eventId, ITicketingApi ticketing, HttpResponse response, CancellationToken cancellationToken) =>
             {
-                var keys = await db.EventKeys.AsNoTracking()
-                    .Where(key => key.EventId == eventId)
-                    .OrderBy(key => key.CreatedAt)
-                    .ToListAsync(cancellationToken);
-
-                if (keys.Count == 0)
+                if (await ticketing.KeysAsync(eventId, cancellationToken) is not { } keys)
                 {
                     return Results.NotFound();
                 }
 
                 response.Headers.CacheControl = "public, max-age=300";
-                return Results.Ok(new TicketKeySet([.. keys.Select(TicketKey.From)]));
+                return Results.Ok(keys);
             })
             .AllowAnonymous()
             .WithTags("Tickets")
@@ -95,5 +80,22 @@ internal static class TicketEndpoints
             .WithSummary("The public keys that verify an event's ticket codes, as a JSON Web Key Set")
             .Produces<TicketKeySet>()
             .Produces(StatusCodes.Status404NotFound);
+    }
+
+    public static void MapForAdmins(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapPost("/tickets/{ticketId:guid}/revocation", async (Guid ticketId, RevokeTicketRequest request, ICommandHandler<RevokeTicket, Unit> handler, CancellationToken cancellationToken) =>
+            {
+                var result = await handler.HandleAsync(new RevokeTicket(ticketId, request.Reason), cancellationToken);
+                return result.IsSuccess ? Results.NoContent() : result.Error.ToProblem();
+            })
+            .WithTags("Tickets")
+            .WithName("RevokeTicket")
+            .WithSummary("Revokes a ticket, so the door refuses it once the devices have synced (admins only)")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
     }
 }

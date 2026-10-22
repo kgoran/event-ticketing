@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using EventTicketing.Testing;
@@ -127,6 +128,36 @@ public sealed class TicketingTests(TestSystem system)
         var wrong = new MasterKey(Options.Create(new TicketingOptions { MasterKey = new string('x', 40) }));
         FluentActions.Invoking(() => wrong.Decrypt(stored, keyId)).Should().Throw<CryptographicException>();
         FluentActions.Invoking(() => right.Decrypt(stored, "another-key")).Should().Throw<CryptographicException>();
+    }
+
+    [Fact]
+    public async Task An_admin_revokes_a_ticket_once_and_TicketsRevoked_tells_the_door()
+    {
+        var (sale, fanId, orderId) = await PaidOrderAsync();
+        var ticket = (await TicketsAsync(orderId))[0];
+        var revocation = new Uri($"/tickets/{ticket.Id}/revocation", UriKind.Relative);
+
+        using var fan = system.BackOfficeApi(Callers.Fan(fanId));
+        (await fan.PostAsJsonAsync(revocation, new { reason = "Chargeback" }, Ct)).StatusCode.Should().Be(HttpStatusCode.Forbidden, "only an admin revokes");
+
+        using var admin = system.BackOfficeApi(Callers.Admin());
+        (await admin.PostAsJsonAsync(revocation, new { reason = "" }, Ct)).StatusCode.Should().Be(HttpStatusCode.BadRequest, "a revocation says why");
+        (await admin.PostAsJsonAsync(revocation, new { reason = "Chargeback" }, Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await admin.PostAsJsonAsync(revocation, new { reason = "Chargeback" }, Ct)).StatusCode.Should().Be(HttpStatusCode.Conflict, "a ticket is revoked once");
+        (await admin.PostAsJsonAsync(new Uri($"/tickets/{Guid.NewGuid()}/revocation", UriKind.Relative), new { reason = "Chargeback" }, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        (await system.ScalarAsync<long>("SELECT count(*) FROM ticketing.tickets WHERE id = @p0 AND revoked_at IS NOT NULL", ticket.Id)).Should().Be(1);
+        (await system.ScalarAsync<long>("SELECT count(*) FROM ticketing.tickets WHERE order_id = @p0 AND revoked_at IS NULL", orderId))
+            .Should().Be(1, "the order's other ticket still lets its holder in");
+
+        // One TicketsRevoked, for the door list (CheckIn): which event, which tickets, why.
+        (await system.ScalarAsync<long>(
+            "SELECT count(*) FROM ticketing.outbox_messages WHERE type = 'ticketing.tickets-revoked' AND payload->'ticketIds'->>0 = @p0", ticket.Id.ToString()))
+            .Should().Be(1);
+        (await system.ScalarAsync<string>(
+            "SELECT payload->>'eventId' FROM ticketing.outbox_messages WHERE type = 'ticketing.tickets-revoked' AND payload->'ticketIds'->>0 = @p0", ticket.Id.ToString()))
+            .Should().Be(sale.EventId.ToString());
     }
 
     private async Task<(Sale Sale, string FanId, Guid OrderId)> PaidOrderAsync()

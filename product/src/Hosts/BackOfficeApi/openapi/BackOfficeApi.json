@@ -26,6 +26,81 @@
         }
       }
     },
+    "/tickets/{ticketId}/revocation": {
+      "post": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Revokes a ticket, so the door refuses it once the devices have synced (admins only)",
+        "operationId": "RevokeTicket",
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeTicketRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/venues": {
       "post": {
         "tags": [
@@ -1112,6 +1187,17 @@
           }
         }
       },
+      "RevokeTicketRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "ScheduleOnSaleRequest": {
         "required": [
           "onSaleAt"
@@ -1332,6 +1418,9 @@
   "tags": [
     {
       "name": "EventTicketing.BackOfficeApi"
+    },
+    {
+      "name": "Tickets"
     },
     {
       "name": "Venues"

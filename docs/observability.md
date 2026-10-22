@@ -48,6 +48,7 @@ POST /orders                                       (ASP.NET Core)
 | `eventticketing.inventory.places_held` | counter | — | Places claimed by successful holds |
 | `eventticketing.inventory.swept` | counter | `swept.kind` (seats, holds) | What the sweeper tidied up (ADR-0010) |
 | `eventticketing.tickets.issued` | counter | — | Tickets issued for confirmed orders, one per place (ADR-0051) |
+| `eventticketing.tickets.revoked` | counter | — | Tickets revoked, which the door then refuses (D63) |
 | `eventticketing.notifications.emails` | counter | `email.kind` (tickets, refund), `email.result` (sent, no_address) | Emails sent to fans (ADR-0052) |
 | `eventticketing.orders.transitions` | counter | `order.status` (confirmed, expired, failed, refunding, refunded, refund_failed) | How checkouts end |
 | `eventticketing.payments.webhooks` | counter | `payment.provider`, `webhook.result` (stored, duplicate, invalid_signature) | Webhook traffic, and duplicates dropped |

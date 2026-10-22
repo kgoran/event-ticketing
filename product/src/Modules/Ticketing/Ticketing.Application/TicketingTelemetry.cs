@@ -12,4 +12,8 @@ public static class TicketingTelemetry
     internal static readonly Counter<long> TicketsIssued = Meter.CreateCounter<long>(
         "eventticketing.tickets.issued",
         description: "Tickets issued for confirmed orders, one per place.");
+
+    internal static readonly Counter<long> TicketsRevoked = Meter.CreateCounter<long>(
+        "eventticketing.tickets.revoked",
+        description: "Tickets revoked: they no longer let anyone in (D63).");
 }

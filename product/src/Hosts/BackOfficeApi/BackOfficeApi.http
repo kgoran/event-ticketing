@@ -126,3 +126,12 @@ Content-Type: application/json
 ### Take ben out again; after signing in again, his token no longer carries the organizer
 DELETE {{backOffice}}/organizers/{{organizerId}}/members/{{benMe.response.body.$.userId}}
 Authorization: Bearer {{adam.response.body.$.access_token}}
+
+### M3 (D63): adam, an admin, revokes a ticket: the door refuses it once the devices have synced.
+# A ticket's ID is in PublicApi's GET /tickets for its fan, or in Mailpit's ticket email.
+@ticketId = 00000000-0000-0000-0000-000000000000
+POST {{backOffice}}/tickets/{{ticketId}}/revocation
+Authorization: Bearer {{adam.response.body.$.access_token}}
+Content-Type: application/json
+
+{ "reason": "Chargeback" }

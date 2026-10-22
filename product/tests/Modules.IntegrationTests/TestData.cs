@@ -16,6 +16,9 @@ internal static class Callers
 
     public static string Fan(string? subject = null) =>
         TestTokens.Create(subject ?? "fan-" + Guid.NewGuid().ToString("N"), [Roles.Fan]);
+
+    public static string Admin() =>
+        TestTokens.Create("admin-" + Guid.NewGuid().ToString("N"), [Roles.Admin]);
 }
 
 internal static class Venues
